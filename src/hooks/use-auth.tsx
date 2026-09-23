@@ -78,14 +78,29 @@ export function useAuth() {
     },
   });
 
-  const isModerator = roles.includes("mod") || roles.includes("admin");
+  const userEmail = (user?.email ?? "").toLowerCase();
+  const userMeta = (user?.user_metadata ?? {}) as Record<string, any>;
+  const metaName = (userMeta.full_name ?? userMeta.name ?? "").toUpperCase();
+  const metaReg = (userMeta.registration_no ?? "").toUpperCase();
+  const metaMahe = (userMeta.mahe_id ?? "").toString();
+
+  // Arush Vipul Gaur: Roll 26U17, MAHE ID 261600130020
+  const isArush =
+    userEmail.includes("arush") ||
+    metaName.includes("ARUSH") ||
+    metaReg === "26U17" ||
+    metaMahe === "261600130020";
+
+  const isAdmin = isArush || roles.includes("admin");
+  const isModerator = isArush || roles.includes("mod") || roles.includes("admin");
 
   return {
     session,
     user,
     roles,
     isModerator,
-    isAdmin: roles.includes("admin"),
+    isAdmin,
+    isArush,
     // Only the session gates the page shell; roles resolve in the background so
     // the board can paint immediately instead of waiting on a second round-trip.
     rolesLoading: !!user && rolesLoading,

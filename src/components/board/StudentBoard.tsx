@@ -54,6 +54,7 @@ import { ActivityPanel } from "@/components/board/ActivityPanel";
 import { CalendarPanel } from "@/components/calendar/CalendarPanel";
 import { TimetablePanel } from "@/components/timetable/TimetablePanel";
 import { AttendancePanel } from "@/components/attendance/AttendancePanel";
+import { AdminConsolePanel } from "@/components/admin/AdminConsolePanel";
 import { EmailInboxPanel } from "@/components/board/EmailInboxPanel";
 import { MembersPanel } from "@/components/board/MembersPanel";
 import { FeedbackPanel } from "@/components/board/FeedbackPanel";
@@ -75,7 +76,7 @@ import {
 } from "@/lib/deadlines";
 
 
-type TabKey = "feed" | "calendar" | "timetable" | "quizzes" | "exams" | "grading" | "attendance";
+type TabKey = "feed" | "calendar" | "timetable" | "quizzes" | "exams" | "grading" | "attendance" | "admin";
 
 const QUIZ_TYPES = ["quiz"] as const;
 const MIDTERM_TYPES = ["midterm"] as const;
@@ -95,7 +96,7 @@ const PANEL_TITLES: Record<PanelKey, string> = {
 
 
 export default function StudentBoard({ guestPreview }: { guestPreview?: boolean } = {}) {
-  const { isModerator } = useAuth();
+  const { isModerator, isAdmin, isArush } = useAuth();
   const me = useMe();
   const { batchId, batch, canManage } = useBatch();
   const isMod = canManage || isModerator;
@@ -352,6 +353,9 @@ export default function StudentBoard({ guestPreview }: { guestPreview?: boolean 
     { key: "exams", label: "Exams", icon: <GraduationCap className="size-4" /> },
     { key: "grading", label: "Grading", icon: <Award className="size-4" /> },
     { key: "attendance", label: "Attendance", icon: <UserCheck className="size-4" /> },
+    ...(isAdmin || isArush
+      ? [{ key: "admin" as TabKey, label: "Admin Console", icon: <ShieldCheck className="size-4 text-emerald-400" /> }]
+      : []),
   ];
 
 
@@ -901,6 +905,8 @@ export default function StudentBoard({ guestPreview }: { guestPreview?: boolean 
             {tab === "grading" && <GradingPanel />}
 
             {tab === "attendance" && <AttendancePanel now={now} />}
+
+            {tab === "admin" && <AdminConsolePanel />}
 
           </motion.div>
         </AnimatePresence>

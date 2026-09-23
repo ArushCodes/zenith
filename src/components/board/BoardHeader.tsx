@@ -34,7 +34,7 @@ type Props = {
 };
 
 export function BoardHeader({ menuItems = [], onMenuSelect }: Props) {
-  const { user, isModerator } = useAuth();
+  const { user, isModerator, isAdmin, isArush } = useAuth();
   const me = useMe();
   const { theme, toggle } = useTheme();
 
@@ -79,6 +79,16 @@ export function BoardHeader({ menuItems = [], onMenuSelect }: Props) {
         <div className="flex min-w-0 items-center gap-2 sm:gap-2.5">
           {user && <GlobalSearch />}
           <BatchSelector />
+
+          {(isAdmin || isArush) && (
+            <div
+              title="Master Administrator Mode Active"
+              className="hidden sm:flex items-center gap-1.5 rounded-xl border border-emerald-500/35 bg-emerald-500/10 px-2.5 py-1 font-mono text-[11px] font-bold text-emerald-600 dark:text-emerald-400 shadow-2xs cursor-default"
+            >
+              <ShieldCheck className="size-3.5" />
+              <span>ADMIN</span>
+            </div>
+          )}
 
           <button
             onClick={toggle}

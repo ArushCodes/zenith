@@ -1,0 +1,19 @@
+{
+  "name": "Zenith — TAPMI Student Portal",
+  "short_name": "Zenith",
+  "description": "Real-time timetable, deadlines, attendance analytics, and academic board for TAPMI Manipal IPM students.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#060913",
+  "theme_color": "#060913",
+  "orientation": "portrait-primary",
+  "categories": ["education", "productivity"],
+  "icons": [
+    {
+      "src": "/favicon.ico",
+      "sizes": "64x64 32x32 24x24 16x16",
+      "type": "image/x-icon"
+    }
+  ]
+}

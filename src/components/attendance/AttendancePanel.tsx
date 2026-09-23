@@ -1,7 +1,8 @@
 import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { motion } from "framer-motion";
-import { AlertTriangle, CircleSlash, Download, Search, Users } from "lucide-react";
+import { AlertTriangle, CircleSlash, Download, Palmtree, Search, Users } from "lucide-react";
+import { BunkSimulatorModal } from "@/components/attendance/BunkSimulatorModal";
 import { toast } from "sonner";
 import { db as supabase } from "@/lib/backend";
 import { useAuth } from "@/hooks/use-auth";
@@ -67,6 +68,7 @@ export function AttendancePanel({ now, compact = false }: { now: number; compact
   const [q, setQ] = useState("");
   /** null = overall donut, otherwise a single subject. */
   const [focus, setFocus] = useState<string | null>(null);
+  const [bunkSimOpen, setBunkSimOpen] = useState(false);
 
 
   const { data: sessions = [] } = useQuery(sessionsQuery(batchId));
@@ -303,14 +305,23 @@ export function AttendancePanel({ now, compact = false }: { now: number; compact
   return (
     <section className={compact ? "" : "mt-4"}>
       {!compact && (
-        <div className="mb-4 flex flex-wrap items-center gap-2">
-          <p className="font-mono text-[10px] uppercase tracking-[0.2em] text-cyan">
-            {me.possessive ? `${me.possessive} attendance` : "Attendance"}
-          </p>
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-2.5">
+          <div className="flex flex-wrap items-center gap-2.5">
+            <p className="font-mono text-[10px] uppercase tracking-[0.2em] text-cyan">
+              {me.possessive ? `${me.possessive} attendance` : "Attendance"}
+            </p>
+            <button
+              onClick={() => setBunkSimOpen(true)}
+              className="flex items-center gap-1.5 rounded-xl border border-cyan/35 bg-cyan/10 px-3 py-1 text-xs font-semibold text-cyan shadow-2xs hover:bg-cyan/20 transition-all cursor-pointer"
+            >
+              <Palmtree className="size-3.5" />
+              <span>Can I Sleep In? / Bunk Simulator</span>
+            </button>
+          </div>
           {canManage && (
             <button
               onClick={exportCsv}
-              className="ml-auto flex items-center gap-1.5 rounded-lg bg-surface2 px-2.5 py-1.5 font-mono text-[11px] text-dim ring-1 ring-border hover:text-ink"
+              className="ml-auto flex items-center gap-1.5 rounded-lg bg-surface2 px-2.5 py-1.5 font-mono text-[11px] text-dim ring-1 ring-border hover:text-ink cursor-pointer"
             >
               <Download className="size-3.5" /> Export CSV
             </button>
@@ -490,6 +501,14 @@ export function AttendancePanel({ now, compact = false }: { now: number; compact
 
         {!compact && <PolicyCard />}
       </div>
+
+      <BunkSimulatorModal
+        open={bunkSimOpen}
+        onOpenChange={setBunkSimOpen}
+        sessions={sessions}
+        marks={marks}
+        batchId={batchId ?? undefined}
+      />
     </section>
   );
 }

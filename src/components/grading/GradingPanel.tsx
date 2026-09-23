@@ -1,7 +1,8 @@
 import { useState, useMemo } from "react";
 import { motion } from "framer-motion";
-import { BookOpen, Award, CheckCircle2, ChevronRight, FileText, UserCheck, ShieldAlert, GraduationCap, PieChart } from "lucide-react";
+import { BookOpen, Award, CheckCircle2, ChevronRight, FileText, UserCheck, ShieldAlert, GraduationCap, PieChart, Calculator } from "lucide-react";
 import { Donut } from "@/components/ui/donut";
+import { GpaSimulator } from "@/components/grading/GpaSimulator";
 
 import { autoColor } from "@/lib/courses";
 
@@ -191,6 +192,7 @@ export const IPM1_COURSES: CourseGradingInfo[] = [
 ];
 
 export function GradingPanel() {
+  const [viewMode, setViewMode] = useState<"breakdown" | "simulator">("breakdown");
   const [selectedCode, setSelectedCode] = useState<string>(IPM1_COURSES[0]!.code);
   const [activeSegmentLabel, setActiveSegmentLabel] = useState<string | null>(null);
 
@@ -260,7 +262,41 @@ export function GradingPanel() {
   };
 
   return (
-    <div className="flex flex-col gap-8 py-2">
+    <div className="flex flex-col gap-6 py-2">
+      {/* Subtab View Switcher */}
+      <div className="flex flex-wrap items-center gap-2">
+        <button
+          onClick={() => setViewMode("breakdown")}
+          className={`flex items-center gap-2 rounded-xl px-4 py-2 text-xs font-bold transition-all cursor-pointer ${
+            viewMode === "breakdown"
+              ? "bg-cyan text-white shadow-xs"
+              : "border border-border bg-surface text-dim hover:text-ink hover:bg-surface2"
+          }`}
+        >
+          <PieChart className="size-3.5" />
+          <span>Course Weightages & Schemes</span>
+        </button>
+
+        <button
+          onClick={() => setViewMode("simulator")}
+          className={`flex items-center gap-2 rounded-xl px-4 py-2 text-xs font-bold transition-all cursor-pointer ${
+            viewMode === "simulator"
+              ? "bg-cyan text-white shadow-xs"
+              : "border border-border bg-surface text-dim hover:text-ink hover:bg-surface2"
+          }`}
+        >
+          <Calculator className="size-3.5" />
+          <span>Trimester GPA & Target CGPA Simulator</span>
+          <span className="rounded-md bg-emerald-500/20 px-1.5 py-0.5 text-[9px] font-mono text-emerald-600 dark:text-emerald-400">
+            NEW
+          </span>
+        </button>
+      </div>
+
+      {viewMode === "simulator" ? (
+        <GpaSimulator courses={IPM1_COURSES} />
+      ) : (
+        <div className="flex flex-col gap-8">
       {/* Top Banner Overview */}
       <div className="rounded-3xl border border-border bg-surface p-6 sm:p-8 shadow-sm">
         <div className="flex flex-wrap items-center justify-between gap-6 border-b border-border/60 pb-6">
@@ -515,6 +551,8 @@ export function GradingPanel() {
           </div>
         </div>
       </div>
+      </div>
+      )}
     </div>
   );
 }
