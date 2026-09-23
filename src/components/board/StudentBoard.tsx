@@ -48,6 +48,7 @@ import { EventDrawer } from "@/components/board/EventDrawer";
 import { ApprovalsPanel } from "@/components/board/ApprovalsPanel";
 import { AnnouncementsPanel } from "@/components/board/AnnouncementsPanel";
 import { LiveClassHero } from "@/components/board/LiveClassHero";
+import { LiveClassHud } from "@/components/board/LiveClassHud";
 import { FeedCard, FeedCompactRow } from "@/components/board/FeedCard";
 import { usePersonalChecklist } from "@/hooks/use-personal-checklist";
 import { ActivityPanel } from "@/components/board/ActivityPanel";
@@ -441,6 +442,13 @@ export default function StudentBoard({ guestPreview }: { guestPreview?: boolean 
             )}
           </div>
         </div>
+
+        {/* ── "Up Next" Live Classroom HUD & Countdown ── */}
+        <LiveClassHud
+          sessions={sessions}
+          batchName={batch?.name}
+          onNavigateToTimetable={() => setTab("timetable")}
+        />
 
         {/* ── Compact 48-Hour Urgency Ticker (Only 34px tall, tells EXACTLY what is due!) ── */}
         {recencyBuckets.critical.length > 0 && (

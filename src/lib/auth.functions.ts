@@ -111,6 +111,67 @@ export const requestSignupVerification = createServerFn({ method: "POST" })
     };
   });
 
+export const requestPasswordReset = createServerFn({ method: "POST" })
+  .validator((input: unknown) =>
+    z
+      .object({
+        email: z
+          .string()
+          .trim()
+          .toLowerCase()
+          .refine(
+            (val) => val.endsWith(`@${ALLOWED_DOMAIN}`),
+            `Password resets are restricted to @${ALLOWED_DOMAIN} email addresses.`,
+          ),
+      })
+      .parse(input),
+  )
+  .handler(async ({ data }) => {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { sendOtpEmail } = await import("./mailer.server");
+    const cleanEmail = data.email.trim().toLowerCase();
+
+    // Check if user exists in profiles or auth
+    const { data: profile } = await supabaseAdmin
+      .from("profiles")
+      .select("id, full_name")
+      .eq("email", cleanEmail)
+      .maybeSingle();
+
+    if (!profile) {
+      throw new Error(
+        "No Zenith account found with this email address. Please make sure you entered your registered @learner.manipal.edu address.",
+      );
+    }
+
+    const { data: linkData, error: linkError } = await supabaseAdmin.auth.admin.generateLink({
+      type: "recovery",
+      email: cleanEmail,
+    });
+
+    if (linkError) {
+      throw new Error(linkError.message || "Failed to generate recovery code.");
+    }
+
+    const otp = linkData?.properties?.email_otp;
+    if (!otp) {
+      throw new Error("Unable to generate verification code. Please try again.");
+    }
+
+    const mailResult = await sendOtpEmail({
+      to: cleanEmail,
+      otp,
+      fullName: profile.full_name || "Student",
+      purpose: "reset",
+    });
+
+    return {
+      ok: true,
+      email: cleanEmail,
+      provider: mailResult.provider,
+    };
+  });
+
 export const finalizeSignup = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) =>

@@ -6,7 +6,7 @@ import { Lock, Mail, User, ArrowLeft, CheckCircle2, KeyRound, RotateCw, Edit3, S
 import { db as supabase, backendConfigured } from "@/lib/backend";
 import { batchTreeQuery } from "@/lib/batches";
 import { HierarchyBatchSelector } from "@/components/auth/HierarchyBatchSelector";
-import { requestSignupVerification, finalizeSignup, registerWithRoster } from "@/lib/auth.functions";
+import { requestSignupVerification, finalizeSignup, registerWithRoster, requestPasswordReset } from "@/lib/auth.functions";
 import {
   findStudentInRoster,
   toTitleCase,
@@ -60,9 +60,11 @@ function AuthPage() {
   const navigate = useNavigate();
   const search = Route.useSearch();
   const { theme, toggle: toggleTheme } = useTheme();
-  const [mode, setMode] = useState<"signin" | "signup" | "verify" | "welcome">(search.mode || "signin");
+  const [mode, setMode] = useState<"signin" | "signup" | "verify" | "welcome" | "forgot" | "reset">(search.mode || "signin");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
   const [fullName, setFullName] = useState("");
   const [selectedIpmBatch, setSelectedIpmBatch] = useState<string>(IPM1_BATCH_ID);
   const [showAdvancedHierarchy, setShowAdvancedHierarchy] = useState(false);
@@ -296,6 +298,76 @@ function AuthPage() {
     }
   }
 
+  async function handleRequestReset(e?: React.FormEvent) {
+    if (e) e.preventDefault();
+    const cleanEmail = email.trim().toLowerCase();
+    if (!isAllowedEmail(cleanEmail)) {
+      toast.error(`Please enter a valid @${ALLOWED_DOMAIN} email address.`);
+      return;
+    }
+    setBusy(true);
+    try {
+      await requestPasswordReset({ data: { email: cleanEmail } });
+      toast.success("Recovery code sent! Please check your email inbox.");
+      setMode("reset");
+      setResendCooldown(30);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to send recovery code");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleConfirmReset(e?: React.FormEvent) {
+    if (e) e.preventDefault();
+    const cleanOtp = otp.trim().replace(/\D/g, "");
+    if (cleanOtp.length < 6) {
+      toast.error("Please enter the complete 6-digit recovery code.");
+      return;
+    }
+    if (newPassword.length < 6) {
+      toast.error("Password must be at least 6 characters.");
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      toast.error("Passwords do not match.");
+      return;
+    }
+
+    setBusy(true);
+    try {
+      const cleanEmail = email.trim().toLowerCase();
+      const { data: verifyData, error: verifyErr } = await supabase.auth.verifyOtp({
+        email: cleanEmail,
+        token: cleanOtp,
+        type: "recovery",
+      });
+
+      if (verifyErr) {
+        throw new Error(verifyErr.message || "Invalid or expired recovery code.");
+      }
+
+      if (verifyData.session) {
+        await supabase.auth.setSession(verifyData.session);
+      }
+
+      const { error: updateErr } = await supabase.auth.updateUser({
+        password: newPassword,
+      });
+
+      if (updateErr) {
+        throw new Error(updateErr.message || "Failed to set new password.");
+      }
+
+      toast.success("Password updated successfully! Welcome back.");
+      navigate({ to: "/", replace: true });
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to reset password.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
   return (
     <div className="relative flex min-h-screen items-center justify-center overflow-hidden bg-ground px-4 font-body text-ink py-10">
       <div className="pointer-events-none absolute inset-0">
@@ -328,6 +400,157 @@ function AuthPage() {
             batchName={welcomeInfo.batchName}
             onContinue={() => navigate({ to: "/", replace: true })}
           />
+        ) : mode === "forgot" ? (
+          <div>
+            <div className="mt-4 mb-6">
+              <button
+                type="button"
+                onClick={() => setMode("signin")}
+                className="inline-flex items-center gap-1.5 font-mono text-[11px] uppercase tracking-[0.2em] text-dim hover:text-ink mb-3 transition-colors cursor-pointer"
+              >
+                <ArrowLeft className="size-3" /> Back to Sign In
+              </button>
+              <h1 className="font-display text-2xl sm:text-3xl font-bold tracking-tight text-ink">
+                Reset password
+              </h1>
+              <p className="mt-1 font-mono text-xs text-dim">
+                Enter your registered @learner.manipal.edu address to receive a secure recovery code.
+              </p>
+            </div>
+
+            <form onSubmit={handleRequestReset} className="flex flex-col gap-4">
+              <div>
+                <label
+                  htmlFor="reset-email"
+                  className="block mb-1.5 font-mono text-[10px] uppercase tracking-[0.18em] text-dim"
+                >
+                  Learner Email
+                </label>
+                <div className="relative flex items-center">
+                  <Mail className="absolute left-3 size-4 text-faint pointer-events-none" />
+                  <input
+                    id="reset-email"
+                    type="email"
+                    required
+                    className={fieldClass}
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    placeholder="your.email@learner.manipal.edu"
+                  />
+                </div>
+              </div>
+
+              <button
+                type="submit"
+                disabled={busy}
+                className="mt-2 w-full rounded-xl bg-cyan py-3.5 text-sm font-bold text-ground border-b-2 border-cyan-600 shadow-md shadow-cyan/25 ring-1 ring-cyan/80 hover:bg-cyan/95 active:translate-y-0.5 active:border-b-0 transition-all focus:ring-2 focus:ring-cyan/50 disabled:opacity-60 cursor-pointer"
+              >
+                {busy ? "Sending Code…" : "Send Reset Code →"}
+              </button>
+            </form>
+          </div>
+        ) : mode === "reset" ? (
+          <div>
+            <div className="mt-4 mb-6">
+              <button
+                type="button"
+                onClick={() => setMode("forgot")}
+                className="inline-flex items-center gap-1.5 font-mono text-[11px] uppercase tracking-[0.2em] text-dim hover:text-ink mb-3 transition-colors cursor-pointer"
+              >
+                <ArrowLeft className="size-3" /> Change email
+              </button>
+              <h1 className="font-display text-2xl sm:text-3xl font-bold tracking-tight text-ink">
+                Create new password
+              </h1>
+              <p className="mt-1 font-mono text-xs text-dim">
+                We sent a 6-digit recovery code to <span className="text-cyan font-semibold">{email}</span>.
+              </p>
+            </div>
+
+            <form onSubmit={handleConfirmReset} className="flex flex-col gap-4">
+              <div>
+                <label className="block mb-1.5 font-mono text-[10px] uppercase tracking-[0.18em] text-dim text-center">
+                  6-Digit Recovery Code
+                </label>
+                <div className="flex justify-center my-2">
+                  <InputOTP maxLength={6} value={otp} onChange={(val) => setOtp(val)}>
+                    <InputOTPGroup>
+                      <InputOTPSlot index={0} />
+                      <InputOTPSlot index={1} />
+                      <InputOTPSlot index={2} />
+                    </InputOTPGroup>
+                    <InputOTPSeparator />
+                    <InputOTPGroup>
+                      <InputOTPSlot index={3} />
+                      <InputOTPSlot index={4} />
+                      <InputOTPSlot index={5} />
+                    </InputOTPGroup>
+                  </InputOTP>
+                </div>
+              </div>
+
+              <div>
+                <label
+                  htmlFor="new-password"
+                  className="block mb-1.5 font-mono text-[10px] uppercase tracking-[0.18em] text-dim"
+                >
+                  New Password
+                </label>
+                <div className="relative flex items-center">
+                  <Lock className="absolute left-3 size-4 text-faint pointer-events-none" />
+                  <input
+                    id="new-password"
+                    type="password"
+                    required
+                    className={fieldClass}
+                    value={newPassword}
+                    onChange={(e) => setNewPassword(e.target.value)}
+                    placeholder="Enter new password (min 6 chars)"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label
+                  htmlFor="confirm-password"
+                  className="block mb-1.5 font-mono text-[10px] uppercase tracking-[0.18em] text-dim"
+                >
+                  Confirm Password
+                </label>
+                <div className="relative flex items-center">
+                  <Lock className="absolute left-3 size-4 text-faint pointer-events-none" />
+                  <input
+                    id="confirm-password"
+                    type="password"
+                    required
+                    className={fieldClass}
+                    value={confirmPassword}
+                    onChange={(e) => setConfirmPassword(e.target.value)}
+                    placeholder="Confirm new password"
+                  />
+                </div>
+              </div>
+
+              <button
+                type="submit"
+                disabled={busy}
+                className="mt-2 w-full rounded-xl bg-cyan py-3.5 text-sm font-bold text-ground border-b-2 border-cyan-600 shadow-md shadow-cyan/25 ring-1 ring-cyan/80 hover:bg-cyan/95 active:translate-y-0.5 active:border-b-0 transition-all focus:ring-2 focus:ring-cyan/50 disabled:opacity-60 cursor-pointer"
+              >
+                {busy ? "Updating Password…" : "Update Password & Enter Zenith →"}
+              </button>
+
+              <div className="text-center mt-2">
+                <button
+                  type="button"
+                  disabled={resendCooldown > 0 || busy}
+                  onClick={handleRequestReset}
+                  className="font-mono text-[11px] text-cyan hover:underline disabled:opacity-50 cursor-pointer"
+                >
+                  {resendCooldown > 0 ? `Resend code in ${resendCooldown}s` : "Didn't receive code? Resend"}
+                </button>
+              </div>
+            </form>
+          </div>
         ) : mode !== "verify" ? (
           <>
             <div className="mt-4 mb-6 flex items-start justify-between gap-3">
@@ -404,12 +627,23 @@ function AuthPage() {
                 </div>
 
                 <div>
-                  <label
-                    htmlFor="password"
-                    className="block mb-1.5 font-mono text-[10px] uppercase tracking-[0.18em] text-dim"
-                  >
-                    Password
-                  </label>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <label
+                      htmlFor="password"
+                      className="block font-mono text-[10px] uppercase tracking-[0.18em] text-dim"
+                    >
+                      Password
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setMode("forgot");
+                      }}
+                      className="font-mono text-[10px] text-cyan hover:underline transition-all cursor-pointer"
+                    >
+                      Forgot password?
+                    </button>
+                  </div>
                   <div className="relative flex items-center">
                     <Lock className="absolute left-3 size-4 text-faint pointer-events-none" />
                     <input

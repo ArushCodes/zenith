@@ -15,10 +15,8 @@ import { Route as AuthRouteImport } from './routes/auth'
 import { Route as SitemapDotxmlRouteImport } from './routes/sitemap[.]xml'
 import { Route as AuthenticatedAdminRouteImport } from './routes/_authenticated/admin'
 import { Route as AuthenticatedProfileRouteImport } from './routes/_authenticated/profile'
-import { Route as ApiCalendarRouteImport } from './routes/api/calendar'
 import { Route as ApiPublicEmailIntakeRouteImport } from './routes/api/public/email-intake'
 import { Route as ApiPublicSyncTimetableRouteImport } from './routes/api/public/sync-timetable'
-import { Route as ApiPublicIcsTokenRouteImport } from './routes/api/public/ics/$token'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -49,11 +47,6 @@ const AuthenticatedProfileRoute = AuthenticatedProfileRouteImport.update({
   path: '/profile',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
-const ApiCalendarRoute = ApiCalendarRouteImport.update({
-  id: '/api/calendar',
-  path: '/api/calendar',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const ApiPublicEmailIntakeRoute = ApiPublicEmailIntakeRouteImport.update({
   id: '/api/public/email-intake',
   path: '/api/public/email-intake',
@@ -64,11 +57,6 @@ const ApiPublicSyncTimetableRoute = ApiPublicSyncTimetableRouteImport.update({
   path: '/api/public/sync-timetable',
   getParentRoute: () => rootRouteImport,
 } as any)
-const ApiPublicIcsTokenRoute = ApiPublicIcsTokenRouteImport.update({
-  id: '/api/public/ics/$token',
-  path: '/api/public/ics/$token',
-  getParentRoute: () => rootRouteImport,
-} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -76,10 +64,8 @@ export interface FileRoutesByFullPath {
   '/sitemap.xml': typeof SitemapDotxmlRoute
   '/admin': typeof AuthenticatedAdminRoute
   '/profile': typeof AuthenticatedProfileRoute
-  '/api/calendar': typeof ApiCalendarRoute
   '/api/public/email-intake': typeof ApiPublicEmailIntakeRoute
   '/api/public/sync-timetable': typeof ApiPublicSyncTimetableRoute
-  '/api/public/ics/$token': typeof ApiPublicIcsTokenRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -87,10 +73,8 @@ export interface FileRoutesByTo {
   '/sitemap.xml': typeof SitemapDotxmlRoute
   '/admin': typeof AuthenticatedAdminRoute
   '/profile': typeof AuthenticatedProfileRoute
-  '/api/calendar': typeof ApiCalendarRoute
   '/api/public/email-intake': typeof ApiPublicEmailIntakeRoute
   '/api/public/sync-timetable': typeof ApiPublicSyncTimetableRoute
-  '/api/public/ics/$token': typeof ApiPublicIcsTokenRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -100,10 +84,8 @@ export interface FileRoutesById {
   '/sitemap.xml': typeof SitemapDotxmlRoute
   '/_authenticated/admin': typeof AuthenticatedAdminRoute
   '/_authenticated/profile': typeof AuthenticatedProfileRoute
-  '/api/calendar': typeof ApiCalendarRoute
   '/api/public/email-intake': typeof ApiPublicEmailIntakeRoute
   '/api/public/sync-timetable': typeof ApiPublicSyncTimetableRoute
-  '/api/public/ics/$token': typeof ApiPublicIcsTokenRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -113,10 +95,8 @@ export interface FileRouteTypes {
     | '/sitemap.xml'
     | '/admin'
     | '/profile'
-    | '/api/calendar'
     | '/api/public/email-intake'
     | '/api/public/sync-timetable'
-    | '/api/public/ics/$token'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -124,10 +104,8 @@ export interface FileRouteTypes {
     | '/sitemap.xml'
     | '/admin'
     | '/profile'
-    | '/api/calendar'
     | '/api/public/email-intake'
     | '/api/public/sync-timetable'
-    | '/api/public/ics/$token'
   id:
     | '__root__'
     | '/'
@@ -136,10 +114,8 @@ export interface FileRouteTypes {
     | '/sitemap.xml'
     | '/_authenticated/admin'
     | '/_authenticated/profile'
-    | '/api/calendar'
     | '/api/public/email-intake'
     | '/api/public/sync-timetable'
-    | '/api/public/ics/$token'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -147,10 +123,8 @@ export interface RootRouteChildren {
   AuthenticatedRouteRoute: typeof AuthenticatedRouteRouteWithChildren
   AuthRoute: typeof AuthRoute
   SitemapDotxmlRoute: typeof SitemapDotxmlRoute
-  ApiCalendarRoute: typeof ApiCalendarRoute
   ApiPublicEmailIntakeRoute: typeof ApiPublicEmailIntakeRoute
   ApiPublicSyncTimetableRoute: typeof ApiPublicSyncTimetableRoute
-  ApiPublicIcsTokenRoute: typeof ApiPublicIcsTokenRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -197,13 +171,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedProfileRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
-    '/api/calendar': {
-      id: '/api/calendar'
-      path: '/api/calendar'
-      fullPath: '/api/calendar'
-      preLoaderRoute: typeof ApiCalendarRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/api/public/email-intake': {
       id: '/api/public/email-intake'
       path: '/api/public/email-intake'
@@ -216,13 +183,6 @@ declare module '@tanstack/react-router' {
       path: '/api/public/sync-timetable'
       fullPath: '/api/public/sync-timetable'
       preLoaderRoute: typeof ApiPublicSyncTimetableRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/api/public/ics/$token': {
-      id: '/api/public/ics/$token'
-      path: '/api/public/ics/$token'
-      fullPath: '/api/public/ics/$token'
-      preLoaderRoute: typeof ApiPublicIcsTokenRouteImport
       parentRoute: typeof rootRouteImport
     }
   }
@@ -246,10 +206,8 @@ const rootRouteChildren: RootRouteChildren = {
   AuthenticatedRouteRoute: AuthenticatedRouteRouteWithChildren,
   AuthRoute: AuthRoute,
   SitemapDotxmlRoute: SitemapDotxmlRoute,
-  ApiCalendarRoute: ApiCalendarRoute,
   ApiPublicEmailIntakeRoute: ApiPublicEmailIntakeRoute,
   ApiPublicSyncTimetableRoute: ApiPublicSyncTimetableRoute,
-  ApiPublicIcsTokenRoute: ApiPublicIcsTokenRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

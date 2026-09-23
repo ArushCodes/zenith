@@ -62,6 +62,30 @@ export function bandFor(pct: number): Band {
  *  below 70% = automatic Incomplete. */
 export const SAFE_LINE = 85;
 export const HARD_LINE = 70;
+/** TAPMI 75% Minimum Attendance Debarment Line */
+export const DEBARMENT_LINE = 75;
+
+/**
+ * Calculates consecutive upcoming sessions needed to recover to >= 75% attendance.
+ * Formula: (A + X) / (H + X) >= 0.75  =>  4A + 4X >= 3H + 3X  =>  X >= 3H - 4A
+ */
+export function consecutiveNeededFor75(held: number, attended: number): number {
+  if (held <= 0) return 0;
+  const currentPct = (attended / held) * 100;
+  if (currentPct >= DEBARMENT_LINE) return 0;
+  return Math.max(0, Math.ceil(3 * held - 4 * attended));
+}
+
+/**
+ * Calculates safe classes that can be missed before falling below 75% attendance.
+ * Formula: A / (H + Y) >= 0.75  =>  4A >= 3H + 3Y  =>  3Y <= 4A - 3H  =>  Y <= floor((4A - 3H) / 3)
+ */
+export function safeMissBufferFor75(held: number, attended: number): number {
+  if (held <= 0) return 0;
+  const currentPct = (attended / held) * 100;
+  if (currentPct < DEBARMENT_LINE) return 0;
+  return Math.max(0, Math.floor((4 * attended) / 3 - held));
+}
 
 /** Personal Leave: personal / domestic / medical. Capped at 15% of sessions. */
 export const PL_CAP_PCT = 15;

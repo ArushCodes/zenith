@@ -19,7 +19,6 @@ import { useAuth } from "@/hooks/use-auth";
 import { useBatch } from "@/hooks/use-batch";
 import { SessionEditDialog } from "@/components/calendar/SessionEditDialog";
 import { DeadlineDialog } from "@/components/board/DeadlineDialog";
-import { CalendarExportModal } from "@/components/calendar/CalendarExportModal";
 import {
   attendanceQuery,
   coursesQuery,
@@ -140,7 +139,6 @@ export function TimetablePanel() {
   const [editingSession, setEditingSession] = useState<ClassSession | null>(null);
   const [editingDeadline, setEditingDeadline] = useState<Deadline | null>(null);
   const [deadlineDialogOpen, setDeadlineDialogOpen] = useState(false);
-  const [exportModalOpen, setExportModalOpen] = useState(false);
 
   const runSync = useServerFn(syncTimetableNow);
   const saveFeed = useServerFn(saveIcsUrl);
@@ -271,13 +269,6 @@ export function TimetablePanel() {
         </button>
 
         <div className="ml-auto flex flex-wrap items-center gap-2">
-          <button
-            onClick={() => setExportModalOpen(true)}
-            className="flex items-center gap-1.5 rounded-lg bg-cyan/15 px-2.5 py-1.5 font-mono text-[11px] font-semibold text-cyan ring-1 ring-cyan/30 hover:bg-cyan/25 transition-colors cursor-pointer"
-          >
-            <Calendar className="size-3.5" />
-            <span>Subscribe (.ics)</span>
-          </button>
           {(isMember || canManage) && (
             <button
               onClick={() => setShowCustom((v) => !v)}
@@ -641,14 +632,6 @@ export function TimetablePanel() {
           />
         </>
       )}
-      <CalendarExportModal
-        open={exportModalOpen}
-        onOpenChange={setExportModalOpen}
-        batchName={batch?.name ?? "Zenith Batch"}
-        batchId={batchId ?? undefined}
-        sessions={sessions}
-        deadlines={deadlines}
-      />
     </section>
   );
 }

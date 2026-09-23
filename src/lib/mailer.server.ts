@@ -4,14 +4,24 @@ interface SendOtpOptions {
   to: string;
   otp: string;
   fullName?: string;
+  purpose?: "signup" | "reset";
 }
 
-export async function sendOtpEmail({ to, otp, fullName }: SendOtpOptions): Promise<{ success: boolean; provider: string; error?: string }> {
+export async function sendOtpEmail({
+  to,
+  otp,
+  fullName,
+  purpose = "signup",
+}: SendOtpOptions): Promise<{ success: boolean; provider: string; error?: string }> {
   const formattedOtp = otp.length === 8 ? `${otp.slice(0, 4)} ${otp.slice(4)}` : otp;
   const greeting = fullName ? `Hi ${fullName.split(" ")[0]},` : "Hi student,";
 
-  const subject = `Your Zenith verification code: ${otp}`;
-  const textBody = `${greeting}\n\nYour Zenith verification code is: ${otp}\n\nEnter this code on the Zenith sign-up screen to verify your email address.\nThis code will expire in 15 minutes.\n\nIf you did not request this verification, you can safely ignore this email.\n\n— Zenith (TAPMI Manipal)`;
+  const isReset = purpose === "reset";
+  const actionLabel = isReset ? "password reset" : "verification";
+  const subject = `Your Zenith ${actionLabel} code: ${otp}`;
+  const textBody = isReset
+    ? `${greeting}\n\nYour Zenith password reset code is: ${otp}\n\nEnter this code on the Zenith screen to set your new password.\nThis code will expire in 15 minutes.\n\nIf you did not request a password reset, you can safely ignore this email.\n\n— Zenith (TAPMI Manipal)`
+    : `${greeting}\n\nYour Zenith verification code is: ${otp}\n\nEnter this code on the Zenith sign-up screen to verify your email address.\nThis code will expire in 15 minutes.\n\nIf you did not request this verification, you can safely ignore this email.\n\n— Zenith (TAPMI Manipal)`;
 
   const htmlBody = `
 <!DOCTYPE html>

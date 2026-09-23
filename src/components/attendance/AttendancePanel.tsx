@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { motion } from "framer-motion";
-import { AlertTriangle, CircleSlash, Download, Palmtree, Search, Users } from "lucide-react";
+import { AlertTriangle, CircleSlash, Download, Palmtree, Search, ShieldAlert, ShieldCheck, Users } from "lucide-react";
 import { BunkSimulatorModal } from "@/components/attendance/BunkSimulatorModal";
 import { toast } from "sonner";
 import { db as supabase } from "@/lib/backend";
@@ -18,6 +18,7 @@ import {
 import {
   BAND_COPY,
   CONTINUOUS_ABSENCE_DAYS,
+  DEBARMENT_LINE,
   HARD_LINE,
   LEAVE_COPY,
   PENALTY_PER_SESSION,
@@ -25,6 +26,7 @@ import {
   SAFE_LINE,
   TOTAL_CAP_PCT,
   bandFor,
+  consecutiveNeededFor75,
   eligibilityMisses,
   gradePenalty,
   leaveCaps,
@@ -32,6 +34,7 @@ import {
   meterColor,
   plannedFor,
   resolveMarks,
+  safeMissBufferFor75,
   safeMisses,
   sessionSubject,
   shortSubject,
@@ -192,6 +195,11 @@ export function AttendancePanel({ now, compact = false }: { now: number; compact
         const attended = Math.max(0, planned - absent);
         const caps = leaveCaps(planned, v.pl);
         const pct = planned ? Math.round((attended / planned) * 100) : 100;
+        const held = v.held;
+        const attendedHeld = Math.max(0, held - absent);
+        const heldPct = held > 0 ? Math.round((attendedHeld / held) * 100) : 100;
+        const recoveryNeeded = consecutiveNeededFor75(held, attendedHeld);
+        const safeBuffer = safeMissBufferFor75(held, attendedHeld);
         return {
           course,
           planned,
@@ -199,8 +207,12 @@ export function AttendancePanel({ now, compact = false }: { now: number; compact
           il: v.il,
           absent,
           present: v.present,
-          held: v.held,
+          held,
           attended,
+          attendedHeld,
+          heldPct,
+          recoveryNeeded,
+          safeBuffer,
           caps,
           plLeft: caps.personal - v.pl,
           ilLeft: caps.institutional - v.il,
@@ -212,6 +224,9 @@ export function AttendancePanel({ now, compact = false }: { now: number; compact
         };
       })
       .sort((a, b) => {
+        const aRisk = a.held > 0 && a.heldPct < DEBARMENT_LINE;
+        const bRisk = b.held > 0 && b.heldPct < DEBARMENT_LINE;
+        if (aRisk !== bRisk) return aRisk ? -1 : 1;
         if (a.safeLeft !== b.safeLeft) return b.safeLeft - a.safeLeft;
         return b.pct - a.pct;
       });
@@ -302,6 +317,15 @@ export function AttendancePanel({ now, compact = false }: { now: number; compact
 
   const focused = focus ? stats.find((s) => s.course === focus) : null;
 
+  const criticalDebarment = useMemo(
+    () => stats.filter((s) => s.held > 0 && s.heldPct < DEBARMENT_LINE),
+    [stats],
+  );
+  const borderlineDebarment = useMemo(
+    () => stats.filter((s) => s.held > 0 && s.heldPct >= DEBARMENT_LINE && s.heldPct < 80),
+    [stats],
+  );
+
   return (
     <section className={compact ? "" : "mt-4"}>
       {!compact && (
@@ -343,6 +367,120 @@ export function AttendancePanel({ now, compact = false }: { now: number; compact
           </p>
         ) : (
           <>
+            {/* ---------------- 75% Debarment Risk Radar ---------------- */}
+            {criticalDebarment.length > 0 ? (
+              <div className="relative overflow-hidden rounded-2xl border border-rose/40 bg-gradient-to-br from-rose/15 via-rose/5 to-surface p-4 sm:p-5 shadow-lg shadow-rose/10 ring-1 ring-rose/30">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div className="flex items-center gap-2.5">
+                    <div className="flex size-9 items-center justify-center rounded-xl bg-rose/20 text-rose border border-rose/30 shrink-0">
+                      <ShieldAlert className="size-5" />
+                    </div>
+                    <div>
+                      <h4 className="font-display text-sm sm:text-base font-bold text-rose flex items-center gap-2">
+                        <span>75% Debarment Risk Alert</span>
+                        <span className="rounded-full bg-rose/20 px-2 py-0.5 font-mono text-[10px] font-extrabold text-rose">
+                          {criticalDebarment.length} Subject{criticalDebarment.length > 1 ? "s" : ""} Below 75%
+                        </span>
+                      </h4>
+                      <p className="font-sans text-xs text-dim">
+                        TAPMI regulations mandate &ge;75% attendance for end-term exam eligibility.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="mt-3.5 space-y-2">
+                  {criticalDebarment.map((s) => (
+                    <div
+                      key={s.course}
+                      className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 rounded-xl border border-rose/25 bg-surface/80 p-3"
+                    >
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-2">
+                          <span
+                            className="size-2 rounded-full shrink-0"
+                            style={{ backgroundColor: autoColor(s.course) }}
+                          />
+                          <span className="font-display text-xs sm:text-sm font-bold text-ink truncate">
+                            {s.course}
+                          </span>
+                          <span className="rounded-md bg-rose/15 px-2 py-0.5 font-mono text-[11px] font-extrabold text-rose border border-rose/30">
+                            {s.heldPct}%
+                          </span>
+                        </div>
+                        <p className="mt-0.5 text-[11px] text-dim font-mono">
+                          {s.attendedHeld} attended of {s.held} held ({s.absent} missed)
+                        </p>
+                      </div>
+
+                      <div className="shrink-0">
+                        <div className="rounded-lg bg-rose/15 border border-rose/30 px-3 py-1.5">
+                          <span className="block font-mono text-[10px] font-bold uppercase tracking-wider text-rose">
+                            Recovery Required
+                          </span>
+                          <span className="font-display text-xs font-extrabold text-rose">
+                            Attend next {s.recoveryNeeded} consecutive class{s.recoveryNeeded === 1 ? "" : "es"}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : borderlineDebarment.length > 0 ? (
+              <div className="relative overflow-hidden rounded-2xl border border-amber-500/30 bg-gradient-to-br from-amber-500/10 via-amber-500/5 to-surface p-4 shadow-sm ring-1 ring-amber-500/20">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div className="flex items-center gap-2.5">
+                    <div className="flex size-8 items-center justify-center rounded-xl bg-amber-500/15 text-amber-500 border border-amber-500/30 shrink-0">
+                      <ShieldAlert className="size-4" />
+                    </div>
+                    <div>
+                      <h4 className="font-display text-sm font-bold text-ink flex items-center gap-2">
+                        <span>Borderline Debarment Watch</span>
+                        <span className="rounded-full bg-amber-500/15 px-2 py-0.5 font-mono text-[10px] font-bold text-amber-500">
+                          {borderlineDebarment.length} Course{borderlineDebarment.length > 1 ? "s" : ""} Borderline
+                        </span>
+                      </h4>
+                      <p className="font-sans text-xs text-dim">
+                        Attendance is between 75% and 79%. Missing additional classes may trigger debarment.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {borderlineDebarment.map((s) => (
+                    <div
+                      key={s.course}
+                      className="flex items-center gap-2 rounded-lg border border-amber-500/25 bg-surface/90 px-3 py-1.5 text-xs"
+                    >
+                      <span
+                        className="size-1.5 rounded-full shrink-0"
+                        style={{ backgroundColor: autoColor(s.course) }}
+                      />
+                      <span className="font-semibold text-ink">{shortSubject(s.course, 20)}</span>
+                      <span className="font-mono font-bold text-amber-500">{s.heldPct}%</span>
+                      <span className="text-dim font-mono text-[11px]">
+                        · Buffer: {s.safeBuffer} {s.safeBuffer === 1 ? "miss" : "misses"}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : (
+              <div className="flex items-center justify-between gap-3 rounded-2xl border border-emerald-500/25 bg-emerald-500/[0.06] px-4 py-2.5">
+                <div className="flex items-center gap-2">
+                  <ShieldCheck className="size-4 text-emerald-500 shrink-0" />
+                  <span className="font-sans text-xs font-semibold text-ink">
+                    75% Debarment Radar: All courses meet or exceed minimum eligibility requirements.
+                  </span>
+                </div>
+                <span className="hidden sm:inline font-mono text-[10px] font-bold text-emerald-600 dark:text-emerald-400">
+                  &ge; 75% SAFE
+                </span>
+              </div>
+            )}
+
             {/* ---------------- Hero ---------------- */}
             <div className="rounded-2xl bg-surface p-4 sm:p-5 ring-1 ring-border">
               <div className={`flex flex-col items-center ${compact ? "gap-4" : "gap-6 sm:flex-row sm:items-center"}`}>
@@ -651,6 +789,11 @@ type SubjectStat = {
   safeLeft: number;
   eligibleLeft: number;
   pct: number;
+  held: number;
+  attendedHeld: number;
+  heldPct: number;
+  recoveryNeeded: number;
+  safeBuffer: number;
 };
 
 /** One subject as a calm list row: name, plain-English status, meter, number. */
@@ -710,6 +853,23 @@ function SubjectRow({
         <span className={`mt-0.5 block truncate font-mono text-[10px] leading-relaxed ${status.tone}`}>
           {status.text}
         </span>
+        {row.held > 0 && (
+          <span className="mt-1 flex flex-wrap items-center gap-1.5">
+            {row.heldPct < DEBARMENT_LINE ? (
+              <span className="inline-flex items-center gap-1 rounded-md bg-rose/15 border border-rose/30 px-1.5 py-0.5 font-mono text-[9px] font-bold text-rose">
+                🚨 {row.heldPct}% held · Need +{row.recoveryNeeded} consecutive
+              </span>
+            ) : row.heldPct < 80 ? (
+              <span className="inline-flex items-center gap-1 rounded-md bg-amber-500/15 border border-amber-500/30 px-1.5 py-0.5 font-mono text-[9px] font-semibold text-amber-500">
+                ⚡ {row.heldPct}% held · Buffer: {row.safeBuffer} {row.safeBuffer === 1 ? "miss" : "misses"}
+              </span>
+            ) : (
+              <span className="inline-flex items-center gap-1 font-mono text-[9px] text-faint">
+                Held: {row.attendedHeld}/{row.held} ({row.heldPct}%) · Buffer: {row.safeBuffer}
+              </span>
+            )}
+          </span>
+        )}
       </span>
 
       {!compact && (
