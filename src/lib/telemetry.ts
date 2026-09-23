@@ -15,11 +15,11 @@ export interface ActivityLogItem {
   userId: string;
   userName: string;
   userEmail: string;
-  userRoll?: string;
-  batchId?: string;
+  userRoll?: string | undefined;
+  batchId?: string | undefined;
   action: TelemetryAction;
   title: string;
-  details?: Record<string, any>;
+  details?: Record<string, any> | undefined;
   createdAt: string;
 }
 
@@ -69,8 +69,8 @@ export async function trackActivity({
 
     const metadata = (user.user_metadata ?? {}) as Record<string, any>;
     const userName =
-      metadata.full_name ?? metadata.name ?? user.email?.split("@")[0] ?? "Student";
-    const userRoll = metadata.registration_no ?? "";
+      metadata["full_name"] ?? metadata["name"] ?? user.email?.split("@")[0] ?? "Student";
+    const userRoll = metadata["registration_no"] ?? "";
 
     const item: ActivityLogItem = {
       id: `act_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
@@ -89,9 +89,8 @@ export async function trackActivity({
     recordLocalActivity(item);
 
     // 2. Persist to Supabase if activity log table is present
-    void supabase
-      .from("user_activity_logs" as any)
-      .insert({
+    void Promise.resolve(
+      supabase.from("user_activity_logs" as any).insert({
         user_id: user.id,
         user_name: userName,
         user_email: user.email,
@@ -101,11 +100,10 @@ export async function trackActivity({
         title,
         details: details ?? {},
         created_at: item.createdAt,
-      } as any)
-      .then(() => {})
-      .catch(() => {
-        // Table might not exist yet; safe to ignore
-      });
+      } as any),
+    ).catch(() => {
+      // Table might not exist yet; safe to ignore
+    });
   } catch {
     // Non-blocking telemetry
   }

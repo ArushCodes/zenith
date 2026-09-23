@@ -1,5 +1,6 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
+import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 
 const ALLOWED_DOMAIN = "learner.manipal.edu";
 
@@ -111,6 +112,7 @@ export const requestSignupVerification = createServerFn({ method: "POST" })
   });
 
 export const finalizeSignup = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
   .validator((input: unknown) =>
     z
       .object({
@@ -122,12 +124,36 @@ export const finalizeSignup = createServerFn({ method: "POST" })
       })
       .parse(input),
   )
-  .handler(async ({ data }) => {
-    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+  .handler(async ({ data, context }) => {
+    // 1. Enforce caller authorization matches payload
+    if (context.userId !== data.userId) {
+      throw new Error("Forbidden: Account identity mismatch.");
+    }
     const cleanEmail = data.email.trim().toLowerCase();
+    if (context.claims.email && context.claims.email.toLowerCase() !== cleanEmail) {
+      throw new Error("Forbidden: Email identity mismatch.");
+    }
+
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const cleanRoll = data.rollNo ? data.rollNo.trim().toUpperCase() : undefined;
 
-    // Upsert profile
+    // 2. Prevent roll number hijacking
+    if (cleanRoll) {
+      const { data: existingRoll } = await supabaseAdmin
+        .from("profiles")
+        .select("id")
+        .eq("registration_no", cleanRoll)
+        .neq("id", data.userId)
+        .maybeSingle();
+
+      if (existingRoll) {
+        throw new Error(
+          `Student roll number '${cleanRoll}' has already been registered with another account.`,
+        );
+      }
+    }
+
+    // 3. Upsert profile
     await supabaseAdmin.from("profiles").upsert(
       {
         id: data.userId,
@@ -138,7 +164,7 @@ export const finalizeSignup = createServerFn({ method: "POST" })
       { onConflict: "id" },
     );
 
-    // Upsert approved batch membership
+    // 4. Upsert approved batch membership
     await supabaseAdmin.from("batch_memberships").upsert(
       {
         user_id: data.userId,

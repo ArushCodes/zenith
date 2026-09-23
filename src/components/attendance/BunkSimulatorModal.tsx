@@ -96,7 +96,7 @@ export function BunkSimulatorModal({
 
     return sessions.filter((s) => {
       if (!isTeachingClass(s)) return false;
-      const t = new Date(s.starts_at).getTime();
+      const t = new Date(s.start_at).getTime();
       return t >= start && t <= end;
     });
   }, [sessions, startDate, endDate]);
@@ -117,13 +117,14 @@ export function BunkSimulatorModal({
     // Index all sessions that have occurred so far or are scheduled
     for (const s of sessions) {
       if (!isTeachingClass(s)) return map;
-      const key = subjectKeyOf(s.subject_name || "General");
+      const subj = s.course_name || s.title || "General";
+      const key = subjectKeyOf(subj);
       const existing = map.get(key) || {
-        subject: s.subject_name || "General",
+        subject: subj,
         attended: 0,
         scheduled: 0,
         absent: 0,
-        plannedTotal: plannedFor(s.subject_name || "General", 24),
+        plannedTotal: plannedFor(subj, 24),
       };
       existing.scheduled += 1;
       map.set(key, existing);
@@ -133,11 +134,12 @@ export function BunkSimulatorModal({
     for (const m of marks) {
       const s = sessions.find((x) => x.id === m.session_id);
       if (!s) continue;
-      const key = subjectKeyOf(s.subject_name || "General");
+      const subj = s.course_name || s.title || "General";
+      const key = subjectKeyOf(subj);
       const item = map.get(key);
       if (!item) continue;
-      if (m.status === "attended") item.attended += 1;
-      if (m.status === "absent" || m.status === "pl" || m.status === "il") item.absent += 1;
+      if (m.status === "present" || m.status === "late") item.attended += 1;
+      if (m.status === "absent") item.absent += 1;
     }
 
     return map;
@@ -147,7 +149,8 @@ export function BunkSimulatorModal({
   const simulationResults = useMemo(() => {
     const subjectMissCounts = new Map<string, number>();
     for (const s of impactedSessions) {
-      const key = subjectKeyOf(s.subject_name || "General");
+      const subj = s.course_name || s.title || "General";
+      const key = subjectKeyOf(subj);
       subjectMissCounts.set(key, (subjectMissCounts.get(key) || 0) + 1);
     }
 

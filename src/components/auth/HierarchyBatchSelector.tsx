@@ -105,12 +105,15 @@ export function HierarchyBatchSelector({
       setSelectedProg(activeBatch.programme_name || "");
     } else if (hierarchy.length > 0 && !selectedUni) {
       // Auto-set the top university if only 1 exists
-      if (hierarchy.length === 1) {
-        setSelectedUni(hierarchy[0].name);
-        if (hierarchy[0].schools.length === 1) {
-          setSelectedSchool(hierarchy[0].schools[0].name);
-          if (hierarchy[0].schools[0].programmes.length === 1) {
-            setSelectedProg(hierarchy[0].schools[0].programmes[0].name);
+      const firstUni = hierarchy[0];
+      if (hierarchy.length === 1 && firstUni) {
+        setSelectedUni(firstUni.name);
+        const firstSchool = firstUni.schools[0];
+        if (firstUni.schools.length === 1 && firstSchool) {
+          setSelectedSchool(firstSchool.name);
+          const firstProg = firstSchool.programmes[0];
+          if (firstSchool.programmes.length === 1 && firstProg) {
+            setSelectedProg(firstProg.name);
           }
         }
       }
@@ -128,10 +131,12 @@ export function HierarchyBatchSelector({
   function handleUniSelect(uniName: string) {
     setSelectedUni(uniName);
     const u = hierarchy.find((item) => item.name === uniName);
-    if (u && u.schools.length === 1) {
-      setSelectedSchool(u.schools[0].name);
-      if (u.schools[0].programmes.length === 1) {
-        setSelectedProg(u.schools[0].programmes[0].name);
+    const firstSchool = u?.schools[0];
+    if (u && u.schools.length === 1 && firstSchool) {
+      setSelectedSchool(firstSchool.name);
+      const firstProg = firstSchool.programmes[0];
+      if (firstSchool.programmes.length === 1 && firstProg) {
+        setSelectedProg(firstProg.name);
       } else {
         setSelectedProg("");
       }
@@ -145,8 +150,9 @@ export function HierarchyBatchSelector({
   function handleSchoolSelect(schoolName: string) {
     setSelectedSchool(schoolName);
     const s = schoolOptions.find((item) => item.name === schoolName);
-    if (s && s.programmes.length === 1) {
-      setSelectedProg(s.programmes[0].name);
+    const firstProg = s?.programmes[0];
+    if (s && s.programmes.length === 1 && firstProg) {
+      setSelectedProg(firstProg.name);
     } else {
       setSelectedProg("");
     }

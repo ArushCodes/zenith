@@ -24,7 +24,7 @@ export const BATCH_STORAGE_KEY = "mahe.batch";
 export function formatBatchLabel(batch: { name: string; start_year?: number | null; end_year?: number | null }) {
   const cleaned = batch.name.replace(/^MAHE\s+TAPMI\s*-\s*/i, "").trim();
   const match = cleaned.match(/^(IPM\s*\d+)(?:\s*\((.*?)\))?/i);
-  const code = match ? match[1].toUpperCase() : cleaned;
+  const code = match?.[1] ? match[1].toUpperCase() : cleaned;
   const years = batch.start_year && batch.end_year 
     ? `${batch.start_year}–${batch.end_year}`
     : match?.[2] || "";

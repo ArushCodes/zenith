@@ -123,7 +123,7 @@ export function normalizeDob(input?: string | null): string {
 
   // YYYY-MM-DD or YYYY/MM/DD
   const isoMatch = s.match(/^(\d{4})[-/.](\d{1,2})[-/.](\d{1,2})$/);
-  if (isoMatch) {
+  if (isoMatch && isoMatch[1] && isoMatch[2] && isoMatch[3]) {
     const y = isoMatch[1];
     const m = isoMatch[2].padStart(2, "0");
     const d = isoMatch[3].padStart(2, "0");
@@ -132,7 +132,7 @@ export function normalizeDob(input?: string | null): string {
 
   // DD-MM-YYYY or DD/MM/YYYY
   const dmyMatch = s.match(/^(\d{1,2})[-/.](\d{1,2})[-/.](\d{4})$/);
-  if (dmyMatch) {
+  if (dmyMatch && dmyMatch[1] && dmyMatch[2] && dmyMatch[3]) {
     const d = dmyMatch[1].padStart(2, "0");
     const m = dmyMatch[2].padStart(2, "0");
     const y = dmyMatch[3];

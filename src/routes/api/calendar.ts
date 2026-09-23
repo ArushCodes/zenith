@@ -37,11 +37,11 @@ export const Route = createFileRoute("/api/calendar")({
 
         const { data: batch } = await supabaseAdmin
           .from("batches")
-          .select("id, name, programme_name")
+          .select("id, name")
           .eq("id", batchId)
           .maybeSingle();
 
-        const batchLabel = batch ? `${batch.programme_name || ""} ${batch.name || ""}`.trim() : "Zenith Batch";
+        const batchLabel = batch?.name ? batch.name.trim() : "Zenith Batch";
 
         const [{ data: sessions }, { data: deadlines }] = await Promise.all([
           supabaseAdmin
@@ -72,13 +72,15 @@ export const Route = createFileRoute("/api/calendar")({
           const end = new Date(s.end_at);
           if (isNaN(start.getTime()) || isNaN(end.getTime())) continue;
 
+          const sessionTitle =
+            (s as unknown as { subject_name?: string }).subject_name || s.course_name || s.title;
           lines.push(
             "BEGIN:VEVENT",
             `UID:zenith-session-${s.id}@zenithfor.me`,
             `DTSTAMP:${now}`,
             `DTSTART:${formatIcsDate(start)}`,
             `DTEND:${formatIcsDate(end)}`,
-            `SUMMARY:${esc(s.course_code ? `${s.course_code}: ${s.subject_name || s.title}` : s.title)}`,
+            `SUMMARY:${esc(s.course_code ? `${s.course_code}: ${sessionTitle}` : sessionTitle)}`,
             `LOCATION:${esc(s.classroom ?? "Academic Block")}`,
             `DESCRIPTION:${esc(
               [

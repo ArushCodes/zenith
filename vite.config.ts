@@ -26,7 +26,7 @@ export default defineConfig(() => ({
     }),
     react(),
     nitro({
-      preset: process.env.NITRO_PRESET || "node-server",
+      preset: process.env["NITRO_PRESET"] || "node-server",
     }),
   ],
 }));

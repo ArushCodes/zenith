@@ -16,11 +16,11 @@ import {
 interface VerificationWelcomeScreenProps {
   fullName: string;
   rollNo: string;
-  maheId?: string;
-  university?: string;
-  college?: string;
-  course?: string;
-  batchName?: string;
+  maheId?: string | undefined;
+  university?: string | undefined;
+  college?: string | undefined;
+  course?: string | undefined;
+  batchName?: string | undefined;
   onContinue: () => void;
 }
 

@@ -26,8 +26,8 @@ import {
 import { VerificationWelcomeScreen } from "@/components/auth/VerificationWelcomeScreen";
 
 export const Route = createFileRoute("/auth")({
-  validateSearch: (search: Record<string, unknown>) => ({
-    mode: (search.mode === "signup" ? "signup" : "signin") as "signin" | "signup",
+  validateSearch: (search: Record<string, unknown>): { mode?: "signin" | "signup" } => ({
+    mode: search["mode"] === "signup" ? "signup" : "signin",
   }),
   head: () => ({
     meta: [
@@ -76,11 +76,11 @@ function AuthPage() {
   const [welcomeInfo, setWelcomeInfo] = useState<{
     fullName: string;
     rollNo: string;
-    maheId?: string;
-    university?: string;
-    college?: string;
-    course?: string;
-    batchName?: string;
+    maheId?: string | undefined;
+    university?: string | undefined;
+    college?: string | undefined;
+    course?: string | undefined;
+    batchName?: string | undefined;
   } | null>(null);
 
   // Live matching against official TAPMI roster (12-digit MAHE Roll No. + DOB)
@@ -239,6 +239,9 @@ function AuthPage() {
 
       const userId = verifyData.user?.id || verifyData.session?.user?.id;
       const targetBatchId = batchId || selectedIpmBatch;
+      if (verifyData.session) {
+        await supabase.auth.setSession(verifyData.session);
+      }
       if (userId) {
         await finalizeSignup({
           data: {
@@ -802,7 +805,7 @@ function AuthPage() {
 
                     <button
                       type="submit"
-                      disabled={busy || (regNo.length === 12 && dob && !candidate)}
+                      disabled={busy || Boolean(regNo.length === 12 && dob && !candidate)}
                       className="mt-2 w-full rounded-xl bg-cyan py-3.5 text-sm font-bold text-ground border-b-2 border-cyan-600 shadow-md shadow-cyan/25 ring-1 ring-cyan/80 hover:bg-cyan/95 active:translate-y-0.5 active:border-b-0 transition-all focus:ring-2 focus:ring-cyan/50 disabled:opacity-50 cursor-pointer"
                     >
                       {busy

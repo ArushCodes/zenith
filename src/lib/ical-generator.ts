@@ -51,13 +51,13 @@ export function generateIcalFeed({
   // 1. Sessions / Lectures
   for (const s of sessions) {
     if (!isTeachingClass(s) && !s.title) continue;
-    const start = new Date(s.starts_at);
-    const end = new Date(s.ends_at);
+    const start = new Date(s.start_at);
+    const end = new Date(s.end_at);
     if (isNaN(start.getTime()) || isNaN(end.getTime())) continue;
 
-    const title = s.course_code
-      ? `${s.course_code}: ${s.subject_name || s.title}`
-      : s.subject_name || s.title;
+    const sessionName =
+      (s as unknown as { subject_name?: string }).subject_name || s.course_name || s.title;
+    const title = s.course_code ? `${s.course_code}: ${sessionName}` : sessionName;
 
     lines.push("BEGIN:VEVENT");
     lines.push(`UID:zenith-session-${s.id}@zenithfor.me`);

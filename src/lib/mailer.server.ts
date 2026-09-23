@@ -65,23 +65,23 @@ export async function sendOtpEmail({ to, otp, fullName }: SendOtpOptions): Promi
 </html>
 `;
 
-  const mailDriver = process.env.MAIL_DRIVER || (process.env.SMTP_HOST ? "smtp" : "resend");
+  const mailDriver = process.env["MAIL_DRIVER"] || (process.env["SMTP_HOST"] ? "smtp" : "resend");
 
   // 1. If SMTP driver selected or available first (Google SMTP bypasses Microsoft Defender new-domain quarantine)
-  if (mailDriver === "smtp" && process.env.SMTP_HOST) {
+  if (mailDriver === "smtp" && process.env["SMTP_HOST"]) {
     try {
       const transporter = nodemailer.createTransport({
-        host: process.env.SMTP_HOST,
-        port: Number(process.env.SMTP_PORT || 587),
-        secure: Number(process.env.SMTP_PORT) === 465,
+        host: process.env["SMTP_HOST"],
+        port: Number(process.env["SMTP_PORT"] || 587),
+        secure: Number(process.env["SMTP_PORT"]) === 465,
         auth: {
-          user: process.env.SMTP_USER,
-          pass: process.env.SMTP_PASS?.replace(/\s+/g, ""),
+          user: process.env["SMTP_USER"],
+          pass: process.env["SMTP_PASS"]?.replace(/\s+/g, ""),
         },
       });
 
       await transporter.sendMail({
-        from: process.env.SMTP_FROM || `"Zenith" <${process.env.SMTP_USER}>`,
+        from: process.env["SMTP_FROM"] || `"Zenith" <${process.env["SMTP_USER"]}>`,
         to,
         subject,
         text: textBody,
@@ -95,10 +95,10 @@ export async function sendOtpEmail({ to, otp, fullName }: SendOtpOptions): Promi
   }
 
   // 2. Try Resend if configured or requested
-  const resendApiKey = process.env.RESEND_API_KEY;
+  const resendApiKey = process.env["RESEND_API_KEY"];
   if (resendApiKey) {
     try {
-      const fromEmail = process.env.EMAIL_FROM || "Zenith <noreply@zenithfor.me>";
+      const fromEmail = process.env["EMAIL_FROM"] || "Zenith <noreply@zenithfor.me>";
       const res = await fetch("https://api.resend.com/emails", {
         method: "POST",
         headers: {
@@ -126,20 +126,20 @@ export async function sendOtpEmail({ to, otp, fullName }: SendOtpOptions): Promi
   }
 
   // 3. Fallback to SMTP if Resend wasn't chosen or failed
-  if (process.env.SMTP_HOST) {
+  if (process.env["SMTP_HOST"]) {
     try {
       const transporter = nodemailer.createTransport({
-        host: process.env.SMTP_HOST,
-        port: Number(process.env.SMTP_PORT || 587),
-        secure: Number(process.env.SMTP_PORT) === 465,
+        host: process.env["SMTP_HOST"],
+        port: Number(process.env["SMTP_PORT"] || 587),
+        secure: Number(process.env["SMTP_PORT"]) === 465,
         auth: {
-          user: process.env.SMTP_USER,
-          pass: process.env.SMTP_PASS?.replace(/\s+/g, ""),
+          user: process.env["SMTP_USER"],
+          pass: process.env["SMTP_PASS"]?.replace(/\s+/g, ""),
         },
       });
 
       await transporter.sendMail({
-        from: process.env.SMTP_FROM || `"Zenith" <${process.env.SMTP_USER}>`,
+        from: process.env["SMTP_FROM"] || `"Zenith" <${process.env["SMTP_USER"]}>`,
         to,
         subject,
         text: textBody,

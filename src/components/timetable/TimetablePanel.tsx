@@ -214,7 +214,7 @@ export function TimetablePanel() {
       }
     }
 
-    if (showEvents && viewFilter !== "holidays") {
+    if (showEvents) {
       for (const d of deadlines) {
         const start = new Date(d.due_at);
         if (start < monthStart || start >= monthEnd) continue;
