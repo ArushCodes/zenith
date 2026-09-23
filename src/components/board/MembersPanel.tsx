@@ -1,0 +1,290 @@
+import { useMemo, useState } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { motion } from "framer-motion";
+import { ShieldPlus, ShieldMinus, Trash2, UserPlus } from "lucide-react";
+import { toast } from "sonner";
+import { db as supabase } from "@/lib/backend";
+import { useAuth } from "@/hooks/use-auth";
+import { useBatch } from "@/hooks/use-batch";
+import { directoryQuery, type DirectoryRow, type Membership } from "@/lib/batches";
+
+type Row = DirectoryRow;
+
+const ROLE_LABEL: Record<string, string> = {
+  student: "Student",
+  mod: "Class rep / moderator",
+  admin: "Administrator",
+};
+
+export function MembersPanel() {
+  const { batchId, canManage, isMember } = useBatch();
+  const queryClient = useQueryClient();
+  const { data: members = [], isLoading } = useQuery(directoryQuery(isMember));
+
+  const update = useMutation({
+    mutationFn: async ({ id, patch }: { id: string; patch: Partial<Membership> }) => {
+      const { error } = await supabase
+        .from("batch_memberships")
+        .update({ ...patch, decided_at: new Date().toISOString() })
+        .eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["member-directory"] });
+      toast.success("Membership updated");
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const remove = useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase.from("batch_memberships").delete().eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["member-directory"] });
+      toast.success("Member removed");
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  /** Everyone in the batch is a member — there is no approval queue any more. */
+  const groups = useMemo(() => {
+    const live = (members as Row[]).filter(
+      (m) => m.status !== "removed" && m.status !== "rejected",
+    );
+    const map = new Map<string, Row[]>();
+    for (const m of live) {
+      const key = m.batches?.name ?? "Other batches";
+      map.set(key, [...(map.get(key) ?? []), m]);
+    }
+    for (const list of map.values())
+      list.sort((a, b) =>
+        (a.profiles?.full_name ?? a.profiles?.email ?? "").localeCompare(
+          b.profiles?.full_name ?? b.profiles?.email ?? "",
+        ),
+      );
+    return [...map.entries()].sort(([a], [b]) => a.localeCompare(b));
+  }, [members]);
+  const total = groups.reduce((a, [, list]) => a + list.length, 0);
+
+  if (!isMember) return null;
+  if (isLoading)
+    return <p className="mt-6 text-center font-mono text-xs text-faint">Loading members…</p>;
+
+
+  function Person({ m }: { m: Row }) {
+    const name = m.profiles?.full_name ?? m.profiles?.email ?? "Unknown member";
+    return (
+      <motion.div
+        layout
+        className="flex flex-wrap items-center gap-3 rounded-xl bg-surface px-3 py-3 ring-1 ring-border"
+      >
+        <span className="grid size-9 shrink-0 place-items-center rounded-xl bg-cyan/12 font-display text-[12px] font-semibold text-cyan">
+          {name
+            .split(/[\s@.]+/)
+            .filter(Boolean)
+            .slice(0, 2)
+            .map((w) => w[0]?.toUpperCase())
+            .join("")}
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className="block truncate font-display text-sm font-semibold">{name}</span>
+          <span className="block truncate font-mono text-[11px] text-dim">
+            {m.profiles?.email ?? "—"}
+          </span>
+          <span className="mt-1 flex flex-wrap gap-1.5">
+            <span className="rounded-md bg-cyan/12 px-1.5 py-0.5 font-mono text-[10px] text-cyan">
+              {ROLE_LABEL[m.role] ?? m.role}
+            </span>
+            {m.batches?.name && (
+              <span className="rounded-md bg-surface2 px-1.5 py-0.5 font-mono text-[10px] text-dim">
+                {m.batches.name}
+              </span>
+            )}
+            {m.profiles?.section && (
+              <span className="rounded-md bg-surface2 px-1.5 py-0.5 font-mono text-[10px] text-dim">
+                Section {m.profiles.section}
+              </span>
+            )}
+            {m.profiles?.registration_no && (
+              <span className="rounded-md bg-surface2 px-1.5 py-0.5 font-mono text-[10px] text-faint">
+                {m.profiles.registration_no}
+              </span>
+            )}
+          </span>
+        </span>
+
+        {canManage && m.batch_id === batchId && (
+          <>
+            {m.role === "student" ? (
+              <button
+                onClick={() => update.mutate({ id: m.id, patch: { role: "mod" } })}
+                className="flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 font-mono text-[11px] text-cyan ring-1 ring-border"
+              >
+                <ShieldPlus className="size-3.5" /> Make moderator
+              </button>
+            ) : m.role === "mod" ? (
+              <button
+                onClick={() => update.mutate({ id: m.id, patch: { role: "student" } })}
+                className="flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 font-mono text-[11px] text-dim ring-1 ring-border"
+              >
+                <ShieldMinus className="size-3.5" /> Demote
+              </button>
+            ) : null}
+            <button
+              onClick={() => {
+                if (window.confirm(`Are you sure you want to remove ${name} from this batch?`)) {
+                  remove.mutate(m.id);
+                }
+              }}
+              aria-label="Remove member"
+              className="rounded-lg p-1.5 text-dim ring-1 ring-border transition-colors hover:text-rose"
+            >
+              <Trash2 className="size-3.5" />
+            </button>
+          </>
+        )}
+      </motion.div>
+    );
+  }
+
+  return (
+    <div className="mt-4">
+      {canManage && <GrantAccess />}
+      <div className="mb-2 flex items-center gap-3">
+        <p className="font-mono text-[10px] uppercase tracking-[0.2em] text-cyan">Directory</p>
+        <span className="h-px flex-1 bg-border" />
+        <p className="font-mono text-[10px] text-faint">{total}</p>
+      </div>
+      {total === 0 ? (
+        <p className="py-3 font-mono text-[11px] text-faint">No members yet.</p>
+      ) : (
+        groups.map(([batchName, list]) => (
+          <section key={batchName} className="mb-6">
+            <p className="mb-2 font-mono text-[10px] uppercase tracking-[0.18em] text-dim">
+              {batchName} · {list.length}
+            </p>
+            <div className="flex flex-col gap-2">
+              {list.map((m) => (
+                <Person key={m.id} m={m} />
+              ))}
+            </div>
+          </section>
+        ))
+      )}
+    </div>
+  );
+}
+
+
+/** Moderator-side: add anyone by email and hand out elevated access. */
+function GrantAccess() {
+  const { batchId } = useBatch();
+  const { isAdmin } = useAuth();
+  const queryClient = useQueryClient();
+  const [email, setEmail] = useState("");
+  const [role, setRole] = useState<"student" | "mod" | "admin">("student");
+  const [siteAdmin, setSiteAdmin] = useState(false);
+
+  const grant = useMutation({
+    mutationFn: async () => {
+      if (!batchId) throw new Error("Pick a batch first");
+      const target = email.trim().toLowerCase();
+      if (!target) throw new Error("Enter an email");
+      const { data: profile, error: lookupError } = await supabase
+        .from("profiles")
+        .select("id, email")
+        .ilike("email", target)
+        .maybeSingle();
+      if (lookupError) throw lookupError;
+      if (!profile) throw new Error("No account with that email — ask them to sign up first");
+
+      const { error } = await supabase.from("batch_memberships").upsert(
+        {
+          batch_id: batchId,
+          user_id: profile.id,
+          role,
+          status: "approved",
+          decided_at: new Date().toISOString(),
+        },
+        { onConflict: "batch_id,user_id" },
+      );
+      if (error) throw error;
+
+      if (siteAdmin && isAdmin) {
+        const { error: roleError } = await supabase
+          .from("user_roles")
+          .insert({ user_id: profile.id, role: "admin" });
+        if (roleError && !roleError.message.includes("duplicate")) throw roleError;
+      }
+    },
+    onSuccess: () => {
+      setEmail("");
+      setSiteAdmin(false);
+      queryClient.invalidateQueries({ queryKey: ["member-directory"] });
+      toast.success("Access granted");
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  return (
+    <motion.section
+      initial={{ opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.32, ease: [0.22, 1, 0.36, 1] }}
+      className="mb-6 rounded-2xl bg-surface p-4 ring-1 ring-border"
+    >
+      <div className="flex items-center gap-2">
+        <UserPlus className="size-4 text-cyan" />
+        <h3 className="font-display text-sm font-semibold">Grant access</h3>
+      </div>
+      <p className="mt-1 font-mono text-[11px] text-dim">
+        People can't request access themselves — add them here.
+      </p>
+
+      <div className="mt-3 flex flex-wrap gap-2">
+        <input
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          placeholder="someone@learner.manipal.edu"
+          className="min-w-[14rem] flex-1 rounded-lg bg-ground px-3 py-2 text-sm text-ink outline-none ring-1 ring-border placeholder:text-faint focus:ring-cyan/50"
+        />
+        <div className="flex gap-1.5">
+          {(isAdmin ? (["student", "mod", "admin"] as const) : (["student", "mod"] as const)).map((r) => (
+            <motion.button
+              key={r}
+              whileTap={{ scale: 0.95 }}
+              onClick={() => setRole(r)}
+              className={`rounded-lg px-2.5 py-2 font-mono text-[11px] uppercase tracking-wide ring-1 transition-colors ${
+                role === r ? "bg-cyan/15 text-cyan ring-cyan/40" : "text-dim ring-border"
+              }`}
+            >
+              {r}
+            </motion.button>
+          ))}
+        </div>
+        <motion.button
+          whileTap={{ scale: 0.96 }}
+          disabled={grant.isPending}
+          onClick={() => grant.mutate()}
+          className="rounded-lg bg-cyan px-4 py-2 font-mono text-[11px] uppercase tracking-wide text-ground disabled:opacity-60"
+        >
+          {grant.isPending ? "Adding…" : "Add"}
+        </motion.button>
+      </div>
+
+      {isAdmin && (
+        <label className="mt-3 flex items-center gap-2 font-mono text-[11px] text-dim">
+          <input
+            type="checkbox"
+            checked={siteAdmin}
+            onChange={(e) => setSiteAdmin(e.target.checked)}
+            className="size-3.5 accent-cyan"
+          />
+          Also make them a site-wide admin (every batch)
+        </label>
+      )}
+    </motion.section>
+  );
+}

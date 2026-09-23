@@ -1,0 +1,44 @@
+import { createFileRoute } from "@tanstack/react-router";
+
+/** Scheduled Registro timetable sync. Called by the scheduler with the cron secret. */
+export const Route = createFileRoute("/api/public/sync-timetable")({
+  server: {
+    handlers: {
+      POST: async ({ request }) => {
+        const secret = process.env["CRON_SECRET"] ?? process.env["LOVABLE_CRON_SECRET"];
+        const provided =
+          request.headers.get("x-cron-secret") ??
+          request.headers.get("authorization")?.replace("Bearer ", "");
+        if (!secret || provided !== secret) {
+          return new Response(JSON.stringify({ error: "Unauthorized" }), {
+            status: 401,
+            headers: { "Content-Type": "application/json" },
+          });
+        }
+
+        const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+        const { syncBatch } = await import("@/lib/ics-sync.server");
+
+        const { data: feeds } = await supabaseAdmin
+          .from("batches")
+          .select("id")
+          .not("ics_url", "is", null)
+          .limit(50);
+
+        const results: { batch_id: string; result: string }[] = [];
+        for (const row of feeds ?? []) {
+          try {
+            results.push({ batch_id: row.id, result: await syncBatch(row.id) });
+          } catch (err) {
+            results.push({
+              batch_id: row.id,
+              result: `error: ${err instanceof Error ? err.message : String(err)}`,
+            });
+          }
+        }
+
+        return Response.json({ ok: true, batches: results.length, results });
+      },
+    },
+  },
+});

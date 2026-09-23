@@ -1,0 +1,873 @@
+import { useMemo, useState } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { motion } from "framer-motion";
+import { AlertTriangle, CircleSlash, Download, Search, Users } from "lucide-react";
+import { toast } from "sonner";
+import { db as supabase } from "@/lib/backend";
+import { useAuth } from "@/hooks/use-auth";
+import { useBatch } from "@/hooks/use-batch";
+import { useMe } from "@/hooks/use-me";
+import {
+  attendanceQuery,
+  batchMembersQuery,
+  sessionsQuery,
+  type AttendanceMark,
+  type ClassSession,
+} from "@/lib/batches";
+import {
+  BAND_COPY,
+  CONTINUOUS_ABSENCE_DAYS,
+  HARD_LINE,
+  LEAVE_COPY,
+  PENALTY_PER_SESSION,
+  PL_CAP_PCT,
+  SAFE_LINE,
+  TOTAL_CAP_PCT,
+  bandFor,
+  eligibilityMisses,
+  gradePenalty,
+  leaveCaps,
+  longestAbsenceRun,
+  meterColor,
+  plannedFor,
+  resolveMarks,
+  safeMisses,
+  sessionSubject,
+  shortSubject,
+  trimesterEnd,
+  untilReset,
+  type LeaveType,
+} from "@/lib/attendance";
+import { Donut } from "@/components/ui/donut";
+import { SessionMeta } from "@/components/common/SessionMeta";
+import { isTeachingClass, sessionLabel, autoColor } from "@/lib/courses";
+
+
+const termFmt = new Intl.DateTimeFormat("en-GB", {
+  day: "2-digit",
+  month: "short",
+  year: "numeric",
+});
+
+const timeFmt = new Intl.DateTimeFormat("en-GB", {
+  weekday: "short",
+  day: "2-digit",
+  month: "short",
+  hour: "2-digit",
+  minute: "2-digit",
+  hour12: false,
+});
+
+export function AttendancePanel({ now, compact = false }: { now: number; compact?: boolean }) {
+  const { user } = useAuth();
+  const me = useMe();
+  const { batchId, batch, canManage, isMember } = useBatch();
+  const queryClient = useQueryClient();
+  const [browse, setBrowse] = useState(false);
+  const [q, setQ] = useState("");
+  /** null = overall donut, otherwise a single subject. */
+  const [focus, setFocus] = useState<string | null>(null);
+
+
+  const { data: sessions = [] } = useQuery(sessionsQuery(batchId));
+  const { data: marks = [] } = useQuery(attendanceQuery(batchId, isMember));
+  const { data: members = [] } = useQuery(batchMembersQuery(batchId, canManage));
+
+  const mark = useMutation({
+    mutationFn: async (input: {
+      session: ClassSession;
+      userId: string;
+      /** null clears an existing mark (tap the active button again). */
+      status: AttendanceMark["status"] | null;
+      source: AttendanceMark["mark_source"];
+      leave?: LeaveType;
+    }) => {
+      if (input.status === null) {
+        const { error } = await supabase
+          .from("attendance_marks")
+          .delete()
+          .eq("session_id", input.session.id)
+          .eq("user_id", input.userId)
+          .eq("mark_source", input.source);
+        if (error) throw error;
+        return "cleared" as const;
+      }
+      const { error } = await supabase.from("attendance_marks").upsert(
+        {
+          session_id: input.session.id,
+          batch_id: input.session.batch_id,
+          user_id: input.userId,
+          status: input.status,
+          mark_source: input.source,
+          leave_type: input.leave ?? "personal",
+          marked_by: user!.id,
+        },
+        { onConflict: "session_id,user_id,mark_source" },
+      );
+      if (error) throw error;
+      return "saved" as const;
+    },
+    onSuccess: (res) => {
+      queryClient.invalidateQueries({ queryKey: ["attendance", batchId] });
+      toast.success(res === "cleared" ? "Attendance cleared" : "Attendance recorded");
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+
+  /** Attendance is only for actual classes — calendar milestones, holidays and
+   *  assessments such as quizzes or exams never appear as subjects. The rule
+   *  lives in lib/courses so every batch and every page agrees. */
+  const classes = useMemo(() => sessions.filter(isTeachingClass), [sessions]);
+
+
+  /** Any class from the timetable, newest first, searchable. */
+  const browsable = useMemo(() => {
+    const needle = q.trim().toLowerCase();
+
+    return classes
+      .filter((s) =>
+        !needle
+          ? true
+          : [s.title, s.course_name, s.short_name, s.faculty_name, s.classroom]
+              .filter(Boolean)
+              .some((v) => String(v).toLowerCase().includes(needle)),
+      )
+      .sort((a, b) => new Date(b.start_at).getTime() - new Date(a.start_at).getTime());
+  }, [classes, q]);
+
+  const myMarks = useMemo(() => {
+    const map = new Map<string, AttendanceMark>();
+    for (const m of marks) if (m.user_id === user?.id) map.set(`${m.session_id}-${m.mark_source}`, m);
+    return map;
+  }, [marks, user?.id]);
+
+  /** Marks that count as a leave, resolved rep-over-self, keyed by session. */
+  const resolvedMine = useMemo(() => resolveMarks(marks, user?.id), [marks, user?.id]);
+
+  const absentIds = useMemo(() => {
+    const set = new Set<string>();
+    for (const [id, m] of resolvedMine) if (m.status === "absent") set.add(id);
+    return set;
+  }, [resolvedMine]);
+
+  /** Per-course stats following the IPM handbook: leaves are split into
+   *  Personal and Institutional, each capped at 15% of the course's sessions,
+   *  with 30% as the absolute combined wall. */
+  const stats = useMemo(() => {
+    const sessionById = new Map(classes.map((s) => [s.id, s]));
+
+    const scheduled = new Map<string, number>();
+    for (const s of classes) {
+      const key = sessionSubject(s);
+      scheduled.set(key, (scheduled.get(key) ?? 0) + 1);
+    }
+
+    type Row = { held: number; pl: number; il: number; present: number };
+    const rows = new Map<string, Row>();
+    for (const key of scheduled.keys()) rows.set(key, { held: 0, pl: 0, il: 0, present: 0 });
+    for (const s of classes) {
+      if (new Date(s.end_at).getTime() > now) continue;
+      rows.get(sessionSubject(s))!.held += 1;
+    }
+    for (const [sessionId, m] of resolvedMine) {
+      const s = sessionById.get(sessionId);
+      if (!s) continue;
+      const row = rows.get(sessionSubject(s));
+      if (!row) continue;
+      if (m.status !== "absent") {
+        row.present += 1;
+        continue;
+      }
+      if (m.leave_type === "institutional") row.il += 1;
+      else row.pl += 1;
+    }
+
+    return [...rows.entries()]
+      .map(([course, v]) => {
+        const planned = plannedFor(course, scheduled.get(course) ?? v.held);
+        const absent = v.pl + v.il;
+        const attended = Math.max(0, planned - absent);
+        const caps = leaveCaps(planned, v.pl);
+        const pct = planned ? Math.round((attended / planned) * 100) : 100;
+        return {
+          course,
+          planned,
+          pl: v.pl,
+          il: v.il,
+          absent,
+          present: v.present,
+          held: v.held,
+          attended,
+          caps,
+          plLeft: caps.personal - v.pl,
+          ilLeft: caps.institutional - v.il,
+          totalLeft: caps.total - absent,
+          safeLeft: safeMisses(planned) - absent,
+          eligibleLeft: eligibilityMisses(planned) - absent,
+          penalty: gradePenalty(planned, absent),
+          pct,
+        };
+      })
+      .sort((a, b) => {
+        if (a.safeLeft !== b.safeLeft) return b.safeLeft - a.safeLeft;
+        return b.pct - a.pct;
+      });
+  }, [resolvedMine, classes, now]);
+
+  /** The leave budget belongs to the current trimester — its end is the last
+   *  class on the calendar, and the budget resets after it. */
+  const termEnd = useMemo(() => trimesterEnd(classes, now), [classes, now]);
+
+  /** More than 13 continuous calendar days absent forces a withdrawal. */
+  const longestRun = useMemo(
+    () => longestAbsenceRun(classes, (s) => absentIds.has(s.id), now),
+    [classes, absentIds, now],
+  );
+
+  /** Donut source: one subject when focused, else the whole trimester. */
+  const overall = useMemo(() => {
+    const rows = focus ? stats.filter((s) => s.course === focus) : stats;
+    const planned = rows.reduce((a, s) => a + s.planned, 0);
+    const pl = rows.reduce((a, s) => a + s.pl, 0);
+    const il = rows.reduce((a, s) => a + s.il, 0);
+    const absent = pl + il;
+    const attended = Math.max(0, planned - absent);
+    const caps = leaveCaps(planned, pl);
+    return {
+      planned,
+      pl,
+      il,
+      absent,
+      caps,
+      plLeft: caps.personal - pl,
+      ilLeft: caps.institutional - il,
+      totalLeft: caps.total - absent,
+      safeLeft: safeMisses(planned) - absent,
+      eligibleLeft: eligibilityMisses(planned) - absent,
+      penalty: gradePenalty(planned, absent),
+      pct: planned ? Math.round((attended / planned) * 100) : 100,
+    };
+  }, [stats, focus]);
+
+
+  const conflicts = useMemo(() => {
+    const bySession = new Map<string, AttendanceMark[]>();
+    for (const m of marks) bySession.set(`${m.session_id}|${m.user_id}`, [
+      ...(bySession.get(`${m.session_id}|${m.user_id}`) ?? []),
+      m,
+    ]);
+    return [...bySession.values()].filter(
+      (list) => list.length > 1 && new Set(list.map((m) => m.status)).size > 1,
+    );
+  }, [marks]);
+
+  function exportCsv() {
+    const sessionById = new Map(classes.map((s) => [s.id, s]));
+    const rows = [["Student", "Email", "Class", "Start", "Status", "Source", "Reason"]];
+    const nameOf = new Map(
+      members.map((m) => [m.user_id, m.profiles?.full_name ?? m.profiles?.email ?? m.user_id]),
+    );
+    const emailOf = new Map(members.map((m) => [m.user_id, m.profiles?.email ?? ""]));
+    for (const m of marks) {
+      const s = sessionById.get(m.session_id);
+      rows.push([
+        String(nameOf.get(m.user_id) ?? m.user_id),
+        String(emailOf.get(m.user_id) ?? ""),
+        s?.title ?? "",
+        s?.start_at ?? "",
+        m.status,
+        m.mark_source,
+        m.reason ?? "",
+      ]);
+    }
+    const csv = rows.map((r) => r.map((c) => `"${c.replace(/"/g, '""')}"`).join(",")).join("\n");
+    const url = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" }));
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `attendance-${batch?.slug ?? "batch"}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  if (!isMember)
+    return (
+      <p className="mt-10 text-center font-mono text-xs text-faint">
+        {me.name ? `${me.name}, attendance` : "Attendance"} is visible to approved batch members.
+        Request access from the batch selector.
+      </p>
+    );
+
+  const focused = focus ? stats.find((s) => s.course === focus) : null;
+
+  return (
+    <section className={compact ? "" : "mt-4"}>
+      {!compact && (
+        <div className="mb-4 flex flex-wrap items-center gap-2">
+          <p className="font-mono text-[10px] uppercase tracking-[0.2em] text-cyan">
+            {me.possessive ? `${me.possessive} attendance` : "Attendance"}
+          </p>
+          {canManage && (
+            <button
+              onClick={exportCsv}
+              className="ml-auto flex items-center gap-1.5 rounded-lg bg-surface2 px-2.5 py-1.5 font-mono text-[11px] text-dim ring-1 ring-border hover:text-ink"
+            >
+              <Download className="size-3.5" /> Export CSV
+            </button>
+          )}
+        </div>
+      )}
+
+      <div className="flex flex-col gap-4">
+        {conflicts.length > 0 && canManage && (
+          <p className="flex items-center gap-2 rounded-lg bg-evt-quiz/10 px-3 py-2 font-mono text-[11px] text-evt-quiz ring-1 ring-evt-quiz/30">
+            <AlertTriangle className="size-3.5" /> {conflicts.length} record(s) where a self-mark and
+            a rep mark disagree.
+          </p>
+        )}
+
+        {stats.length === 0 ? (
+          <p className="mt-6 text-center font-mono text-xs text-faint">
+            {me.name ? `${me.name}, no classes on record yet.` : "No classes on record yet."}
+          </p>
+        ) : (
+          <>
+            {/* ---------------- Hero ---------------- */}
+            <div className="rounded-2xl bg-surface p-4 sm:p-5 ring-1 ring-border">
+              <div className={`flex flex-col items-center ${compact ? "gap-4" : "gap-6 sm:flex-row sm:items-center"}`}>
+                <div className="shrink-0">
+                  <Donut
+                    value={overall.pct}
+                    color={meterColor(overall.pct)}
+                    size={compact ? 136 : 156}
+                    thresholds={[HARD_LINE, SAFE_LINE]}
+                    label={`${overall.pct}%`}
+                    sub={focused ? shortSubject(focused.course, 14) : "attended"}
+                  />
+                </div>
+
+                <div className="min-w-0 flex-1 w-full">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <h3 className="min-w-0 truncate font-display text-xl font-semibold leading-tight">
+                      {focused ? shortSubject(focused.course, compact ? 20 : 28) : "All subjects"}
+                    </h3>
+                    <BandChip pct={overall.pct} />
+                    {focused && (
+                      <button
+                        onClick={() => setFocus(null)}
+                        className="ml-auto shrink-0 rounded-lg px-2 py-1 font-mono text-[10px] text-faint ring-1 ring-border hover:text-ink"
+                      >
+                        Show all
+                      </button>
+                    )}
+                  </div>
+
+                  <p className="mt-2 text-xs sm:text-sm leading-relaxed text-dim">
+                    {overall.safeLeft >= 0 ? (
+                      <>
+                        You can still miss{" "}
+                        <span className="font-semibold text-ink">{overall.safeLeft}</span>{" "}
+                        {overall.safeLeft === 1 ? "class" : "classes"} before grade cuts begin.
+                      </>
+                    ) : overall.eligibleLeft >= 0 ? (
+                      <>
+                        <span className="font-semibold text-amber">
+                          −{overall.penalty.toFixed(1)} grade points
+                        </span>{" "}
+                        so far · {overall.eligibleLeft} more{" "}
+                        {overall.eligibleLeft === 1 ? "miss" : "misses"} before you lose exam
+                        eligibility.
+                      </>
+                    ) : (
+                      <span className="font-semibold text-rose">
+                        Below the {HARD_LINE}% eligibility line — Incomplete (I).
+                      </span>
+                    )}
+                  </p>
+
+                  <div className="mt-4 grid grid-cols-3 gap-2">
+                    <StatTile label="Attended" value={overall.planned - overall.absent} />
+                    <StatTile label="Missed" value={overall.absent} />
+                    <StatTile label="Scheduled" value={overall.planned} />
+                  </div>
+
+                  <Rail pct={overall.pct} labels />
+
+                  <div className={`mt-5 grid gap-x-6 gap-y-3 ${compact ? "grid-cols-1" : "sm:grid-cols-2"}`}>
+                    <LeaveBar type="personal" used={overall.pl} cap={overall.caps.personal} />
+                    <LeaveBar
+                      type="institutional"
+                      used={overall.il}
+                      cap={overall.caps.institutional}
+                    />
+                  </div>
+
+                  {termEnd && (
+                    <p className="mt-3 font-mono text-[10px] leading-relaxed text-faint">
+                      Budget runs to {termFmt.format(new Date(termEnd))} · resets in{" "}
+                      {untilReset(termEnd, now)}
+                    </p>
+                  )}
+
+                  {longestRun.days > CONTINUOUS_ABSENCE_DAYS && (
+                    <p className="mt-3 flex items-start gap-2 rounded-lg bg-rose/10 px-2.5 py-2 font-mono text-[10px] leading-relaxed text-rose ring-1 ring-rose/30">
+                      <AlertTriangle className="mt-0.5 size-3.5 shrink-0" />
+                      <span className="min-w-0 flex-1">
+                        {longestRun.days} continuous days absent (
+                        {termFmt.format(new Date(longestRun.from))} –{" "}
+                        {termFmt.format(new Date(longestRun.to))}). Over {CONTINUOUS_ABSENCE_DAYS} days
+                        without the Director's approval means withdrawal.
+                      </span>
+                    </p>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* ---------------- Subject list ---------------- */}
+            <div className="overflow-hidden rounded-2xl bg-surface ring-1 ring-border">
+              <div className="flex items-center gap-2 border-b border-border px-4 py-2.5">
+                <p className="font-mono text-[10px] uppercase tracking-[0.2em] text-faint">
+                  By subject
+                </p>
+                <p className="ml-auto font-mono text-[10px] text-faint">
+                  {HARD_LINE}% eligibility · {SAFE_LINE}% no penalty
+                </p>
+              </div>
+              {stats.map((s) => (
+                <SubjectRow
+                  key={s.course}
+                  row={s}
+                  active={focus === s.course}
+                  compact={compact}
+                  onClick={() => setFocus(focus === s.course ? null : s.course)}
+                />
+              ))}
+            </div>
+          </>
+        )}
+
+        {!compact && (
+          <section className="rounded-2xl bg-surface p-4 ring-1 ring-border">
+            <button
+              onClick={() => setBrowse((v) => !v)}
+              className="flex w-full items-center gap-2 font-display text-sm font-semibold"
+            >
+              <Search className="size-4 text-cyan" />
+              Mark a past class absent
+              <span className="ml-auto font-mono text-[11px] text-faint">
+                {browse ? "Hide" : "Open"}
+              </span>
+            </button>
+
+            {browse && (
+              <div className="mt-3 flex flex-col gap-2">
+                <input
+                  value={q}
+                  onChange={(e) => setQ(e.target.value)}
+                  placeholder="Search a class, faculty or room"
+                  className="rounded-lg bg-ground px-3 py-2 text-sm text-ink outline-none ring-1 ring-border placeholder:text-faint focus:ring-cyan/50"
+                />
+                {browsable.map((s) => (
+                  <SessionCard
+                    key={s.id}
+                    session={s}
+                    tone={new Date(s.end_at).getTime() < now ? "past" : "upcoming"}
+                    myMark={myMarks.get(`${s.id}-self`) ?? null}
+                    canManage={canManage}
+                    members={members}
+                    marks={marks}
+                    meId={user!.id}
+                    onMark={(status, userId, source, leave) =>
+                      mark.mutate({ session: s, userId, status, source, leave: leave ?? "personal" })
+                    }
+                  />
+                ))}
+              </div>
+            )}
+          </section>
+        )}
+
+        {!compact && <PolicyCard />}
+      </div>
+    </section>
+  );
+}
+
+/** Small labelled number used in the hero. */
+function StatTile({ label, value }: { label: string; value: number }) {
+  return (
+    <div className="min-w-0 rounded-xl bg-surface2/60 px-2 sm:px-3 py-2 ring-1 ring-border">
+      <p className="font-display text-lg font-semibold leading-none">{value}</p>
+      <p className="mt-1 truncate font-mono text-[9px] uppercase tracking-wider text-faint">{label}</p>
+    </div>
+  );
+}
+
+/** One leave type as a slim used/cap bar. */
+function LeaveBar({ type, used, cap }: { type: LeaveType; used: number; cap: number }) {
+  const over = used > cap;
+  const fill = cap > 0 ? Math.min(100, (used / cap) * 100) : used > 0 ? 100 : 0;
+  return (
+    <div title={LEAVE_COPY[type].detail} className="min-w-0">
+      <div className="flex items-baseline gap-2 min-w-0">
+        <span className="truncate font-mono text-[10px] uppercase tracking-wider text-faint">
+          {LEAVE_COPY[type].label}
+        </span>
+        <span
+          className={`ml-auto font-mono text-[11px] shrink-0 ${over ? "text-rose" : "text-dim"}`}
+        >
+          {used}/{cap}
+        </span>
+      </div>
+      <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-surface2">
+        <motion.div
+          initial={{ width: 0 }}
+          animate={{ width: `${fill}%` }}
+          transition={{ type: "spring", stiffness: 120, damping: 24 }}
+          className={`h-full rounded-full ${over ? "bg-rose" : "bg-cyan/70"}`}
+        />
+      </div>
+    </div>
+  );
+}
+
+
+/** The handbook rules, spelled out so nobody has to open the PDF. */
+function PolicyCard() {
+  return (
+    <div className="rounded-2xl bg-surface p-4 font-mono text-[11px] leading-relaxed text-dim ring-1 ring-border">
+      <div className="flex flex-wrap items-center gap-2 mb-2">
+        <p className="font-display text-sm font-semibold text-ink">TAPMI IPM Handbook: Attendance Rules & Terms</p>
+        <span className="rounded bg-cyan/15 px-2 py-0.5 font-mono text-[10px] text-cyan">Term 1: July 29 – October 23, 2026</span>
+      </div>
+      <ul className="mt-2 flex flex-col gap-2">
+        <li>
+          <strong className="text-ink">Credit System:</strong> 1 Credit equals 8 class sessions (24 sessions for 3-credit courses, 16 for 2-credit, and 8 for 1-credit). Term 1 total is <span className="text-cyan font-semibold">20 Credits</span>.
+        </li>
+        <li>
+          <strong className="text-ink">85% and above:</strong> Safe zone. No grade points deducted.
+        </li>
+        <li>
+          <strong className="text-ink">70% to 85%:</strong> Grade penalty. You lose <span className="text-amber font-semibold">0.5 grade points</span> for every session missed below 85%.
+        </li>
+        <li>
+          <strong className="text-ink">Below 70%:</strong> Incomplete ('I') grade. You'll have to repeat the subject next year and cannot take the end-term exam.
+        </li>
+        <li>
+          <strong className="text-ink">Leave Types:</strong> Personal Leaves (PL) can cover up to 15% of sessions. Official/Institutional Leaves (IL) cover up to 15% (or 30% combined if PL isn't used).
+        </li>
+        <li>
+          <strong className="text-ink">Continuous Absence:</strong> Missing more than 13 straight calendar days without written approval from the Director means automatic withdrawal from the program.
+        </li>
+      </ul>
+    </div>
+  );
+}
+
+/** Percentage rail with subtle ticks at the 70% and 85% policy lines. */
+function Rail({ pct, labels = false }: { pct: number; labels?: boolean }) {
+  return (
+    <div className={labels ? "mt-4" : ""}>
+      <div className="relative h-2 overflow-hidden rounded-full bg-surface2">
+        <motion.div
+          initial={{ width: 0 }}
+          animate={{ width: `${Math.min(100, pct)}%` }}
+          transition={{ type: "spring", stiffness: 120, damping: 22 }}
+          className="h-full rounded-full"
+          style={{ backgroundColor: meterColor(pct) }}
+        />
+        {[HARD_LINE, SAFE_LINE].map((line) => (
+          <span
+            key={line}
+            title={`${line}% line`}
+            className="absolute top-0 h-full w-px bg-ink/35"
+            style={{ left: `${line}%` }}
+          />
+        ))}
+      </div>
+      {labels && (
+        <div className="relative mt-1 h-3">
+          {[HARD_LINE, SAFE_LINE].map((line) => (
+            <span
+              key={line}
+              className="absolute font-mono text-[9px] leading-none text-faint"
+              style={{ left: `${line}%`, transform: "translateX(-50%)" }}
+            >
+              {line}%
+            </span>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** Which side of the 85 / 70 policy lines this percentage falls on. */
+function BandChip({ pct }: { pct: number }) {
+  const band = bandFor(pct);
+  const tone =
+    band === "good"
+      ? "bg-evt-present/12 text-evt-present ring-evt-present/30"
+      : band === "warn"
+        ? "bg-amber/15 text-amber ring-amber/30"
+        : "bg-rose/12 text-rose ring-rose/30";
+  return (
+    <span
+      title={BAND_COPY[band].detail}
+      className={`inline-flex items-center gap-1.5 rounded-lg px-2 py-1 font-mono text-[10px] ring-1 ${tone}`}
+    >
+      {BAND_COPY[band].label}
+    </span>
+  );
+}
+
+type SubjectStat = {
+  course: string;
+  planned: number;
+  pl: number;
+  il: number;
+  absent: number;
+  penalty: number;
+  safeLeft: number;
+  eligibleLeft: number;
+  pct: number;
+};
+
+/** One subject as a calm list row: name, plain-English status, meter, number. */
+function SubjectRow({
+  row,
+  active,
+  onClick,
+  compact = false,
+}: {
+  row: SubjectStat;
+  active: boolean;
+  onClick: () => void;
+  compact?: boolean;
+}) {
+  const color = meterColor(row.pct);
+  const status =
+    row.pct < HARD_LINE
+      ? { text: "Incomplete — repeat next year", tone: "text-rose" }
+      : row.penalty > 0
+        ? {
+            text: compact
+              ? `−${row.penalty.toFixed(1)} pts · ${Math.max(0, row.eligibleLeft)} left`
+              : `−${row.penalty.toFixed(1)} grade points · ${Math.max(0, row.eligibleLeft)} left before ${HARD_LINE}%`,
+            tone: "text-amber",
+          }
+        : {
+            text: `Safe · ${Math.max(0, row.safeLeft)}* ${Math.max(0, row.safeLeft) === 1 ? "miss" : "misses"} left`,
+            tone: "text-evt-present",
+          };
+
+  return (
+    <button
+      onClick={onClick}
+      className={`flex w-full items-center gap-3.5 border-b border-border px-3.5 py-3 text-left last:border-b-0 transition-colors ${
+        active ? "bg-surface2/70" : "hover:bg-surface2/40"
+      }`}
+    >
+      <div className="shrink-0">
+        <Donut
+          value={row.pct}
+          color={color}
+          size={36}
+          thickness={5}
+        />
+      </div>
+
+      <span className="min-w-0 flex-1">
+        <span className="flex items-center gap-2">
+          <span
+            className="size-2 rounded-full shrink-0"
+            style={{ backgroundColor: autoColor(row.course) }}
+          />
+          <span className="truncate font-display text-sm font-semibold text-ink">
+            {shortSubject(row.course, compact ? 22 : 26)}
+          </span>
+        </span>
+        <span className={`mt-0.5 block truncate font-mono text-[10px] leading-relaxed ${status.tone}`}>
+          {status.text}
+        </span>
+      </span>
+
+      {!compact && (
+        <span className="hidden w-28 shrink-0 sm:block">
+          <Rail pct={row.pct} />
+          <span className="mt-1 block font-mono text-[9px] text-faint">
+            {row.absent} of {row.planned} missed
+          </span>
+        </span>
+      )}
+
+      <span className="shrink-0 text-right">
+        <span className="block font-display text-lg font-semibold leading-none" style={{ color }}>
+          {row.pct}%
+        </span>
+        <span className="mt-1 block font-mono text-[9px] text-faint">
+          PL {row.pl} · IL {row.il}
+        </span>
+      </span>
+    </button>
+  );
+}
+
+
+function SessionCard({
+  session,
+  tone = "live",
+  myMark,
+  canManage,
+  members,
+  marks,
+  onMark,
+  meId,
+}: {
+  session: ClassSession;
+  tone?: "live" | "upcoming" | "past";
+  myMark: AttendanceMark | null;
+  canManage: boolean;
+  members: { user_id: string; status: string; profiles: { full_name: string | null; email: string | null } | null }[];
+  marks: AttendanceMark[];
+  onMark: (
+    status: AttendanceMark["status"] | null,
+    userId: string,
+    source: AttendanceMark["mark_source"],
+    leave?: LeaveType,
+  ) => void;
+
+
+  meId: string;
+}) {
+  const [roster, setRoster] = useState(false);
+  const repMarks = useMemo(() => {
+    const map = new Map<string, AttendanceMark>();
+    for (const m of marks)
+      if (m.session_id === session.id && m.mark_source === "rep") map.set(m.user_id, m);
+    return map;
+  }, [marks, session.id]);
+
+  return (
+    <motion.div
+      whileHover={{ y: -2 }}
+      transition={{ type: "spring", stiffness: 420, damping: 30 }}
+      className={`rounded-xl bg-surface p-3 ring-1 ${
+        tone === "live" ? "ring-cyan/30" : "ring-border"
+      }`}
+    >
+      <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+        <span className="min-w-0 basis-full sm:flex-1 sm:basis-auto">
+          <span className="block truncate font-display text-sm font-semibold leading-tight">
+            {shortSubject(sessionLabel(session), 40)}
+          </span>
+          <span className="block font-mono text-xs leading-relaxed text-dim sm:text-sm">
+            {timeFmt.format(new Date(session.start_at))}
+          </span>
+          <SessionMeta session={session} />
+
+        </span>
+        <LeaveButtons
+          current={myMark?.status === "absent" ? ((myMark.leave_type ?? "personal") as LeaveType) : null}
+          onPick={(leave) =>
+            onMark(
+              myMark?.status === "absent" && (myMark.leave_type ?? "personal") === leave
+                ? null
+                : "absent",
+              meId,
+              "self",
+              leave,
+            )
+          }
+        />
+
+
+
+        {canManage && (
+          <button
+            onClick={() => setRoster((v) => !v)}
+            className="flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 font-mono text-[11px] text-cyan ring-1 ring-border"
+          >
+            <Users className="size-3.5" /> Roster
+          </button>
+        )}
+      </div>
+
+      {roster && canManage && (
+        <div className="mt-3 flex flex-col gap-1.5 border-t border-border pt-3">
+          {members
+            .filter((m) => m.status === "approved")
+            .map((m) => {
+              const mk = repMarks.get(m.user_id);
+              return (
+                <div key={m.user_id} className="flex items-center gap-2">
+                  <span className="min-w-0 flex-1 truncate text-sm">
+                    {m.profiles?.full_name ?? m.profiles?.email ?? m.user_id}
+                  </span>
+                  <LeaveButtons
+                    current={
+                      mk?.status === "absent" ? ((mk.leave_type ?? "personal") as LeaveType) : null
+                    }
+                    onPick={(leave) =>
+                      onMark(
+                        mk?.status === "absent" && (mk.leave_type ?? "personal") === leave
+                          ? null
+                          : "absent",
+                        m.user_id,
+                        "rep",
+                        leave,
+                      )
+                    }
+                  />
+
+
+                </div>
+              );
+            })}
+        </div>
+      )}
+    </motion.div>
+  );
+}
+
+/** Mark absence with quick single-tap Personal Leave (or expandable Institutional Leave). */
+function LeaveButtons({
+  current,
+  onPick,
+}: {
+  current: LeaveType | null;
+  onPick: (leave: LeaveType) => void;
+}) {
+  const isPersonal = current === "personal";
+  const isInstitutional = current === "institutional";
+
+  return (
+    <div className="flex items-center gap-1.5">
+      <button
+        onClick={() => onPick("personal")}
+        title={isPersonal ? "Tap again to clear absence mark" : "Mark personal leave (PL)"}
+        className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 font-mono text-[11px] font-medium ring-1 transition-all ${
+          isPersonal
+            ? "bg-rose/20 text-rose ring-rose/40 shadow-sm"
+            : "bg-surface2 text-dim ring-border hover:text-ink hover:bg-surface"
+        }`}
+      >
+        <CircleSlash className="size-3.5" />
+        {isPersonal ? "Marked Absent (Personal)" : "Mark Absent"}
+      </button>
+
+      <button
+        onClick={() => onPick("institutional")}
+        title={isInstitutional ? "Tap again to clear absence mark" : "Mark official/institutional leave (IL)"}
+        className={`flex items-center gap-1 rounded-lg px-2 py-1.5 font-mono text-[10px] ring-1 transition-all ${
+          isInstitutional
+            ? "bg-amber/20 text-amber ring-amber/40"
+            : "text-faint ring-border hover:text-dim hover:bg-surface2"
+        }`}
+      >
+        {isInstitutional ? "Institutional (IL)" : "Official IL"}
+      </button>
+    </div>
+  );
+}
