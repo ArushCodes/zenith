@@ -4,9 +4,7 @@ import {
   Award,
   BookOpen,
   Calendar,
-  CalendarPlus,
   Clock,
-  Download,
   FileText,
   MapPin,
   Pencil,
@@ -16,9 +14,7 @@ import {
 } from "lucide-react";
 import {
   cleanExamTitle,
-  downloadIcs,
   eventMeta,
-  googleCalendarUrl,
   phaseOf,
   timeLeft,
   type Deadline,
@@ -96,7 +92,7 @@ export function ExamCard({ deadline, now, canManage, onEdit, onDelete, onOpen }:
     <motion.div
       whileHover={{ y: -2 }}
       transition={{ duration: 0.2 }}
-      className="group relative overflow-hidden rounded-3xl border border-border/80 bg-surface p-5 sm:p-7 shadow-xs hover:border-border hover:shadow-md transition-all"
+      className="group relative overflow-hidden rounded-3xl border border-border/80 bg-surface p-3.5 sm:p-6 shadow-xs hover:border-border hover:shadow-md transition-all"
     >
       {/* Accent left indicator with canonical subject color */}
       <span
@@ -269,34 +265,14 @@ export function ExamCard({ deadline, now, canManage, onEdit, onDelete, onOpen }:
       )}
 
       {/* Action Buttons Bar */}
-      <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-border/60 pt-4">
-        {/* Calendar Integrations */}
+      <div className="mt-4 flex flex-wrap items-center justify-between gap-2.5 border-t border-border/60 pt-3">
         <div className="flex flex-wrap items-center gap-2">
-          <a
-            href={googleCalendarUrl(deadline)}
-            target="_blank"
-            rel="noreferrer"
-            className="flex items-center gap-1.5 rounded-xl border border-border bg-surface2/60 px-3 py-1.5 font-sans text-xs font-semibold text-dim hover:bg-surface2 hover:text-ink transition-colors cursor-pointer"
-          >
-            <CalendarPlus className="size-3.5 text-cyan" />
-            <span>Google Calendar</span>
-          </a>
-
-          <button
-            type="button"
-            onClick={() => downloadIcs(deadline)}
-            className="flex items-center gap-1.5 rounded-xl border border-border bg-surface2/60 px-3 py-1.5 font-sans text-xs font-semibold text-dim hover:bg-surface2 hover:text-ink transition-colors cursor-pointer"
-          >
-            <Download className="size-3.5 text-dim" />
-            <span>.ICS File</span>
-          </button>
-
           <button
             type="button"
             onClick={() => onOpen?.(deadline)}
-            className="flex items-center gap-1 rounded-xl border border-border bg-surface px-3 py-1.5 font-sans text-xs font-semibold text-dim hover:text-ink hover:bg-surface2 transition-colors cursor-pointer"
+            className="inline-flex items-center gap-1.5 rounded-xl bg-cyan/12 border border-cyan/30 px-3 py-1.5 font-sans text-xs font-bold text-cyan hover:bg-cyan/20 transition-all cursor-pointer"
           >
-            Details
+            <span>View Details</span>
           </button>
         </div>
 

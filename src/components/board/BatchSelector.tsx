@@ -63,18 +63,18 @@ export function BatchSelector() {
       <div className="relative">
         <button
           onClick={() => setOpen((v) => !v)}
-          className="flex max-w-[62vw] items-center gap-2 rounded-lg bg-surface2 px-3 py-2 text-left ring-1 ring-border transition-colors hover:ring-cyan/40 sm:max-w-none"
+          className="flex max-w-[34vw] sm:max-w-none items-center gap-1.5 sm:gap-2 rounded-xl bg-surface2 px-2 sm:px-3 py-1.5 sm:py-2 text-left ring-1 ring-border transition-colors hover:ring-cyan/40 cursor-pointer"
         >
-          <GraduationCap className="size-4 shrink-0 text-cyan" />
+          <GraduationCap className="size-3.5 sm:size-4 shrink-0 text-cyan" />
           <span className="min-w-0">
-            <span className="block truncate font-display text-sm font-semibold leading-tight">
+            <span className="block truncate font-display text-xs sm:text-sm font-semibold leading-tight">
               {activeInfo ? activeInfo.code : "Select batch"}
             </span>
-            <span className="block truncate font-mono text-[10px] text-dim">
+            <span className="hidden sm:block truncate font-mono text-[10px] text-dim">
               {activeInfo ? `${activeInfo.years ? `${activeInfo.years} · ` : ""}MAHE · TAPMI` : "MAHE"}
             </span>
           </span>
-          <ChevronDown className="size-3.5 shrink-0 text-dim" />
+          <ChevronDown className="size-3 sm:size-3.5 shrink-0 text-dim" />
         </button>
 
         <AnimatePresence>
@@ -86,7 +86,7 @@ export function BatchSelector() {
                 animate={{ opacity: 1, y: 0, scale: 1 }}
                 exit={{ opacity: 0, y: -6, scale: 0.98 }}
                 transition={{ duration: 0.16 }}
-                className="absolute right-0 z-40 mt-2 max-h-[70vh] w-[min(20rem,86vw)] overflow-auto rounded-xl bg-surface p-2 shadow-2xl shadow-black/20 ring-1 ring-border"
+                className="absolute right-0 z-40 mt-2 max-h-[70vh] w-[min(20rem,calc(100vw-2rem))] overflow-auto rounded-xl bg-surface p-2 shadow-2xl shadow-black/20 ring-1 ring-border"
               >
                 {tree.length === 0 && (
                   <p className="px-3 py-4 text-center font-mono text-[11px] text-faint">

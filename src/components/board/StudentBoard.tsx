@@ -47,7 +47,6 @@ import { DeadlineDialog } from "@/components/board/DeadlineDialog";
 import { EventDrawer } from "@/components/board/EventDrawer";
 import { ApprovalsPanel } from "@/components/board/ApprovalsPanel";
 import { AnnouncementsPanel } from "@/components/board/AnnouncementsPanel";
-import { LiveClassHero } from "@/components/board/LiveClassHero";
 import { LiveClassHud } from "@/components/board/LiveClassHud";
 import { FeedCard, FeedCompactRow } from "@/components/board/FeedCard";
 import { usePersonalChecklist } from "@/hooks/use-personal-checklist";
@@ -403,7 +402,7 @@ export default function StudentBoard({ guestPreview }: { guestPreview?: boolean 
             </span>
           </div>
 
-          <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-none">
+          <div className="w-full sm:w-auto min-w-0 max-w-full flex items-center gap-1.5 overflow-x-auto pb-1 sm:pb-0 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
             {/* Inline Navigation Tabs */}
             <nav
               aria-label="Board sections"
@@ -551,18 +550,6 @@ export default function StudentBoard({ guestPreview }: { guestPreview?: boolean 
             {tab === "feed" && (
               <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-[minmax(0,1fr)_360px] xl:grid-cols-[minmax(0,1fr)_400px]">
                 <div className="min-w-0 flex flex-col gap-3">
-                  {/* Top Live Class / Timetable Hero */}
-                  <LiveClassHero
-                    now={now}
-                    deadlines={deadlines}
-                    onSeeFullTimetable={() => setTab("timetable")}
-                    onSeeExams={() => {
-                      setTab("exams");
-                      setExamSubTab("midterm");
-                    }}
-                    canManage={isMod}
-                  />
-
                   {/* Modern Feed Command Bar */}
                   <div className="rounded-xl border border-border/70 bg-surface/80 p-2 sm:p-2.5 backdrop-blur-md shadow-xs">
                     <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
@@ -691,12 +678,12 @@ export default function StudentBoard({ guestPreview }: { guestPreview?: boolean 
                       )}
                     </div>
                   ) : (
-                    <div className="relative pl-5 sm:pl-7 border-l-2 border-border/70 ml-2 sm:ml-3 flex flex-col gap-6">
+                    <div className="relative pl-4 sm:pl-7 border-l-2 border-border/70 ml-3.5 sm:ml-5 flex flex-col gap-6">
                       {/* Bucket 1: Due in 48 Hours / Ongoing */}
                       {recencyBuckets.critical.length > 0 && (
                         <div className="relative">
                           {/* Spine Anchor Dot */}
-                          <div className="absolute -left-[31px] sm:-left-[39px] top-0 size-6 sm:size-7 rounded-full bg-surface border-2 border-rose flex items-center justify-center text-rose shadow-lg shadow-rose/20">
+                          <div className="absolute -left-[29px] sm:-left-[43px] top-0 size-6 sm:size-7 rounded-full bg-surface border-2 border-rose flex items-center justify-center text-rose shadow-lg shadow-rose/20">
                             <Flame className="size-3.5 fill-rose/30 animate-pulse" />
                           </div>
 
@@ -728,7 +715,7 @@ export default function StudentBoard({ guestPreview }: { guestPreview?: boolean 
                       {recencyBuckets.thisWeek.length > 0 && (
                         <div className="relative">
                           {/* Spine Anchor Dot */}
-                          <div className="absolute -left-[31px] sm:-left-[39px] top-0 size-6 sm:size-7 rounded-full bg-surface border-2 border-amber flex items-center justify-center text-amber shadow-lg shadow-amber/20">
+                          <div className="absolute -left-[29px] sm:-left-[43px] top-0 size-6 sm:size-7 rounded-full bg-surface border-2 border-amber flex items-center justify-center text-amber shadow-lg shadow-amber/20">
                             <Clock className="size-3.5" />
                           </div>
 
@@ -760,7 +747,7 @@ export default function StudentBoard({ guestPreview }: { guestPreview?: boolean 
                       {recencyBuckets.later.length > 0 && (
                         <div className="relative">
                           {/* Spine Anchor Dot */}
-                          <div className="absolute -left-[31px] sm:-left-[39px] top-0 size-6 sm:size-7 rounded-full bg-surface border-2 border-cyan flex items-center justify-center text-cyan shadow-lg shadow-cyan/20">
+                          <div className="absolute -left-[29px] sm:-left-[43px] top-0 size-6 sm:size-7 rounded-full bg-surface border-2 border-cyan flex items-center justify-center text-cyan shadow-lg shadow-cyan/20">
                             <Sparkles className="size-3.5" />
                           </div>
 
@@ -849,13 +836,15 @@ export default function StudentBoard({ guestPreview }: { guestPreview?: boolean 
 
                 <aside className="flex min-w-0 flex-col gap-6 lg:sticky lg:top-24">
                   <AnnouncementsPanel compact />
-                  <FeedSection
-                    title="Attendance Overview"
-                    tone="text-cyan"
-                    onSeeAll={() => setTab("attendance")}
-                  >
-                    <AttendancePanel now={now} compact />
-                  </FeedSection>
+                  <div className="hidden lg:block">
+                    <FeedSection
+                      title="Attendance Overview"
+                      tone="text-cyan"
+                      onSeeAll={() => setTab("attendance")}
+                    >
+                      <AttendancePanel now={now} compact />
+                    </FeedSection>
+                  </div>
                   <ActivityPanel compact />
                 </aside>
               </div>

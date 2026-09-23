@@ -847,7 +847,7 @@ function SubjectRow({
             style={{ backgroundColor: autoColor(row.course) }}
           />
           <span className="truncate font-display text-sm font-semibold text-ink">
-            {shortSubject(row.course, compact ? 22 : 26)}
+            {shortSubject(row.course, 42)}
           </span>
         </span>
         <span className={`mt-0.5 block truncate font-mono text-[10px] leading-relaxed ${status.tone}`}>

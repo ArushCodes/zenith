@@ -63,10 +63,10 @@ export function BoardHeader({ menuItems = [], onMenuSelect }: Props) {
       transition={{ duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
       className="sticky top-0 z-30 border-b border-border bg-ground/80 backdrop-blur-xl"
     >
-      <div className="mx-auto flex h-16 max-w-[1180px] items-center justify-between gap-3 px-5 sm:gap-4 sm:px-8">
+      <div className="mx-auto flex h-16 max-w-[1180px] items-center justify-between gap-2 px-3 sm:gap-4 sm:px-8">
         <Link to="/" tabIndex={-1} className="group flex min-w-0 items-center">
           <motion.div whileHover={{ scale: 1.03 }} transition={spring} className="min-w-0 leading-none">
-            <p className="truncate font-display text-2xl font-extrabold uppercase italic tracking-[-0.03em] text-cyan sm:text-[28px]">
+            <p className="truncate font-display text-xl sm:text-2xl font-extrabold uppercase italic tracking-[-0.03em] text-cyan">
               Zenith
             </p>
             <p className="mt-0.5 hidden font-mono text-[10px] uppercase tracking-[0.18em] text-faint sm:block">
@@ -76,7 +76,7 @@ export function BoardHeader({ menuItems = [], onMenuSelect }: Props) {
         </Link>
 
 
-        <div className="flex min-w-0 items-center gap-2 sm:gap-2.5">
+        <div className="flex min-w-0 items-center gap-1.5 sm:gap-2.5">
           {user && <GlobalSearch />}
           <BatchSelector />
 
@@ -94,22 +94,22 @@ export function BoardHeader({ menuItems = [], onMenuSelect }: Props) {
             onClick={toggle}
             aria-label={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
             title={theme === "dark" ? "Light mode" : "Dark mode"}
-            className="grid size-9 shrink-0 place-items-center rounded-xl border border-border bg-surface text-dim transition-colors hover:border-cyan/40 hover:text-ink"
+            className="grid size-8 sm:size-9 shrink-0 place-items-center rounded-xl border border-border bg-surface text-dim transition-colors hover:border-cyan/40 hover:text-ink cursor-pointer"
           >
-            {theme === "dark" ? <Sun className="size-4" /> : <Moon className="size-4" />}
+            {theme === "dark" ? <Sun className="size-3.5 sm:size-4" /> : <Moon className="size-3.5 sm:size-4" />}
           </button>
 
 
           {user ? (
             <DropdownMenu>
-              <DropdownMenuTrigger className="flex items-center gap-2 rounded-xl border border-border bg-surface py-1.5 pl-1.5 pr-2.5 transition-colors hover:border-cyan/40">
-                <span className="grid size-7 place-items-center rounded-lg bg-cyan/12 font-display text-[11px] font-semibold text-cyan">
+              <DropdownMenuTrigger className="flex items-center gap-1.5 sm:gap-2 rounded-xl border border-border bg-surface py-1 sm:py-1.5 pl-1 sm:pl-1.5 pr-2 sm:pr-2.5 transition-colors hover:border-cyan/40 cursor-pointer">
+                <span className="grid size-6 sm:size-7 place-items-center rounded-lg bg-cyan/12 font-display text-[10px] sm:text-[11px] font-semibold text-cyan">
                   {initials || "Z"}
                 </span>
                 <span className="hidden max-w-[110px] truncate text-[13px] font-medium sm:inline">
                   {me.name || "Account"}
                 </span>
-                <ChevronDown className="size-3.5 text-faint" />
+                <ChevronDown className="size-3 sm:size-3.5 text-faint" />
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-56">
                 <DropdownMenuLabel className="font-mono text-[10px] uppercase tracking-[0.18em] text-faint">

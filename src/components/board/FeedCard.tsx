@@ -4,11 +4,9 @@ import {
   Award,
   BookOpen,
   Calendar,
-  CalendarPlus,
   Check,
   CheckCircle2,
   Clock,
-  Download,
   ExternalLink,
   FileQuestion,
   GraduationCap,
@@ -24,9 +22,7 @@ import {
 import {
   cleanExamTitle,
   displayTitle,
-  downloadIcs,
   eventMeta,
-  googleCalendarUrl,
   phaseOf,
   timeLeft,
   type Deadline,
@@ -153,7 +149,7 @@ export function FeedCard({
       whileHover={{ y: -2 }}
       transition={{ type: "spring", stiffness: 380, damping: 24 }}
       onClick={() => onOpen?.(deadline)}
-      className={`group relative overflow-hidden rounded-2xl border bg-surface p-5 sm:p-6 transition-all cursor-pointer ${
+      className={`group relative overflow-hidden rounded-2xl border bg-surface p-3.5 sm:p-6 transition-all cursor-pointer ${
         isDone
           ? "border-border/60 bg-surface/50 opacity-75"
           : isSelected
@@ -355,31 +351,6 @@ export function FeedCard({
             </a>
           )}
 
-          <a
-            href={googleCalendarUrl(deadline)}
-            target="_blank"
-            rel="noreferrer"
-            onClick={(e) => e.stopPropagation()}
-            title="Add to Google Calendar"
-            className="inline-flex items-center gap-1.5 rounded-xl border border-border bg-surface2/60 px-3 py-1.5 font-sans text-xs font-semibold text-dim hover:bg-surface2 hover:text-ink transition-colors cursor-pointer"
-          >
-            <CalendarPlus className="size-3.5 text-cyan" />
-            <span className="hidden sm:inline">Google Calendar</span>
-            <span className="sm:hidden">Calendar</span>
-          </a>
-
-          <button
-            type="button"
-            onClick={(e) => {
-              e.stopPropagation();
-              downloadIcs(deadline);
-            }}
-            title="Download .ICS"
-            className="inline-flex items-center gap-1.5 rounded-xl border border-border bg-surface2/60 px-2.5 py-1.5 font-sans text-xs font-semibold text-dim hover:bg-surface2 hover:text-ink transition-colors cursor-pointer"
-          >
-            <Download className="size-3.5 text-dim" />
-            <span>.ICS</span>
-          </button>
         </div>
 
         <div className="flex items-center gap-2">
@@ -556,30 +527,8 @@ export function FeedCompactRow({
           </span>
         )}
 
-        {/* Quick Action Icons visible on hover / focus */}
-        <div className="flex items-center gap-1 sm:opacity-0 group-hover:opacity-100 transition-opacity">
-          <a
-            href={googleCalendarUrl(deadline)}
-            target="_blank"
-            rel="noreferrer"
-            onClick={(e) => e.stopPropagation()}
-            title="Google Calendar"
-            className="p-1 rounded-md hover:bg-surface2 text-dim hover:text-cyan transition-colors"
-          >
-            <CalendarPlus className="size-3.5" />
-          </a>
-          <button
-            type="button"
-            onClick={(e) => {
-              e.stopPropagation();
-              downloadIcs(deadline);
-            }}
-            title="Download .ICS"
-            className="p-1 rounded-md hover:bg-surface2 text-dim hover:text-ink transition-colors"
-          >
-            <Download className="size-3.5" />
-          </button>
-          {canManage && (
+        {canManage && (
+          <div className="flex items-center gap-1 sm:opacity-0 group-hover:opacity-100 transition-opacity">
             <button
               type="button"
               onClick={(e) => {
@@ -591,8 +540,8 @@ export function FeedCompactRow({
             >
               <Pencil className="size-3.5" />
             </button>
-          )}
-        </div>
+          </div>
+        )}
       </div>
     </motion.div>
   );

@@ -349,11 +349,11 @@ export function TimetablePanel() {
               </button>
             )}
           </div>
-          <div className="flex flex-wrap gap-1.5">
+          <div className="flex items-center gap-1.5 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
             <button
               type="button"
               onClick={() => setSelectedSubject(null)}
-              className={`flex items-center gap-1.5 rounded-lg px-2.5 py-1 font-mono text-[10px] ring-1 transition-all ${
+              className={`flex shrink-0 items-center gap-1.5 rounded-lg px-2.5 py-1 font-mono text-[10px] ring-1 transition-all ${
                 selectedSubject === null
                   ? "bg-cyan/15 text-cyan ring-cyan/40 font-semibold"
                   : "bg-surface2 text-dim ring-border hover:text-ink"
@@ -369,7 +369,7 @@ export function TimetablePanel() {
                   key={s.key}
                   type="button"
                   onClick={() => setSelectedSubject(isSelected ? null : s.key)}
-                  className={`flex items-center gap-1.5 rounded-lg px-2.5 py-1 font-mono text-[10px] ring-1 transition-all ${
+                  className={`flex shrink-0 items-center gap-1.5 rounded-lg px-2.5 py-1 font-mono text-[10px] ring-1 transition-all ${
                     isSelected
                       ? "ring-1 font-semibold"
                       : "ring-border/60 text-dim hover:text-ink"
@@ -382,7 +382,7 @@ export function TimetablePanel() {
                   title={s.fullName}
                 >
                   <span className="size-2 shrink-0 rounded-full" style={{ backgroundColor: s.color }} />
-                  <span>{s.label}</span>
+                  <span className="whitespace-nowrap">{s.label}</span>
                   {count > 0 && (
                     <span className="opacity-60 text-[9px]">({count})</span>
                   )}
@@ -392,8 +392,8 @@ export function TimetablePanel() {
           </div>
 
           {/* Quick view mode: All | Classes | Events | Holidays */}
-          <div className="mt-3 pt-2.5 border-t border-border/40 flex flex-wrap items-center gap-1.5">
-            <span className="font-mono text-[9px] uppercase tracking-wider text-faint mr-1">Show:</span>
+          <div className="mt-3 pt-2.5 border-t border-border/40 flex items-center gap-1.5 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+            <span className="shrink-0 font-mono text-[9px] uppercase tracking-wider text-faint mr-1">Show:</span>
             {(
               [
                 { key: "all", label: "Everything" },
@@ -405,7 +405,7 @@ export function TimetablePanel() {
               <button
                 key={v.key}
                 onClick={() => setViewFilter(v.key)}
-                className={`rounded-md px-2.5 py-1 font-mono text-[10px] transition-colors ${
+                className={`shrink-0 whitespace-nowrap rounded-md px-2.5 py-1 font-mono text-[10px] transition-colors ${
                   viewFilter === v.key
                     ? "bg-surface2 text-ink ring-1 ring-border font-medium"
                     : "text-faint hover:text-dim"

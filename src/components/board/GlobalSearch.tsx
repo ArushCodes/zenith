@@ -97,7 +97,7 @@ export function GlobalSearch() {
 
   return (
     <div ref={boxRef} className="relative">
-      <Search className="pointer-events-none absolute left-3 top-1/2 size-3.5 -translate-y-1/2 text-dim" />
+      <Search className="pointer-events-none absolute left-2.5 sm:left-3 top-1/2 size-3.5 -translate-y-1/2 text-dim" />
       <input
         value={q}
         onChange={(e) => {
@@ -105,9 +105,9 @@ export function GlobalSearch() {
           setOpen(true);
         }}
         onFocus={() => setOpen(true)}
-        placeholder="Search events & classes…"
+        placeholder="Search…"
         aria-label="Search events and classes"
-        className="w-36 rounded-xl border border-border bg-surface py-2 pl-9 pr-8 text-[13px] text-ink outline-none transition-all placeholder:text-dim focus:w-56 focus:border-cyan/40 sm:w-52 sm:focus:w-72"
+        className="w-24 sm:w-52 focus:w-36 sm:focus:w-72 rounded-xl border border-border bg-surface py-1.5 sm:py-2 pl-7 sm:pl-9 pr-6 sm:pr-8 text-xs sm:text-[13px] text-ink outline-none transition-all placeholder:text-dim focus:border-cyan/40"
       />
       {q && (
         <button
@@ -116,7 +116,7 @@ export function GlobalSearch() {
             setOpen(false);
           }}
           aria-label="Clear search"
-          className="absolute right-2 top-1/2 -translate-y-1/2 rounded-md p-1 text-dim hover:text-ink"
+          className="absolute right-1.5 sm:right-2 top-1/2 -translate-y-1/2 rounded-md p-1 text-dim hover:text-ink cursor-pointer"
         >
           <X className="size-3.5" />
         </button>
@@ -129,7 +129,7 @@ export function GlobalSearch() {
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -6 }}
             transition={{ duration: 0.15 }}
-            className="absolute right-0 z-50 mt-2 max-h-[60vh] w-[min(24rem,88vw)] overflow-auto rounded-xl border border-border bg-surface p-1.5 shadow-2xl shadow-black/20"
+            className="absolute right-0 z-50 mt-2 max-h-[60vh] w-[min(22rem,calc(100vw-2rem))] overflow-auto rounded-xl border border-border bg-surface p-1.5 shadow-2xl shadow-black/20"
           >
             {hits.length === 0 ? (
               <p className="px-3 py-4 text-center font-mono text-[11px] text-dim">
