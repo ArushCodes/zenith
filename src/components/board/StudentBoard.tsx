@@ -99,7 +99,7 @@ export default function StudentBoard({ guestPreview }: { guestPreview?: boolean 
   const { isModerator, isAdmin, isArush } = useAuth();
   const me = useMe();
   const { batchId, batch, canManage } = useBatch();
-  const isMod = canManage || isModerator;
+  const isMod = canManage || isModerator || isAdmin || isArush;
   const queryClient = useQueryClient();
   const { data: deadlines = [], isLoading } = useQuery(deadlinesQueryFor(batchId));
   const { data: sessions = [] } = useQuery(sessionsQuery(batchId));

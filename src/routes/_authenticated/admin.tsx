@@ -35,10 +35,10 @@ export const Route = createFileRoute("/_authenticated/admin")({
 });
 
 function AdminPage() {
-  const { isModerator, loading } = useAuth();
+  const { isModerator, isAdmin, isArush, loading } = useAuth();
   const queryClient = useQueryClient();
   const { batchId, canManage } = useBatch();
-  const canAccess = isModerator || canManage;
+  const canAccess = isModerator || canManage || isAdmin || isArush;
   const { data: deadlines = [] } = useQuery(deadlinesQueryFor(batchId));
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<Deadline | null>(null);

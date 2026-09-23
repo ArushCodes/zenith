@@ -8,6 +8,15 @@ type ModCheckClient = {
 };
 
 async function assertBatchMod(supabase: ModCheckClient, userId: string, batchId: string) {
+  // Global admin override
+  const { data: globalAdmin } = await supabase
+    .from("user_roles")
+    .select("role")
+    .eq("user_id", userId)
+    .eq("role", "admin")
+    .maybeSingle();
+  if (globalAdmin) return;
+
   const { data } = await supabase
     .from("batch_memberships")
     .select("role, status")
@@ -16,7 +25,7 @@ async function assertBatchMod(supabase: ModCheckClient, userId: string, batchId:
     .eq("status", "approved")
     .maybeSingle();
   if (!data || (data.role !== "mod" && data.role !== "admin")) {
-    throw new Error("Forbidden — moderators only");
+    throw new Error("Forbidden — moderators and administrators only");
   }
 }
 

@@ -99,7 +99,7 @@ const inputClass =
   "w-full rounded-xl bg-surface2/60 px-4 py-3 text-sm text-ink ring-1 ring-border outline-none transition-all duration-200 placeholder:text-faint hover:ring-cyan/25 focus:bg-surface2 focus:ring-2 focus:ring-cyan/50";
 
 function ProfilePage() {
-  const { user, roles, isModerator } = useAuth();
+  const { user, roles, isModerator, isAdmin, isArush } = useAuth();
   const { batch, membership } = useBatch();
   const queryClient = useQueryClient();
   const { data: profile, isLoading } = useQuery(profileQuery(user?.id));
@@ -168,7 +168,7 @@ function ProfilePage() {
     },
     {
       label: "Account role",
-      value: roles.length ? roles.join(" · ") : "student",
+      value: isAdmin || isArush ? "Administrator & Moderator" : roles.length ? roles.join(" · ") : "student",
       icon: <BadgeCheck className="size-3.5" />,
     },
     {
