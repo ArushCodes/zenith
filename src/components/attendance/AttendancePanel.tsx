@@ -307,6 +307,17 @@ export function AttendancePanel({ now, compact = false }: { now: number; compact
     URL.revokeObjectURL(url);
   }
 
+  const focused = focus ? stats.find((s) => s.course === focus) : null;
+
+  const criticalDebarment = useMemo(
+    () => stats.filter((s) => s.held > 0 && s.heldPct < DEBARMENT_LINE),
+    [stats],
+  );
+  const borderlineDebarment = useMemo(
+    () => stats.filter((s) => s.held > 0 && s.heldPct >= DEBARMENT_LINE && s.heldPct < 80),
+    [stats],
+  );
+
   if (batchLoading) {
     return (
       <div className="space-y-3 py-4 animate-pulse">
@@ -323,17 +334,6 @@ export function AttendancePanel({ now, compact = false }: { now: number; compact
         Request access from the batch selector.
       </p>
     );
-
-  const focused = focus ? stats.find((s) => s.course === focus) : null;
-
-  const criticalDebarment = useMemo(
-    () => stats.filter((s) => s.held > 0 && s.heldPct < DEBARMENT_LINE),
-    [stats],
-  );
-  const borderlineDebarment = useMemo(
-    () => stats.filter((s) => s.held > 0 && s.heldPct >= DEBARMENT_LINE && s.heldPct < 80),
-    [stats],
-  );
 
   return (
     <section className={compact ? "" : "mt-4"}>
