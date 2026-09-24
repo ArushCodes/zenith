@@ -41,15 +41,32 @@ export function BatchProvider({ children }: { children: React.ReactNode }) {
     return allBatches.filter((b) => mine.has(b.id));
   }, [allBatches, memberships, isAdmin]);
 
-  const [batchId, setBatchIdState] = useState<string | null>(null);
+  const userMetadataBatch = (user?.user_metadata as Record<string, any> | undefined)?.["batch_id"];
+  const [batchId, setBatchIdState] = useState<string | null>(() => {
+    if (typeof window === "undefined") return null;
+    const stored = window.localStorage.getItem(BATCH_STORAGE_KEY);
+    if (stored) return stored;
+    if (userMetadataBatch && typeof userMetadataBatch === "string") return userMetadataBatch;
+    return null;
+  });
 
   // Restore the last batch before the batch tree arrives so batch-scoped
   // queries can start in parallel instead of waiting on it.
   useEffect(() => {
     if (batchId) return;
     const stored = window.localStorage.getItem(BATCH_STORAGE_KEY);
-    if (stored) setBatchIdState(stored);
-  }, [batchId]);
+    if (stored) {
+      setBatchIdState(stored);
+      return;
+    }
+    const metaBatch = (user?.user_metadata as Record<string, any> | undefined)?.["batch_id"];
+    if (metaBatch && typeof metaBatch === "string") {
+      setBatchIdState(metaBatch);
+      try {
+        window.localStorage.setItem(BATCH_STORAGE_KEY, metaBatch);
+      } catch {}
+    }
+  }, [batchId, user]);
 
   useEffect(() => {
     if (batches.length === 0) return;
@@ -58,21 +75,28 @@ export function BatchProvider({ children }: { children: React.ReactNode }) {
     const next =
       (mine && batches.find((b) => b.id === mine.batch_id)?.id) ?? batches[0]!.id;
     setBatchIdState(next);
+    try {
+      window.localStorage.setItem(BATCH_STORAGE_KEY, next);
+    } catch {}
   }, [batchId, batches, memberships]);
 
   function setBatchId(id: string) {
     setBatchIdState(id);
-    window.localStorage.setItem(BATCH_STORAGE_KEY, id);
+    try {
+      window.localStorage.setItem(BATCH_STORAGE_KEY, id);
+    } catch {}
   }
 
   const value = useMemo<BatchContextValue>(() => {
-    const batch = batches.find((b) => b.id === batchId) ?? null;
-    const membership = memberships.find((m) => m.batch_id === batchId) ?? null;
+    const activeBatch =
+      batches.find((b) => b.id === batchId) ?? (batches.length === 1 ? batches[0]! : null);
+    const resolvedBatchId = activeBatch?.id ?? batchId ?? (batches[0]?.id ?? null);
+    const membership = memberships.find((m) => m.batch_id === resolvedBatchId) ?? null;
     const approved = membership?.status === "approved";
     return {
       batches,
-      batch,
-      batchId: batch?.id ?? null,
+      batch: activeBatch,
+      batchId: resolvedBatchId,
       setBatchId,
       membership,
       memberships,
@@ -83,6 +107,7 @@ export function BatchProvider({ children }: { children: React.ReactNode }) {
       loading: isLoading,
     };
   }, [batches, batchId, memberships, isAdmin, isLoading]);
+
 
   return <BatchContext.Provider value={value}>{children}</BatchContext.Provider>;
 }

@@ -172,6 +172,107 @@ export const requestPasswordReset = createServerFn({ method: "POST" })
     };
   });
 
+export const resolveLoginIdentifier = createServerFn({ method: "POST" })
+  .validator((input: unknown) =>
+    z
+      .object({
+        identifier: z.string().trim().min(1, "Please enter your email, roll number, or MAHE ID"),
+      })
+      .parse(input),
+  )
+  .handler(async ({ data }) => {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { findStudentInRosterByRoll, toTitleCase } = await import("./roster.data");
+    const raw = data.identifier.trim();
+
+    // 1. Direct email provided
+    if (raw.includes("@")) {
+      const cleanEmail = raw.toLowerCase();
+      return {
+        email: cleanEmail,
+        isRollNo: false,
+        found: true,
+      };
+    }
+
+    const cleanRaw = raw.toUpperCase();
+
+    // 2. Try looking up in profiles by registration_no
+    const { data: profileByRoll } = await supabaseAdmin
+      .from("profiles")
+      .select("email, full_name, registration_no")
+      .ilike("registration_no", cleanRaw)
+      .maybeSingle();
+
+    if (profileByRoll?.email) {
+      return {
+        email: profileByRoll.email.toLowerCase(),
+        fullName: profileByRoll.full_name || undefined,
+        rollNo: profileByRoll.registration_no || cleanRaw,
+        isRollNo: true,
+        found: true,
+      };
+    }
+
+    // 3. Try checking official IPM roster (e.g. student typed 26U36 or 261600130146)
+    const rosterStudent = findStudentInRosterByRoll(raw);
+    if (rosterStudent) {
+      // Check if roster student is already registered in profiles
+      const { data: profileFromRoster } = await supabaseAdmin
+        .from("profiles")
+        .select("email, full_name, registration_no")
+        .ilike("registration_no", rosterStudent.rollNo)
+        .maybeSingle();
+
+      if (profileFromRoster?.email) {
+        return {
+          email: profileFromRoster.email.toLowerCase(),
+          fullName: profileFromRoster.full_name || toTitleCase(rosterStudent.name),
+          rollNo: rosterStudent.rollNo,
+          isRollNo: true,
+          found: true,
+        };
+      }
+
+      // Found in roster, but account hasn't been created yet!
+      return {
+        email: `${rosterStudent.name.toLowerCase().replace(/[^a-z]/g, "")}@${ALLOWED_DOMAIN}`,
+        fullName: toTitleCase(rosterStudent.name),
+        rollNo: rosterStudent.rollNo,
+        maheId: rosterStudent.maheId,
+        isRollNo: true,
+        found: false,
+        needsRegistration: true,
+        message: `Welcome ${toTitleCase(rosterStudent.name)}! Your student record was found, but you haven't created your Zenith account yet. Please switch to "Register" to activate your portal.`,
+      };
+    }
+
+    // 4. Check if raw string is an email prefix (e.g. "milan.tapmimpl2026")
+    const candidateEmail = `${raw.toLowerCase()}@${ALLOWED_DOMAIN}`;
+    const { data: profileByPrefix } = await supabaseAdmin
+      .from("profiles")
+      .select("email, full_name")
+      .eq("email", candidateEmail)
+      .maybeSingle();
+
+    if (profileByPrefix?.email) {
+      return {
+        email: profileByPrefix.email.toLowerCase(),
+        fullName: profileByPrefix.full_name || undefined,
+        isRollNo: false,
+        found: true,
+      };
+    }
+
+    // 5. Default fallback: treat as email with @learner.manipal.edu
+    return {
+      email: candidateEmail,
+      isRollNo: false,
+      found: true,
+    };
+  });
+
+
 export const finalizeSignup = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) =>

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { createFileRoute, useNavigate, Link } from "@tanstack/react-router";
 import { toast } from "sonner";
@@ -6,7 +6,7 @@ import { Lock, Mail, User, ArrowLeft, CheckCircle2, KeyRound, RotateCw, Edit3, S
 import { db as supabase, backendConfigured } from "@/lib/backend";
 import { batchTreeQuery } from "@/lib/batches";
 import { HierarchyBatchSelector } from "@/components/auth/HierarchyBatchSelector";
-import { requestSignupVerification, finalizeSignup, registerWithRoster, requestPasswordReset } from "@/lib/auth.functions";
+import { requestSignupVerification, finalizeSignup, registerWithRoster, requestPasswordReset, resolveLoginIdentifier } from "@/lib/auth.functions";
 import {
   findStudentInRoster,
   toTitleCase,
@@ -61,6 +61,7 @@ function AuthPage() {
   const search = Route.useSearch();
   const { theme, toggle: toggleTheme } = useTheme();
   const [mode, setMode] = useState<"signin" | "signup" | "verify" | "welcome" | "forgot" | "reset">(search.mode || "signin");
+  const isPendingWelcomeRef = useRef(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
@@ -96,10 +97,13 @@ function AuthPage() {
 
   useEffect(() => {
     if (!backendConfigured) return;
+    if (isPendingWelcomeRef.current || mode === "welcome") return;
     void supabase.auth
       .getSession()
       .then(({ data }) => {
-        if (data.session && mode !== "welcome") navigate({ to: "/", replace: true });
+        if (data.session && !isPendingWelcomeRef.current) {
+          navigate({ to: "/", replace: true });
+        }
       })
       .catch(() => undefined);
   }, [navigate, mode]);
@@ -146,16 +150,8 @@ function AuthPage() {
         },
       });
 
-      // Auto sign-in with verified credentials
-      const { error: signInErr } = await supabase.auth.signInWithPassword({
-        email: cleanEmail,
-        password,
-      });
-
-      if (signInErr) {
-        throw signInErr;
-      }
-
+      // Prepare welcome screen immediately before auto-signing in
+      isPendingWelcomeRef.current = true;
       setWelcomeInfo({
         fullName: res.fullName,
         rollNo: res.rollNo,
@@ -166,13 +162,25 @@ function AuthPage() {
         batchName: res.batchName || "Batch 2026–2031",
       });
       setMode("welcome");
+
+      // Auto sign-in with verified credentials
+      const { error: signInErr } = await supabase.auth.signInWithPassword({
+        email: cleanEmail,
+        password,
+      });
+
+      if (signInErr) {
+        console.warn("Background auto-sign-in warning:", signInErr.message);
+      }
     } catch (error) {
+      isPendingWelcomeRef.current = false;
       const msg = error instanceof Error ? error.message : "Registration failed";
       toast.error(msg);
     } finally {
       setBusy(false);
     }
   }
+
 
   async function handleSendVerification(e?: React.FormEvent) {
     if (e) e.preventDefault();
@@ -280,23 +288,57 @@ function AuthPage() {
       toast.error("Sign-in is temporarily unavailable. Please try again shortly.");
       return;
     }
+    const rawIdentifier = email.trim();
+    if (!rawIdentifier) {
+      toast.error("Please enter your learner email or roll number.");
+      return;
+    }
+    if (!password) {
+      toast.error("Please enter your password.");
+      return;
+    }
+
     setBusy(true);
     try {
-      const cleanEmail = email.trim().toLowerCase();
+      // Resolve roll number, MAHE ID, or email to official learner account
+      const resolved = await resolveLoginIdentifier({
+        data: { identifier: rawIdentifier },
+      });
+
+      if (!resolved.found && resolved.needsRegistration) {
+        toast.info(resolved.message || "Student record found. Please complete registration to activate your access.");
+        if (resolved.rollNo) setRegNo(resolved.rollNo);
+        if (resolved.fullName) setFullName(resolved.fullName);
+        setMode("signup");
+        setBusy(false);
+        return;
+      }
+
+      const targetEmail = resolved.email || rawIdentifier.toLowerCase();
+
       const { error } = await supabase.auth.signInWithPassword({
-        email: cleanEmail,
+        email: targetEmail,
         password,
       });
-      if (error) throw error;
-      toast.success("Welcome back!");
+
+      if (error) {
+        const errMsg = error.message.toLowerCase();
+        if (errMsg.includes("invalid login credentials")) {
+          throw new Error("Invalid password or credentials. If you are a new student, please click Register first.");
+        }
+        throw error;
+      }
+
+      toast.success(resolved.fullName ? `Welcome back, ${resolved.fullName}!` : "Welcome back!");
       navigate({ to: "/", replace: true });
     } catch (error) {
-      const msg = error instanceof Error ? error.message : "Invalid email or password";
+      const msg = error instanceof Error ? error.message : "Invalid email, roll number, or password";
       toast.error(msg);
     } finally {
       setBusy(false);
     }
   }
+
 
   async function handleRequestReset(e?: React.FormEvent) {
     if (e) e.preventDefault();
@@ -398,7 +440,10 @@ function AuthPage() {
             college={welcomeInfo.college}
             course={welcomeInfo.course}
             batchName={welcomeInfo.batchName}
-            onContinue={() => navigate({ to: "/", replace: true })}
+            onContinue={() => {
+              isPendingWelcomeRef.current = false;
+              navigate({ to: "/", replace: true });
+            }}
           />
         ) : mode === "forgot" ? (
           <div>
@@ -610,21 +655,31 @@ function AuthPage() {
                     htmlFor="email"
                     className="block mb-1.5 font-mono text-[10px] uppercase tracking-[0.18em] text-dim"
                   >
-                    Learner Email
+                    Learner Email or Roll No.
                   </label>
                   <div className="relative flex items-center">
                     <Mail className="absolute left-3 size-4 text-faint pointer-events-none" />
                     <input
                       id="email"
-                      type="email"
+                      type="text"
+                      autoComplete="username"
+                      inputMode="text"
+                      autoCapitalize="none"
+                      autoCorrect="off"
+                      spellCheck={false}
                       required
                       className={fieldClass}
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
-                      placeholder="your.email@learner.manipal.edu"
+                      placeholder="your.email@learner.manipal.edu, 26U36, or MAHE ID"
                     />
                   </div>
+                  <p className="mt-1.5 font-mono text-[10px] text-faint flex items-center gap-1">
+                    <Sparkles className="size-3 text-cyan shrink-0" />
+                    Sign in with email, Roll No. (e.g. 26U36), or 12-digit MAHE Roll No.
+                  </p>
                 </div>
+
 
                 <div>
                   <div className="flex items-center justify-between mb-1.5">

@@ -98,12 +98,14 @@ const PANEL_TITLES: Record<PanelKey, string> = {
 export default function StudentBoard({ guestPreview }: { guestPreview?: boolean } = {}) {
   const { isModerator, isAdmin, isArush } = useAuth();
   const me = useMe();
-  const { batchId, batch, canManage } = useBatch();
+  const { batchId, batch, canManage, loading: batchLoading } = useBatch();
   const isMod = canManage || isModerator || isAdmin || isArush;
   const queryClient = useQueryClient();
   const { data: deadlines = [], isLoading } = useQuery(deadlinesQueryFor(batchId));
   const { data: sessions = [] } = useQuery(sessionsQuery(batchId));
   const { data: courses = [] } = useQuery(coursesQuery(batchId));
+  const isFeedLoading = isLoading || (!batchId && batchLoading);
+
 
 
   const [tab, setTab] = useState<TabKey>("feed");
@@ -650,7 +652,7 @@ export default function StudentBoard({ guestPreview }: { guestPreview?: boolean 
                     </div>
                   </div>
 
-                  {isLoading ? (
+                  {isFeedLoading ? (
                     <div className="flex flex-col gap-4">
                       {Array.from({ length: 3 }).map((_, i) => (
                         <div key={i} className="h-32 animate-pulse rounded-3xl bg-surface/50 border border-border" />

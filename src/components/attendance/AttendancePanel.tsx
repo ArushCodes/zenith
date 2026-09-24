@@ -65,7 +65,7 @@ const timeFmt = new Intl.DateTimeFormat("en-GB", {
 export function AttendancePanel({ now, compact = false }: { now: number; compact?: boolean }) {
   const { user } = useAuth();
   const me = useMe();
-  const { batchId, batch, canManage, isMember } = useBatch();
+  const { batchId, batch, canManage, isMember, loading: batchLoading } = useBatch();
   const queryClient = useQueryClient();
   const [browse, setBrowse] = useState(false);
   const [q, setQ] = useState("");
@@ -305,6 +305,15 @@ export function AttendancePanel({ now, compact = false }: { now: number; compact
     a.download = `attendance-${batch?.slug ?? "batch"}.csv`;
     a.click();
     URL.revokeObjectURL(url);
+  }
+
+  if (batchLoading) {
+    return (
+      <div className="space-y-3 py-4 animate-pulse">
+        <div className="h-16 rounded-2xl bg-surface2/60 border border-border/50" />
+        <div className="h-24 rounded-2xl bg-surface2/40 border border-border/40" />
+      </div>
+    );
   }
 
   if (!isMember)

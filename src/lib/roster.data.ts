@@ -175,6 +175,20 @@ export function findStudentInRoster(regInput: string, rawDob: string): RosterStu
   );
 }
 
+export function findStudentInRosterByRoll(rollOrMaheId: string): RosterStudent | null {
+  const clean = (rollOrMaheId || "").trim().toUpperCase();
+  if (!clean) return null;
+  const digitsOnly = clean.replace(/\D/g, "");
+  return (
+    IPM1_ROSTER.find(
+      (s) =>
+        s.rollNo.toUpperCase() === clean ||
+        (digitsOnly.length === 12 && s.maheId === digitsOnly) ||
+        (digitsOnly.length === 4 && s.last4 === digitsOnly)
+    ) || null
+  );
+}
+
 export function getBatchInfo(batchId?: string) {
   const found = IPM_BATCHES.find((b) => b.id === batchId);
   if (found) {
@@ -190,4 +204,5 @@ export function getBatchInfo(batchId?: string) {
     years: "2026–2031",
   };
 }
+
 
