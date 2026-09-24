@@ -22,10 +22,12 @@ import {
   Presentation,
   Radio,
   MessageSquare,
+  Search,
   ShieldCheck,
   Sparkles,
   UserCheck,
   Users,
+  X,
 } from "lucide-react";
 import { GradingPanel } from "@/components/grading/GradingPanel";
 import { ExamsPanel } from "@/components/exams/ExamsPanel";
@@ -47,6 +49,7 @@ import { DeadlineDialog } from "@/components/board/DeadlineDialog";
 import { EventDrawer } from "@/components/board/EventDrawer";
 import { ApprovalsPanel } from "@/components/board/ApprovalsPanel";
 import { AnnouncementsPanel } from "@/components/board/AnnouncementsPanel";
+import { LiveClassHero } from "@/components/board/LiveClassHero";
 import { LiveClassHud } from "@/components/board/LiveClassHud";
 import { FeedCard, FeedCompactRow } from "@/components/board/FeedCard";
 import { usePersonalChecklist } from "@/hooks/use-personal-checklist";
@@ -131,6 +134,7 @@ export default function StudentBoard({ guestPreview }: { guestPreview?: boolean 
   const [feedCategory, setFeedCategory] = useState<
     "all" | "quiz" | "assignment" | "exam" | "presentation" | "other"
   >("all");
+  const [feedSearch, setFeedSearch] = useState("");
   const [showCompleted, setShowCompleted] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<Deadline | null>(null);
@@ -262,17 +266,37 @@ export default function StudentBoard({ guestPreview }: { guestPreview?: boolean 
       .sort((a, b) => new Date(b.due_at).getTime() - new Date(a.due_at).getTime());
   }, [approved, now]);
 
-  // Filtered upcoming feed by selected category
+  // Filtered upcoming feed by selected category & search query
   const filteredUpcoming = useMemo(() => {
-    if (feedCategory === "all") return allUpcoming;
+    let list = allUpcoming;
     if (feedCategory === "exam") {
-      return allUpcoming.filter((d) => d.type === "midterm" || d.type === "endterm");
+      list = list.filter((d) => d.type === "midterm" || d.type === "endterm");
+    } else if (feedCategory === "other") {
+      list = list.filter((d) => d.type === "guest_lecture" || d.type === "other");
+    } else if (feedCategory !== "all") {
+      list = list.filter((d) => d.type === feedCategory);
     }
-    if (feedCategory === "other") {
-      return allUpcoming.filter((d) => d.type === "guest_lecture" || d.type === "other");
+
+    const q = feedSearch.trim().toLowerCase();
+    if (q) {
+      list = list.filter((d) => {
+        const title = (d.title || "").toLowerCase();
+        const subject = (d.subject || "").toLowerCase();
+        const code = (d.subject_code || "").toLowerCase();
+        const loc = (d.location || "").toLowerCase();
+        const notes = (d.notes || "").toLowerCase();
+        return (
+          title.includes(q) ||
+          subject.includes(q) ||
+          code.includes(q) ||
+          loc.includes(q) ||
+          notes.includes(q)
+        );
+      });
     }
-    return allUpcoming.filter((d) => d.type === feedCategory);
-  }, [allUpcoming, feedCategory]);
+
+    return list;
+  }, [allUpcoming, feedCategory, feedSearch]);
 
   // Group into recency buckets for clear visual urgency & hierarchy
   const recencyBuckets = useMemo(() => {
@@ -444,52 +468,7 @@ export default function StudentBoard({ guestPreview }: { guestPreview?: boolean 
           </div>
         </div>
 
-        {/* ── "Up Next" Live Classroom HUD & Countdown ── */}
-        <LiveClassHud
-          sessions={sessions}
-          batchName={batch?.name}
-          onNavigateToTimetable={() => setTab("timetable")}
-        />
 
-        {/* ── Compact 48-Hour Urgency Ticker (Only 34px tall, tells EXACTLY what is due!) ── */}
-        {recencyBuckets.critical.length > 0 && (
-          <div className="mb-2.5 flex items-center gap-2 rounded-xl border border-rose/30 bg-rose/5 px-3 py-1.5 text-xs backdrop-blur-md overflow-x-auto scrollbar-none">
-            <div className="flex items-center gap-1.5 shrink-0 text-rose font-bold">
-              <Flame className="size-3.5 animate-pulse" />
-              <span className="uppercase tracking-wider text-[10px] sm:text-[11px]">Due in 48h ({recencyBuckets.critical.length}):</span>
-            </div>
-            <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-none py-0.5">
-              {recencyBuckets.critical.map((item) => {
-                const itemColor = autoColor(item.subject || item.title);
-                const isItemDone = isDone(item.id);
-                return (
-                  <button
-                    key={item.id}
-                    type="button"
-                    onClick={() => setSelected(item)}
-                    className={`inline-flex shrink-0 items-center gap-1.5 rounded-lg border px-2 py-0.5 text-left transition-all ${
-                      isItemDone
-                        ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 opacity-85"
-                        : "border-border bg-surface hover:border-rose/50 hover:shadow-xs text-ink"
-                    }`}
-                  >
-                    <span
-                      className="size-1.5 rounded-full shrink-0"
-                      style={{ backgroundColor: itemColor }}
-                    />
-                    <span className="font-bold text-[11px] whitespace-nowrap">
-                      {formatTickerLabel(item)}
-                    </span>
-                    <span className="text-[10px] text-rose font-mono shrink-0">
-                      · {timeLeft(item.due_at, now)}
-                    </span>
-                    {isItemDone && <span className="text-[10px] text-emerald-500 font-bold">✓</span>}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-        )}
 
         {tab === "calendar" && (
           <div className="mb-5 rounded-xl bg-surface p-4 ring-1 ring-border">
@@ -550,50 +529,215 @@ export default function StudentBoard({ guestPreview }: { guestPreview?: boolean 
             transition={{ duration: 0.26, ease: [0.22, 1, 0.36, 1] }}
           >
             {tab === "feed" && (
-              <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-[minmax(0,1fr)_360px] xl:grid-cols-[minmax(0,1fr)_400px]">
-                <div className="min-w-0 flex flex-col gap-3">
-                  {/* Modern Feed Command Bar */}
-                  <div className="rounded-xl border border-border/70 bg-surface/80 p-2 sm:p-2.5 backdrop-blur-md shadow-xs">
-                    <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                      {/* Category Pills (Horizontal scrollable) */}
-                      <div className="flex items-center gap-1.5 overflow-x-auto pb-1 sm:pb-0 scrollbar-none">
-                        {FEED_CATEGORIES.map((cat) => {
-                          const active = feedCategory === cat.key;
-                          return (
+              <div className="flex flex-col gap-5 sm:gap-6">
+                {/* ── Top Live Class / Timetable Hero (Centerpiece) ── */}
+                <LiveClassHero
+                  now={now}
+                  deadlines={deadlines}
+                  onSeeFullTimetable={() => setTab("timetable")}
+                  onSeeExams={() => {
+                    setTab("exams");
+                    setExamSubTab("midterm");
+                  }}
+                  canManage={isMod}
+                />
+
+                {/* ── Mission Control KPI Strip (Desktop / Web Highlights) ── */}
+                <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-3.5">
+                  <div className="flex items-center gap-3 rounded-2xl border border-border/80 bg-surface/80 p-3 sm:p-3.5 shadow-xs backdrop-blur-md">
+                    <div className="flex size-9 items-center justify-center rounded-xl bg-cyan/15 text-cyan shrink-0">
+                      <Layers className="size-4" />
+                    </div>
+                    <div className="min-w-0">
+                      <span className="block font-mono text-[10px] uppercase tracking-wider text-dim truncate">
+                        Active Deadlines
+                      </span>
+                      <span className="font-display text-base sm:text-lg font-extrabold text-ink">
+                        {totalUpcomingCount} <span className="text-xs font-normal text-dim">Events</span>
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-3 rounded-2xl border border-rose/30 bg-rose/5 p-3 sm:p-3.5 shadow-xs backdrop-blur-md">
+                    <div className="flex size-9 items-center justify-center rounded-xl bg-rose/15 text-rose shrink-0">
+                      <Flame className="size-4 animate-pulse" />
+                    </div>
+                    <div className="min-w-0">
+                      <span className="block font-mono text-[10px] uppercase tracking-wider text-rose/80 truncate">
+                        Due in 48 Hours
+                      </span>
+                      <span className="font-display text-base sm:text-lg font-extrabold text-rose">
+                        {recencyBuckets.critical.length} <span className="text-xs font-normal text-rose/70">Urgent</span>
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-3 rounded-2xl border border-amber/30 bg-amber/5 p-3 sm:p-3.5 shadow-xs backdrop-blur-md">
+                    <div className="flex size-9 items-center justify-center rounded-xl bg-amber/15 text-amber shrink-0">
+                      <GraduationCap className="size-4" />
+                    </div>
+                    <div className="min-w-0">
+                      <span className="block font-mono text-[10px] uppercase tracking-wider text-amber/80 truncate">
+                        Quizzes & Exams
+                      </span>
+                      <span className="font-display text-base sm:text-lg font-extrabold text-amber">
+                        {quizzes.length + midterms.length + endterms.length} <span className="text-xs font-normal text-amber/70">Tests</span>
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-3 rounded-2xl border border-emerald-500/30 bg-emerald-500/5 p-3 sm:p-3.5 shadow-xs backdrop-blur-md">
+                    <div className="flex size-9 items-center justify-center rounded-xl bg-emerald-500/15 text-emerald-500 shrink-0">
+                      <CheckCircle2 className="size-4" />
+                    </div>
+                    <div className="min-w-0">
+                      <span className="block font-mono text-[10px] uppercase tracking-wider text-emerald-600 dark:text-emerald-400 truncate">
+                        Checklist Prep
+                      </span>
+                      <span className="font-display text-base sm:text-lg font-extrabold text-emerald-600 dark:text-emerald-400">
+                        {completedUpcomingCount}/{totalUpcomingCount} <span className="text-xs font-normal text-dim">({progressPercent}%)</span>
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* ── Compact 48-Hour Urgency Ticker ── */}
+                {recencyBuckets.critical.length > 0 && (
+                  <div className="flex items-center gap-2 rounded-xl border border-rose/30 bg-rose/5 px-3 py-1.5 text-xs backdrop-blur-md overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                    <div className="flex items-center gap-1.5 shrink-0 text-rose font-bold">
+                      <Flame className="size-3.5 animate-pulse" />
+                      <span className="uppercase tracking-wider text-[10px] sm:text-[11px]">Due in 48h ({recencyBuckets.critical.length}):</span>
+                    </div>
+                    <div className="flex items-center gap-1.5 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden py-0.5">
+                      {recencyBuckets.critical.map((item) => {
+                        const itemColor = autoColor(item.subject || item.title);
+                        const isItemDone = isDone(item.id);
+                        return (
+                          <button
+                            key={item.id}
+                            type="button"
+                            onClick={() => setSelected(item)}
+                            className={`inline-flex shrink-0 items-center gap-1.5 rounded-lg border px-2 py-0.5 text-left transition-all cursor-pointer ${
+                              isItemDone
+                                ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 opacity-85"
+                                : "border-border bg-surface hover:border-rose/50 hover:shadow-xs text-ink"
+                            }`}
+                          >
+                            <span
+                              className="size-1.5 rounded-full shrink-0"
+                              style={{ backgroundColor: itemColor }}
+                            />
+                            <span className="font-bold text-[11px] whitespace-nowrap">
+                              {formatTickerLabel(item)}
+                            </span>
+                            <span className="text-[10px] text-rose font-mono shrink-0">
+                              · {timeLeft(item.due_at, now)}
+                            </span>
+                            {isItemDone && <span className="text-[10px] text-emerald-500 font-bold">✓</span>}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
+                {/* ── Main Feed & Sidebar Grid ── */}
+                <div className="grid grid-cols-1 items-start gap-5 lg:grid-cols-[minmax(0,1fr)_360px] xl:grid-cols-[minmax(0,1fr)_400px]">
+                  <div className="min-w-0 flex flex-col gap-3.5">
+                    {/* Modern Feed Command Bar */}
+                    <div className="rounded-2xl border border-border/80 bg-surface/90 p-2.5 sm:p-3 backdrop-blur-md shadow-xs space-y-2.5">
+                      {/* Search Bar + Quick Actions */}
+                      <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+                        <div className="relative flex-1">
+                          <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-3.5 text-faint pointer-events-none" />
+                          <input
+                            type="text"
+                            value={feedSearch}
+                            onChange={(e) => setFeedSearch(e.target.value)}
+                            placeholder="Filter feed by title, course, location..."
+                            className="w-full rounded-xl bg-surface2/60 pl-8 pr-7 py-1.5 text-xs text-ink placeholder:text-faint border border-border/60 outline-none focus:border-cyan/50 focus:ring-1 focus:ring-cyan/30"
+                          />
+                          {feedSearch && (
                             <button
-                              key={cat.key}
                               type="button"
-                              onClick={() => setFeedCategory(cat.key)}
-                              className={`group inline-flex shrink-0 items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-medium transition-all ${
-                                active
-                                  ? "bg-cyan/15 text-cyan border border-cyan/30 shadow-sm shadow-cyan/10"
-                                  : "text-muted hover:text-ink hover:bg-surface-elevated border border-transparent"
-                              }`}
+                              onClick={() => setFeedSearch("")}
+                              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-faint hover:text-ink cursor-pointer"
                             >
-                              <span className={active ? "text-cyan" : "text-faint group-hover:text-muted"}>
-                                {cat.icon}
-                              </span>
-                              <span>{cat.label}</span>
-                              <span
-                                className={`ml-0.5 rounded-full px-1.5 py-0.2 text-[10px] font-mono ${
-                                  active
-                                    ? "bg-cyan/20 text-cyan font-semibold"
-                                    : "bg-surface text-faint group-hover:text-muted"
-                                }`}
-                              >
-                                {cat.count}
-                              </span>
+                              <X className="size-3" />
                             </button>
-                          );
-                        })}
+                          )}
+                        </div>
+
+                        {/* Density Switcher: Comfortable Cards vs Compact Linear Rows */}
+                        <div className="inline-flex items-center justify-end rounded-xl bg-surface2/60 border border-border/60 p-0.5 shrink-0 self-end sm:self-auto">
+                          <button
+                            type="button"
+                            onClick={() => handleDensityChange("comfortable")}
+                            className={`inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-medium transition-all cursor-pointer ${
+                              feedDensity === "comfortable"
+                                ? "bg-surface text-ink shadow-xs font-semibold border border-border/80"
+                                : "text-faint hover:text-ink"
+                            }`}
+                            title="Comfortable Cards view with full scope, countdowns, and quick actions"
+                          >
+                            <LayoutGrid className="size-3.5" />
+                            <span className="hidden sm:inline">Cards</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleDensityChange("compact")}
+                            className={`inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-medium transition-all cursor-pointer ${
+                              feedDensity === "compact"
+                                ? "bg-surface text-ink shadow-xs font-semibold border border-border/80"
+                                : "text-faint hover:text-ink"
+                            }`}
+                            title="Compact Linear view (single-line fast scanning)"
+                          >
+                            <List className="size-3.5" />
+                            <span className="hidden sm:inline">Compact</span>
+                          </button>
+                        </div>
                       </div>
 
-                      {/* Right toolbar controls: Personal Checklist & Density Switcher */}
-                      <div className="flex items-center justify-between sm:justify-end gap-3 shrink-0 pt-2 sm:pt-0 border-t sm:border-t-0 border-border/50">
+                      {/* Category Pills & Checklist Counter */}
+                      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 pt-1 border-t border-border/50">
+                        {/* Category Pills (Horizontal scrollable) */}
+                        <div className="flex items-center gap-1.5 overflow-x-auto pb-1 sm:pb-0 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                          {FEED_CATEGORIES.map((cat) => {
+                            const active = feedCategory === cat.key;
+                            return (
+                              <button
+                                key={cat.key}
+                                type="button"
+                                onClick={() => setFeedCategory(cat.key)}
+                                className={`group inline-flex shrink-0 items-center gap-1.5 rounded-xl px-2.5 sm:px-3 py-1 text-xs font-medium transition-all cursor-pointer ${
+                                  active
+                                    ? "bg-cyan/15 text-cyan border border-cyan/30 shadow-xs shadow-cyan/10 font-bold"
+                                    : "text-muted hover:text-ink hover:bg-surface2/60 border border-transparent"
+                                }`}
+                              >
+                                <span className={active ? "text-cyan" : "text-faint group-hover:text-muted"}>
+                                  {cat.icon}
+                                </span>
+                                <span>{cat.label}</span>
+                                <span
+                                  className={`ml-0.5 rounded-full px-1.5 py-0.2 text-[10px] font-mono ${
+                                    active
+                                      ? "bg-cyan/20 text-cyan font-bold"
+                                      : "bg-surface2 text-faint group-hover:text-muted"
+                                  }`}
+                                >
+                                  {cat.count}
+                                </span>
+                              </button>
+                            );
+                          })}
+                        </div>
+
                         {/* Personal Checklist Preparation Progress */}
                         {totalUpcomingCount > 0 && (
                           <div
-                            className="inline-flex items-center gap-2 rounded-xl bg-surface-elevated/80 border border-border/60 px-2.5 py-1 text-xs text-muted"
+                            className="inline-flex items-center gap-2 rounded-xl bg-surface2/60 border border-border/60 px-2.5 py-1 text-xs text-muted shrink-0 self-end sm:self-auto"
                             title={`${completedUpcomingCount} of ${totalUpcomingCount} upcoming events marked as prepared / done`}
                           >
                             <CheckCircle2
@@ -618,39 +762,8 @@ export default function StudentBoard({ guestPreview }: { guestPreview?: boolean 
                             <span className="font-mono text-[10px] text-cyan font-bold">{progressPercent}%</span>
                           </div>
                         )}
-
-                        {/* Density Switcher: Comfortable Cards vs Compact Linear Rows */}
-                        <div className="inline-flex items-center rounded-xl bg-surface border border-border/60 p-0.5">
-                          <button
-                            type="button"
-                            onClick={() => handleDensityChange("comfortable")}
-                            className={`inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-medium transition-all ${
-                              feedDensity === "comfortable"
-                                ? "bg-surface-elevated text-ink shadow-sm font-semibold border border-border/80"
-                                : "text-faint hover:text-ink"
-                            }`}
-                            title="Comfortable Cards view with full scope, countdowns, and quick actions"
-                          >
-                            <LayoutGrid className="size-3.5" />
-                            <span className="hidden sm:inline">Cards</span>
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => handleDensityChange("compact")}
-                            className={`inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-medium transition-all ${
-                              feedDensity === "compact"
-                                ? "bg-surface-elevated text-ink shadow-sm font-semibold border border-border/80"
-                                : "text-faint hover:text-ink"
-                            }`}
-                            title="Compact Linear view (single-line fast scanning)"
-                          >
-                            <List className="size-3.5" />
-                            <span className="hidden sm:inline">Compact</span>
-                          </button>
-                        </div>
                       </div>
                     </div>
-                  </div>
 
                   {isFeedLoading ? (
                     <div className="flex flex-col gap-4">
@@ -663,19 +776,24 @@ export default function StudentBoard({ guestPreview }: { guestPreview?: boolean 
                       <div className="mx-auto flex size-10 items-center justify-center rounded-xl bg-cyan/10 text-cyan mb-3">
                         <Sparkles className="size-5" />
                       </div>
-                      <h3 className="text-sm font-semibold text-ink">No upcoming events</h3>
+                      <h3 className="text-sm font-semibold text-ink">No events found</h3>
                       <p className="mt-1 text-xs text-dim max-w-xs mx-auto">
-                        {feedCategory === "all"
+                        {feedSearch
+                          ? `No deadlines or exams matching "${feedSearch}".`
+                          : feedCategory === "all"
                           ? "No upcoming deadlines or exams scheduled."
                           : `No upcoming events in ${feedCategory}.`}
                       </p>
-                      {feedCategory !== "all" && (
+                      {(feedCategory !== "all" || feedSearch) && (
                         <button
                           type="button"
-                          onClick={() => setFeedCategory("all")}
-                          className="mt-3 inline-flex items-center gap-1.5 rounded-lg bg-surface2 border border-border px-2.5 py-1 text-xs font-medium text-ink hover:text-cyan transition-all"
+                          onClick={() => {
+                            setFeedCategory("all");
+                            setFeedSearch("");
+                          }}
+                          className="mt-3 inline-flex items-center gap-1.5 rounded-lg bg-surface2 border border-border px-3 py-1.5 text-xs font-semibold text-ink hover:text-cyan transition-all cursor-pointer"
                         >
-                          Show all
+                          Reset filters
                         </button>
                       )}
                     </div>
@@ -849,6 +967,7 @@ export default function StudentBoard({ guestPreview }: { guestPreview?: boolean 
                   </div>
                   <ActivityPanel compact />
                 </aside>
+              </div>
               </div>
             )}
 

@@ -218,7 +218,7 @@ export function LiveClassHero({
     : "#22D3EE";
 
   return (
-    <section className="relative mb-6 sm:mb-8 overflow-hidden rounded-[28px] sm:rounded-[36px] border border-border/80 bg-surface/95 p-6 sm:p-8 md:p-10 shadow-2xl backdrop-blur-2xl transition-all duration-300">
+    <section className="relative mb-5 sm:mb-8 overflow-hidden rounded-2xl sm:rounded-[32px] border border-border/80 bg-surface/95 p-4 sm:p-7 md:p-8 shadow-xl backdrop-blur-2xl transition-all duration-300">
       {/* ── Ambient Radial Glows ── */}
       <div
         className="pointer-events-none absolute -right-24 -top-24 h-96 w-96 rounded-full blur-[130px] opacity-25 transition-colors duration-700"
@@ -230,8 +230,8 @@ export function LiveClassHero({
       />
 
       {/* ── Top Bar: Day Selector & Live Clock ── */}
-      <div className="relative z-10 flex flex-wrap items-center justify-between gap-4 border-b border-border/60 pb-5 mb-5">
-        <div className="flex flex-wrap items-center gap-3">
+      <div className="relative z-10 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 border-b border-border/60 pb-4 mb-4">
+        <div className="flex flex-wrap items-center gap-2.5 sm:gap-3">
           <div className="flex items-center rounded-2xl bg-surface2/80 p-1 border border-border/80 shadow-xs">
             <button
               type="button"
@@ -351,20 +351,20 @@ export function LiveClassHero({
                 </div>
 
                 {/* Massive Headline Title: Full course name, never clipped */}
-                <h2 className="font-display text-2xl sm:text-4xl md:text-5xl font-extrabold tracking-tight text-ink break-words leading-tight">
+                <h2 className="font-display text-xl sm:text-3xl md:text-4xl font-extrabold tracking-tight text-ink break-words leading-tight">
                   {subjectFullName(liveClass.course_name || liveClass.course_code || liveClass.title) || sessionFullName(liveClass)}
                 </h2>
 
-                <div className="flex flex-wrap items-center gap-4 text-xs sm:text-sm text-dim pt-1">
+                <div className="flex flex-wrap items-center gap-3 sm:gap-4 text-xs sm:text-sm text-dim pt-1">
                   {liveClass.classroom && (
-                    <span className="font-semibold text-ink flex items-center gap-1.5 bg-surface2/60 border border-border px-3 py-1 rounded-xl">
-                      <MapPin className="size-4 text-cyan" />
+                    <span className="font-semibold text-ink flex items-center gap-1.5 bg-surface2/60 border border-border px-2.5 sm:px-3 py-1 rounded-xl">
+                      <MapPin className="size-3.5 sm:size-4 text-cyan shrink-0" />
                       Room {liveClass.classroom}
                     </span>
                   )}
                   {liveClass.faculty_name && (
-                    <span className="flex items-center gap-1.5 bg-surface2/60 border border-border px-3 py-1 rounded-xl">
-                      <User className="size-4 text-amber" />
+                    <span className="flex items-center gap-1.5 bg-surface2/60 border border-border px-2.5 sm:px-3 py-1 rounded-xl">
+                      <User className="size-3.5 sm:size-4 text-amber shrink-0" />
                       {liveClass.faculty_name}
                     </span>
                   )}
@@ -379,7 +379,7 @@ export function LiveClassHero({
                   type="button"
                   onClick={() => toggleAbsent.mutate(liveClass)}
                   disabled={toggleAbsent.isPending}
-                  className={`inline-flex items-center gap-2 rounded-2xl px-5 py-3 text-sm font-extrabold shadow-lg transition-all cursor-pointer ${
+                  className={`inline-flex items-center gap-2 rounded-xl sm:rounded-2xl px-4 sm:px-5 py-2.5 sm:py-3 text-xs sm:text-sm font-extrabold shadow-lg transition-all cursor-pointer ${
                     myMarks.get(liveClass.id) === "absent"
                       ? "bg-rose text-white shadow-rose/25 hover:bg-rose/90"
                       : "bg-emerald-500 text-white shadow-emerald-500/25 hover:bg-emerald-500/90"
@@ -443,7 +443,7 @@ export function LiveClassHero({
             </div>
 
             {/* Huge Headline Title: Full course name, never clipped */}
-            <h2 className="font-display text-2xl sm:text-4xl md:text-5xl font-extrabold tracking-tight text-ink break-words leading-tight">
+            <h2 className="font-display text-xl sm:text-3xl md:text-4xl font-extrabold tracking-tight text-ink break-words leading-tight">
               {subjectFullName(nextClassToday.course_name || nextClassToday.course_code || nextClassToday.title) || sessionFullName(nextClassToday)}
             </h2>
 
@@ -487,7 +487,7 @@ export function LiveClassHero({
             </span>
           </div>
 
-          <div className="flex items-stretch gap-3 overflow-x-auto pb-2 scrollbar-none">
+          <div className="flex items-stretch gap-2.5 sm:gap-3 overflow-x-auto pb-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
             {classes.map((s) => {
               const color = sessionColor(s, colorMap) ?? FALLBACK_COURSE_COLOR;
               const isLive = liveClass?.id === s.id;
@@ -498,7 +498,7 @@ export function LiveClassHero({
               return (
                 <div
                   key={s.id}
-                  className={`relative flex flex-col justify-between rounded-2xl p-4 min-w-[210px] sm:min-w-[240px] shrink-0 border transition-all ${
+                  className={`relative flex flex-col justify-between rounded-xl sm:rounded-2xl p-3 sm:p-4 min-w-[170px] sm:min-w-[220px] shrink-0 border transition-all ${
                     isLive
                       ? "border-cyan/80 bg-cyan/[0.08] shadow-lg shadow-cyan/10 ring-1 ring-cyan/40"
                       : isPast
