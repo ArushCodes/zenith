@@ -1,5 +1,6 @@
 import { motion } from "framer-motion";
 import { Pencil, Trash2 } from "lucide-react";
+import { toast } from "sonner";
 import {
   eventMeta,
   fullDeadlineLabel,
@@ -162,9 +163,15 @@ export function DeadlineRow({ deadline, now, canManage, onEdit, onDelete, onOpen
                 type="button"
                 onClick={(e) => {
                   e.stopPropagation();
-                  if (window.confirm(`Are you sure you want to delete "${deadline.title}"?`)) {
-                    onDelete(deadline);
-                  }
+                  toast(`Delete "${deadline.title}"?`, {
+                    action: {
+                      label: "Delete",
+                      onClick: () => onDelete(deadline),
+                    },
+                    cancel: {
+                      label: "Cancel",
+                    },
+                  });
                 }}
                 className="flex items-center gap-1 rounded-lg bg-surface2 px-2 sm:px-2.5 py-1 font-mono text-[11px] font-semibold text-rose ring-1 ring-rose/30 transition-colors hover:bg-rose/15 hover:ring-rose/50"
                 title="Delete event"

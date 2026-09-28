@@ -58,7 +58,7 @@ export function AnnouncementsPanel({ compact = false }: { compact?: boolean }) {
   return (
     <section className="space-y-4">
       <div className="flex items-center justify-between gap-3">
-        <div className="flex items-center gap-2 text-amber">
+        <div className="flex items-center gap-2 text-cyan">
           <Megaphone className="size-4" />
           <p className="font-sans text-xs font-bold uppercase tracking-wider text-dim">
             {compact ? "Recent Announcements" : "Batch Announcements"}
@@ -68,7 +68,7 @@ export function AnnouncementsPanel({ compact = false }: { compact?: boolean }) {
           <button
             type="button"
             onClick={() => setOpen((v) => !v)}
-            className="flex items-center gap-1.5 rounded-xl border border-amber/30 bg-amber/10 px-3 py-1.5 font-sans text-xs font-semibold text-amber hover:bg-amber/20 transition-colors cursor-pointer"
+            className="flex items-center gap-1.5 rounded-xl border border-cyan/30 bg-cyan/10 px-3 py-1.5 font-sans text-xs font-semibold text-cyan hover:bg-cyan/20 transition-colors cursor-pointer"
           >
             <Plus className="size-3.5" />
             <span>{open ? "Cancel" : "New Post"}</span>
@@ -97,14 +97,14 @@ export function AnnouncementsPanel({ compact = false }: { compact?: boolean }) {
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
                 placeholder="Announcement Title"
-                className="rounded-xl border border-border bg-surface2 px-3.5 py-2.5 font-sans text-sm font-semibold text-ink outline-none placeholder:text-faint focus:border-amber/70 focus:ring-2 focus:ring-amber/20 transition-all"
+                className="rounded-xl border border-border bg-surface2 px-3.5 py-2.5 font-sans text-sm font-semibold text-ink outline-none placeholder:text-faint focus:border-cyan/70 focus:ring-2 focus:ring-cyan/20 transition-all"
               />
               <textarea
                 value={body}
                 onChange={(e) => setBody(e.target.value)}
                 rows={3}
                 placeholder="Details of the announcement..."
-                className="resize-none rounded-xl border border-border bg-surface2 px-3.5 py-2.5 font-sans text-sm text-ink outline-none placeholder:text-faint focus:border-amber/70 focus:ring-2 focus:ring-amber/20 transition-all"
+                className="resize-none rounded-xl border border-border bg-surface2 px-3.5 py-2.5 font-sans text-sm text-ink outline-none placeholder:text-faint focus:border-cyan/70 focus:ring-2 focus:ring-cyan/20 transition-all"
               />
               <div className="flex items-center justify-between pt-1">
                 <label className="flex items-center gap-2 font-sans text-xs font-semibold text-dim cursor-pointer">
@@ -119,7 +119,7 @@ export function AnnouncementsPanel({ compact = false }: { compact?: boolean }) {
                 <button
                   type="submit"
                   disabled={create.isPending}
-                  className="rounded-xl bg-amber px-4 py-2 font-sans text-xs font-bold text-stone-900 shadow-sm hover:brightness-105 transition-all disabled:opacity-50 cursor-pointer"
+                  className="rounded-xl bg-cyan px-4 py-2 font-sans text-xs font-bold text-white shadow-sm hover:brightness-105 transition-all disabled:opacity-50 cursor-pointer"
                 >
                   {create.isPending ? "Posting…" : "Publish Announcement"}
                 </button>
@@ -150,7 +150,7 @@ export function AnnouncementsPanel({ compact = false }: { compact?: boolean }) {
                 transition={{ delay: Math.min(i * 0.04, 0.24) }}
                 className={`rounded-2xl border p-4 sm:p-5 shadow-xs transition-all ${
                   a.pinned
-                    ? "border-amber/40 bg-amber/5"
+                    ? "border-cyan/40 bg-cyan/5"
                     : "border-border/70 bg-surface hover:border-border"
                 }`}
               >
@@ -158,7 +158,7 @@ export function AnnouncementsPanel({ compact = false }: { compact?: boolean }) {
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2 mb-1">
                       {a.pinned && (
-                        <span className="flex items-center gap-1 rounded-md bg-amber/15 px-2 py-0.5 font-mono text-[10px] font-bold text-amber border border-amber/30">
+                        <span className="flex items-center gap-1 rounded-md bg-cyan/15 px-2 py-0.5 font-mono text-[10px] font-bold text-cyan border border-cyan/30">
                           <Pin className="size-2.5" /> Pinned
                         </span>
                       )}
@@ -182,9 +182,15 @@ export function AnnouncementsPanel({ compact = false }: { compact?: boolean }) {
                     <button
                       type="button"
                       onClick={() => {
-                        if (window.confirm(`Are you sure you want to delete "${a.title}"?`)) {
-                          remove.mutate(a);
-                        }
+                        toast(`Delete announcement "${a.title}"?`, {
+                          action: {
+                            label: "Delete",
+                            onClick: () => remove.mutate(a),
+                          },
+                          cancel: {
+                            label: "Cancel",
+                          },
+                        });
                       }}
                       className="rounded-lg p-1.5 text-dim hover:text-rose hover:bg-rose/10 transition-colors"
                       title="Delete announcement"

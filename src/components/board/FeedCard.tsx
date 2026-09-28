@@ -1,5 +1,6 @@
 import { useMemo } from "react";
 import { motion } from "framer-motion";
+import { toast } from "sonner";
 import {
   Award,
   BookOpen,
@@ -146,8 +147,9 @@ export function FeedCard({
   return (
     <motion.article
       layout="position"
-      whileHover={{ y: -2 }}
-      transition={{ type: "spring", stiffness: 380, damping: 24 }}
+      whileHover={{ y: -3, boxShadow: "0 8px 30px oklch(0 0 0 / 8%)" }}
+      whileTap={{ scale: 0.99, y: 0 }}
+      transition={{ type: "spring", stiffness: 500, damping: 30 }}
       onClick={() => onOpen?.(deadline)}
       className={`group relative overflow-hidden rounded-2xl border bg-surface p-3.5 sm:p-6 transition-all cursor-pointer ${
         isDone
@@ -162,9 +164,12 @@ export function FeedCard({
       }`}
     >
       {/* Accent left indicator with canonical subject color */}
-      <span
-        className="absolute left-0 top-0 bottom-0 w-1.5 transition-all group-hover:w-2"
+      <motion.span
+        className="absolute left-0 top-0 bottom-0 rounded-l-2xl"
         style={{ backgroundColor: subjectColor }}
+        initial={{ width: 4 }}
+        whileHover={{ width: 6 }}
+        transition={{ type: "spring", stiffness: 600, damping: 30 }}
       />
 
       {/* Top Meta Line: Checkbox, Course code, Short Subject, Type, Urgency */}
@@ -179,7 +184,7 @@ export function FeedCard({
                 onToggleDone(deadline.id, e);
               }}
               title={isDone ? "Completed" : "Mark done"}
-              className={`flex items-center gap-1 rounded-md px-2 py-0.5 text-xs font-semibold transition-all cursor-pointer ${
+              className={`flex items-center gap-1.5 rounded-md px-2 py-0.5 text-xs font-semibold transition-all cursor-pointer ${
                 isDone
                   ? "bg-emerald-500/15 text-emerald-500 ring-1 ring-emerald-500/30"
                   : "bg-surface2 text-dim hover:text-ink ring-1 ring-border"
@@ -188,13 +193,22 @@ export function FeedCard({
               <span
                 className={`grid size-3.5 place-items-center rounded-xs border transition-all ${
                   isDone
-                    ? "border-emerald-500 bg-emerald-500 text-white"
+                    ? "border-emerald-500 bg-emerald-500 text-white check-pop"
                     : "border-border bg-surface"
                 }`}
               >
-                {isDone && <Check className="size-2.5 stroke-[3]" />}
+                {isDone && (
+                  <motion.span
+                    key="done-check"
+                    initial={{ scale: 0, rotate: -20 }}
+                    animate={{ scale: 1, rotate: 0 }}
+                    transition={{ type: "spring", stiffness: 600, damping: 20 }}
+                  >
+                    <Check className="size-2.5 stroke-[3]" />
+                  </motion.span>
+                )}
               </span>
-              <span className="font-mono text-[10px]">{isDone ? "Done" : "Mark done"}</span>
+              <span className="font-body text-[11px] font-medium">{isDone ? "Done" : "Mark done"}</span>
             </button>
           )}
 
@@ -231,7 +245,7 @@ export function FeedCard({
           </span>
 
           {deadline.is_major && (
-            <span className="rounded-md bg-amber/12 px-2 py-0.5 font-mono text-[10px] font-bold text-amber border border-amber/30">
+            <span className="rounded-md bg-violet/12 px-2 py-0.5 font-mono text-[10px] font-bold text-violet border border-violet/30">
               Major
             </span>
           )}
@@ -258,7 +272,7 @@ export function FeedCard({
                 isCriticalUrgent
                   ? "bg-rose/12 text-rose font-bold ring-1 ring-rose/30 shadow-xs shadow-rose/20"
                   : u === "soon"
-                  ? "bg-amber/12 text-amber font-bold ring-1 ring-amber/30"
+                  ? "bg-cyan/12 text-cyan font-bold ring-1 ring-cyan/30"
                   : "bg-surface2 text-dim font-medium"
               }`}
             >
@@ -289,7 +303,7 @@ export function FeedCard({
           </div>
 
           <div className="flex items-center gap-1.5 rounded-lg border border-border/70 bg-surface2/50 px-2.5 py-1 font-sans font-medium text-ink">
-            <Clock className="size-3.5 text-amber" />
+            <Clock className="size-3.5 text-cyan" />
             <span>{timeStr}</span>
             <span className="font-mono text-[10px] text-faint ml-0.5">({durationStr})</span>
           </div>
@@ -310,7 +324,7 @@ export function FeedCard({
         {/* Verified Syllabus/Notes - Rendered cleanly when present */}
         {deadline.notes && (
           <div className="mt-3 rounded-xl bg-surface2/40 border border-border/70 p-3 text-xs text-ink leading-relaxed space-y-1">
-            <div className="flex items-center gap-1.5 font-mono text-[10px] font-bold uppercase tracking-wider text-cyan">
+            <div className="flex items-center gap-1.5 font-body text-[11px] font-bold uppercase tracking-wider text-cyan">
               <BookOpen className="size-3" />
               <span>
                 {deadline.type === "midterm" || deadline.type === "endterm"
@@ -354,7 +368,7 @@ export function FeedCard({
         </div>
 
         <div className="flex items-center gap-2">
-          <span className="hidden sm:inline-flex items-center gap-1 font-mono text-[10px] text-faint">
+          <span className="hidden sm:inline-flex items-center gap-1 font-body text-[11px] font-medium text-faint">
             <ShieldCheck className="size-3 text-cyan" /> Verified
           </span>
 
@@ -366,7 +380,7 @@ export function FeedCard({
                   e.stopPropagation();
                   onEdit(deadline);
                 }}
-                className="inline-flex items-center gap-1 rounded-lg border border-amber/30 bg-amber/10 px-2.5 py-1 font-sans text-xs font-semibold text-amber hover:bg-amber/20 transition-colors cursor-pointer"
+                className="inline-flex items-center gap-1 rounded-lg border border-cyan/30 bg-cyan/10 px-2.5 py-1 font-sans text-xs font-semibold text-cyan hover:bg-cyan/20 transition-colors cursor-pointer"
               >
                 <Pencil className="size-3" />
                 <span>Edit</span>
@@ -375,9 +389,15 @@ export function FeedCard({
                 type="button"
                 onClick={(e) => {
                   e.stopPropagation();
-                  if (window.confirm(`Are you sure you want to delete "${title}"?`)) {
-                    onDelete(deadline);
-                  }
+                  toast(`Delete "${title}"?`, {
+                    action: {
+                      label: "Delete",
+                      onClick: () => onDelete(deadline),
+                    },
+                    cancel: {
+                      label: "Cancel",
+                    },
+                  });
                 }}
                 className="inline-flex items-center gap-1 rounded-lg border border-rose/30 bg-rose/10 px-2.5 py-1 font-sans text-xs font-semibold text-rose hover:bg-rose/20 transition-colors cursor-pointer"
               >
@@ -519,7 +539,7 @@ export function FeedCompactRow({
               isCriticalUrgent
                 ? "bg-rose/12 text-rose ring-1 ring-rose/30"
                 : u === "soon"
-                ? "bg-amber/12 text-amber ring-1 ring-amber/30"
+                ? "bg-cyan/12 text-cyan ring-1 ring-cyan/30"
                 : "bg-surface2 text-dim"
             }`}
           >
@@ -536,7 +556,7 @@ export function FeedCompactRow({
                 onEdit(deadline);
               }}
               title="Edit event"
-              className="p-1 rounded-md hover:bg-amber/20 text-dim hover:text-amber transition-colors"
+              className="p-1 rounded-md hover:bg-cyan/20 text-dim hover:text-cyan transition-colors"
             >
               <Pencil className="size-3.5" />
             </button>

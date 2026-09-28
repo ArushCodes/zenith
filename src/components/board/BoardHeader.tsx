@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import { Link, useNavigate } from "@tanstack/react-router";
 import { useQueryClient } from "@tanstack/react-query";
 import { motion } from "framer-motion";
@@ -40,6 +41,13 @@ export function BoardHeader({ menuItems = [], onMenuSelect }: Props) {
 
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const [scrolled, setScrolled] = useState(false);
+
+  useEffect(() => {
+    const handler = () => setScrolled(window.scrollY > 10);
+    window.addEventListener("scroll", handler, { passive: true });
+    return () => window.removeEventListener("scroll", handler);
+  }, []);
 
   const initials = (user?.user_metadata?.["full_name"] ?? user?.email ?? "")
     .toString()
@@ -61,12 +69,14 @@ export function BoardHeader({ menuItems = [], onMenuSelect }: Props) {
       initial={{ opacity: 0, y: -14 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
-      className="sticky top-0 z-30 border-b border-border bg-ground/80 backdrop-blur-xl"
+      className={`sticky top-0 z-30 border-b border-border bg-ground/80 backdrop-blur-xl transition-shadow duration-300 ${
+        scrolled ? "shadow-lg shadow-black/[0.06] dark:shadow-black/20" : ""
+      }`}
     >
-      <div className="mx-auto flex h-16 max-w-[1180px] items-center justify-between gap-2 px-3 sm:gap-4 sm:px-8">
-        <Link to="/" tabIndex={-1} className="group flex min-w-0 items-center">
+      <div className="mx-auto flex h-16 max-w-7xl items-center justify-between gap-2 px-4 sm:px-6 lg:px-8">
+        <Link to="/" className="group flex min-w-0 items-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan/60 rounded-xl">
           <motion.div whileHover={{ scale: 1.03 }} transition={spring} className="min-w-0 leading-none">
-            <p className="truncate font-display text-xl sm:text-2xl font-extrabold uppercase italic tracking-[-0.03em] text-cyan">
+            <p className="truncate font-display text-2xl font-black italic tracking-[-0.04em] text-cyan">
               Zenith
             </p>
             <p className="mt-0.5 hidden font-mono text-[10px] uppercase tracking-[0.18em] text-faint sm:block">

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { AnimatePresence, motion } from "framer-motion";
 import {
@@ -11,6 +11,7 @@ import {
   ChevronUp,
   Clock,
   FileQuestion,
+  Filter,
   Flame,
   GraduationCap,
   Layers,
@@ -18,6 +19,7 @@ import {
   List,
   ListFilter,
   Mail,
+  Megaphone,
   Plus,
   Presentation,
   Radio,
@@ -135,6 +137,15 @@ export default function StudentBoard({ guestPreview }: { guestPreview?: boolean 
     "all" | "quiz" | "assignment" | "exam" | "presentation" | "other"
   >("all");
   const [feedSearch, setFeedSearch] = useState("");
+  const [urgentOnly, setUrgentOnly] = useState(false);
+  const [pendingOnly, setPendingOnly] = useState(false);
+  const [mobileTab, setMobileTab] = useState<"timeline" | "sidebar">("timeline");
+  const [collapsedBuckets, setCollapsedBuckets] = useState<Record<string, boolean>>({
+    critical: false,
+    thisWeek: false,
+    later: false,
+  });
+  const searchInputRef = useRef<HTMLInputElement>(null);
   const [showCompleted, setShowCompleted] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<Deadline | null>(null);
@@ -145,6 +156,22 @@ export default function StudentBoard({ guestPreview }: { guestPreview?: boolean 
   useEffect(() => {
     const id = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(id);
+  }, []);
+
+  // Quick keyboard shortcut: Pressing / focuses search input
+  useEffect(() => {
+    function handleGlobalSlash(e: KeyboardEvent) {
+      if (
+        e.key === "/" &&
+        document.activeElement?.tagName !== "INPUT" &&
+        document.activeElement?.tagName !== "TEXTAREA"
+      ) {
+        e.preventDefault();
+        searchInputRef.current?.focus();
+      }
+    }
+    window.addEventListener("keydown", handleGlobalSlash);
+    return () => window.removeEventListener("keydown", handleGlobalSlash);
   }, []);
 
   // Real-time sync with the deadlines table for the selected batch
@@ -269,6 +296,16 @@ export default function StudentBoard({ guestPreview }: { guestPreview?: boolean 
   // Filtered upcoming feed by selected category & search query
   const filteredUpcoming = useMemo(() => {
     let list = allUpcoming;
+    if (urgentOnly) {
+      const next48h = now + 48 * 3600_000;
+      list = list.filter((d) => {
+        const t = new Date(d.due_at).getTime();
+        return t <= next48h || phaseOf(d, now) === "ongoing";
+      });
+    }
+    if (pendingOnly) {
+      list = list.filter((d) => !doneMap[d.id]);
+    }
     if (feedCategory === "exam") {
       list = list.filter((d) => d.type === "midterm" || d.type === "endterm");
     } else if (feedCategory === "other") {
@@ -296,7 +333,7 @@ export default function StudentBoard({ guestPreview }: { guestPreview?: boolean 
     }
 
     return list;
-  }, [allUpcoming, feedCategory, feedSearch]);
+  }, [allUpcoming, feedCategory, feedSearch, urgentOnly, pendingOnly, doneMap, now]);
 
   // Group into recency buckets for clear visual urgency & hierarchy
   const recencyBuckets = useMemo(() => {
@@ -367,16 +404,32 @@ export default function StudentBoard({ guestPreview }: { guestPreview?: boolean 
     setDialogOpen(true);
   }
 
-  type TabDef = { key: TabKey; label: string; icon: React.ReactNode };
+  type TabDef = {
+    key: TabKey;
+    label: string;
+    icon: React.ReactNode;
+    count?: number;
+    badge?: string;
+  };
 
   const tabs: TabDef[] = [
-    { key: "feed", label: "Feed", icon: <ListFilter className="size-4" /> },
+    {
+      key: "feed",
+      label: "Feed",
+      icon: <ListFilter className="size-4" />,
+      badge: recencyBuckets.critical.length > 0 ? "urgent" : undefined,
+    },
     { key: "calendar", label: "Calendar", icon: <CalendarRange className="size-4" /> },
     { key: "timetable", label: "Timetable", icon: <CalendarClock className="size-4" /> },
     ...(quizzes.length > 0
-      ? [{ key: "quizzes" as TabKey, label: "Quizzes", icon: <FileQuestion className="size-4" /> }]
+      ? [{ key: "quizzes" as TabKey, label: "Quizzes", icon: <FileQuestion className="size-4" />, count: quizzes.length }]
       : []),
-    { key: "exams", label: "Exams", icon: <GraduationCap className="size-4" /> },
+    {
+      key: "exams",
+      label: "Exams",
+      icon: <GraduationCap className="size-4" />,
+      count: midterms.length + endterms.length,
+    },
     { key: "grading", label: "Grading", icon: <Award className="size-4" /> },
     { key: "attendance", label: "Attendance", icon: <UserCheck className="size-4" /> },
     ...(isAdmin || isArush
@@ -403,67 +456,81 @@ export default function StudentBoard({ guestPreview }: { guestPreview?: boolean 
 
   return (
     <div className="relative min-h-screen overflow-x-hidden bg-ground font-body text-ink">
-      <div className="pointer-events-none fixed inset-0 z-0">
-        <div className="absolute -left-24 -top-32 h-[420px] w-[560px] rounded-full bg-cyan/[0.06] blur-[130px] dark:bg-cyan/12" />
-        <div className="absolute right-[-80px] top-[180px] h-[380px] w-[500px] rounded-full bg-amber/[0.06] blur-[140px] dark:bg-amber/12" />
-      </div>
-
       <BoardHeader menuItems={menuItems} onMenuSelect={(k) => setPanel(k as PanelKey)} />
 
-      <main className="relative z-10 mx-auto max-w-[1440px] px-3 sm:px-6 pt-2.5 sm:pt-3.5 pb-16">
-        {/* ── Compact Integrated Control Deck: Greeting + Tabs (No wasted space) ── */}
-        <div className="mb-2.5 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between border-b border-border/60 pb-2.5">
-          <div className="flex flex-wrap items-center gap-2 min-w-0">
-            <h1 className="font-display text-base sm:text-lg font-bold tracking-tight text-ink truncate">
-              {me.name ? `${me.greeting}, ${me.name}` : "Academic Board"}
+      <main className="relative z-10 mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 pt-2.5 sm:pt-4 pb-20">
+        {/* ── Best Practice Workspace Control Deck: Editorial Context + Flat Navigation ── */}
+        <div className="mb-4 flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between border-b border-border/70 pb-3">
+          <div className="min-w-0">
+            <h1 className="font-display text-2xl font-black tracking-tight text-ink">
+              Academic Board
             </h1>
-            {batch && (
-              <span className="inline-flex rounded-md bg-surface2 px-2 py-0.5 font-sans text-[11px] font-semibold text-dim border border-border shrink-0">
-                {batch.programme_name ? `${batch.programme_name} · ` : ""}{batch.name}
-              </span>
-            )}
-            <span className="hidden sm:inline-flex items-center gap-1.5 rounded-md bg-emerald-500/10 px-2 py-0.5 text-[10px] font-medium text-emerald-600 dark:text-emerald-400 shrink-0">
-              <span className="size-1.5 rounded-full bg-emerald-500 animate-pulse" />
-              Live Sync
-            </span>
+            <p className="text-[12px] font-medium text-dim mt-0.5 truncate">
+              {batch ? `${batch.programme_name ? `${batch.programme_name} · ` : ""}${batch.name}` : "TAPMI Student Portal"} · {new Intl.DateTimeFormat("en-GB", { weekday: "short", day: "numeric", month: "short", year: "numeric" }).format(now)}
+            </p>
           </div>
 
-          <div className="w-full sm:w-auto min-w-0 max-w-full flex items-center gap-1.5 overflow-x-auto pb-1 sm:pb-0 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-            {/* Inline Navigation Tabs */}
+          <div className="w-full lg:w-auto min-w-0 max-w-full flex items-center justify-between lg:justify-end gap-3 overflow-x-auto pb-1 lg:pb-0 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+            {/* Flat Tab Bar with Animated Underline Accent */}
             <nav
               aria-label="Board sections"
-              className="flex items-center gap-1 rounded-xl border border-border bg-surface p-1 shadow-xs [scrollbar-width:none] [&::-webkit-scrollbar]:hidden shrink-0"
+              className="flex items-center gap-1 sm:gap-2 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden shrink-0"
             >
-              {tabs.map((t) => (
-                <button
-                  key={t.key}
-                  type="button"
-                  onClick={() => setTab(t.key)}
-                  aria-current={tab === t.key ? "page" : undefined}
-                  className={`relative flex shrink-0 items-center gap-1.5 rounded-lg px-2.5 sm:px-3 py-1 text-xs font-semibold transition-all ${
-                    tab === t.key
-                      ? "bg-cyan text-white shadow-xs"
-                      : "text-dim hover:text-ink hover:bg-surface2"
-                  }`}
-                >
-                  {t.icon}
-                  <span>{t.label}</span>
-                </button>
-              ))}
+              {tabs.map((t) => {
+                const active = tab === t.key;
+                return (
+                  <button
+                    key={t.key}
+                    type="button"
+                    onClick={() => setTab(t.key)}
+                    aria-current={active ? "page" : undefined}
+                    className={`relative flex shrink-0 items-center gap-1.5 px-2.5 sm:px-3 py-1.5 pb-2.5 text-xs font-bold transition-colors cursor-pointer ${
+                      active ? "text-ink" : "text-dim hover:text-ink"
+                    }`}
+                  >
+                    <span className="relative z-10 flex items-center gap-1.5">
+                      {t.icon}
+                      <span>{t.label}</span>
+                      {t.count !== undefined && t.count > 0 && (
+                        <span
+                          className={`rounded-full px-1.5 py-0.2 text-[10px] font-mono leading-none ${
+                            active ? "bg-cyan/15 text-cyan font-bold" : "bg-surface2 text-dim"
+                          }`}
+                        >
+                          {t.count}
+                        </span>
+                      )}
+                      {t.badge === "urgent" && (
+                        <span className="size-1.5 rounded-full bg-rose animate-ping" />
+                      )}
+                    </span>
+                    {active && (
+                      <motion.div
+                        layoutId="boardTabUnderline"
+                        className="absolute bottom-0 left-0 right-0 h-[2px] rounded-full bg-cyan shadow-sm shadow-cyan/30"
+                        transition={{ type: "spring", stiffness: 500, damping: 35 }}
+                      />
+                    )}
+                  </button>
+                );
+              })}
             </nav>
 
             {isMod && (
-              <button
+              <motion.button
                 type="button"
+                whileHover={{ scale: 1.04, boxShadow: "0 6px 20px oklch(0.58 0.19 220 / 35%)" }}
+                whileTap={{ scale: 0.96 }}
+                transition={{ type: "spring", stiffness: 600, damping: 22 }}
                 onClick={() => {
                   setEditing(null);
                   setDialogOpen(true);
                 }}
-                className="flex shrink-0 items-center gap-1 whitespace-nowrap rounded-xl bg-cyan px-2.5 sm:px-3 py-1.5 text-xs font-semibold text-white shadow-xs hover:bg-cyan/90 transition-all"
+                className="flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-xl bg-cyan px-3.5 py-1.5 text-xs font-bold text-white shadow-md shadow-cyan/20 cursor-pointer"
               >
                 <Plus className="size-3.5" />
-                <span className="hidden md:inline">Add Event</span>
-              </button>
+                <span className="hidden sm:inline">Add Event</span>
+              </motion.button>
             )}
           </div>
         </div>
@@ -542,85 +609,206 @@ export default function StudentBoard({ guestPreview }: { guestPreview?: boolean 
                   canManage={isMod}
                 />
 
-                {/* ── Mission Control KPI Strip (Desktop / Web Highlights) ── */}
-                <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-3.5">
-                  <div className="flex items-center gap-3 rounded-2xl border border-border/80 bg-surface/80 p-3 sm:p-3.5 shadow-xs backdrop-blur-md">
-                    <div className="flex size-9 items-center justify-center rounded-xl bg-cyan/15 text-cyan shrink-0">
-                      <Layers className="size-4" />
-                    </div>
-                    <div className="min-w-0">
-                      <span className="block font-mono text-[10px] uppercase tracking-wider text-dim truncate">
-                        Active Deadlines
-                      </span>
-                      <span className="font-display text-base sm:text-lg font-extrabold text-ink">
-                        {totalUpcomingCount} <span className="text-xs font-normal text-dim">Events</span>
-                      </span>
-                    </div>
-                  </div>
+                {/* ── Editorial Horizontal Stat Strip ── */}
+                <div className="flex flex-wrap items-center justify-between gap-y-3 gap-x-2 border-b border-border/70 pb-3.5 mb-1">
+                  {/* Stat 1: All Active Events */}
+                  <motion.button
+                    type="button"
+                    whileHover={{ y: -1 }}
+                    whileTap={{ scale: 0.95 }}
+                    onClick={() => {
+                      setUrgentOnly(false);
+                      setPendingOnly(false);
+                      setFeedCategory("all");
+                      setFeedSearch("");
+                    }}
+                    title="Click to reset filters and view all active deadlines"
+                    className="flex flex-col text-left cursor-pointer group"
+                  >
+                    <AnimatePresence mode="popLayout">
+                      <motion.span
+                        key={totalUpcomingCount}
+                        initial={{ opacity: 0, y: -8, scale: 0.85 }}
+                        animate={{ opacity: 1, y: 0, scale: 1 }}
+                        exit={{ opacity: 0, y: 8, scale: 0.85 }}
+                        transition={{ type: "spring", stiffness: 500, damping: 28 }}
+                        className={`font-display text-2xl sm:text-3xl font-black tabular-nums transition-colors ${
+                          !urgentOnly && !pendingOnly && feedCategory === "all" && !feedSearch
+                            ? "text-cyan"
+                            : "text-ink group-hover:text-cyan"
+                        }`}
+                      >
+                        {totalUpcomingCount}
+                      </motion.span>
+                    </AnimatePresence>
+                    <span className="text-[11px] font-medium text-dim mt-0.5">
+                      Active Events
+                    </span>
+                  </motion.button>
 
-                  <div className="flex items-center gap-3 rounded-2xl border border-rose/30 bg-rose/5 p-3 sm:p-3.5 shadow-xs backdrop-blur-md">
-                    <div className="flex size-9 items-center justify-center rounded-xl bg-rose/15 text-rose shrink-0">
-                      <Flame className="size-4 animate-pulse" />
-                    </div>
-                    <div className="min-w-0">
-                      <span className="block font-mono text-[10px] uppercase tracking-wider text-rose/80 truncate">
-                        Due in 48 Hours
-                      </span>
-                      <span className="font-display text-base sm:text-lg font-extrabold text-rose">
-                        {recencyBuckets.critical.length} <span className="text-xs font-normal text-rose/70">Urgent</span>
-                      </span>
-                    </div>
-                  </div>
+                  <span className="hidden sm:block h-7 w-px bg-border/80" />
 
-                  <div className="flex items-center gap-3 rounded-2xl border border-amber/30 bg-amber/5 p-3 sm:p-3.5 shadow-xs backdrop-blur-md">
-                    <div className="flex size-9 items-center justify-center rounded-xl bg-amber/15 text-amber shrink-0">
-                      <GraduationCap className="size-4" />
-                    </div>
-                    <div className="min-w-0">
-                      <span className="block font-mono text-[10px] uppercase tracking-wider text-amber/80 truncate">
-                        Quizzes & Exams
-                      </span>
-                      <span className="font-display text-base sm:text-lg font-extrabold text-amber">
-                        {quizzes.length + midterms.length + endterms.length} <span className="text-xs font-normal text-amber/70">Tests</span>
-                      </span>
-                    </div>
-                  </div>
+                  {/* Stat 2: Due in 48 Hours */}
+                  <motion.button
+                    type="button"
+                    whileHover={{ y: -1 }}
+                    whileTap={{ scale: 0.95 }}
+                    onClick={() => setUrgentOnly((prev) => !prev)}
+                    title="Click to filter only urgent events due in 48 hours"
+                    className="flex flex-col text-left cursor-pointer group"
+                  >
+                    <AnimatePresence mode="popLayout">
+                      <motion.span
+                        key={recencyBuckets.critical.length}
+                        initial={{ opacity: 0, y: -8, scale: 0.85 }}
+                        animate={{ opacity: 1, y: 0, scale: 1 }}
+                        exit={{ opacity: 0, y: 8, scale: 0.85 }}
+                        transition={{ type: "spring", stiffness: 500, damping: 28 }}
+                        className={`font-display text-2xl sm:text-3xl font-black tabular-nums transition-colors ${
+                          urgentOnly ? "text-rose" : "text-ink group-hover:text-rose"
+                        }`}
+                      >
+                        {recencyBuckets.critical.length}
+                      </motion.span>
+                    </AnimatePresence>
+                    <span className={`text-[11px] font-medium mt-0.5 ${urgentOnly ? "text-rose font-bold" : "text-dim"}`}>
+                      Urgent (48h)
+                    </span>
+                  </motion.button>
 
-                  <div className="flex items-center gap-3 rounded-2xl border border-emerald-500/30 bg-emerald-500/5 p-3 sm:p-3.5 shadow-xs backdrop-blur-md">
-                    <div className="flex size-9 items-center justify-center rounded-xl bg-emerald-500/15 text-emerald-500 shrink-0">
-                      <CheckCircle2 className="size-4" />
-                    </div>
-                    <div className="min-w-0">
-                      <span className="block font-mono text-[10px] uppercase tracking-wider text-emerald-600 dark:text-emerald-400 truncate">
-                        Checklist Prep
-                      </span>
-                      <span className="font-display text-base sm:text-lg font-extrabold text-emerald-600 dark:text-emerald-400">
-                        {completedUpcomingCount}/{totalUpcomingCount} <span className="text-xs font-normal text-dim">({progressPercent}%)</span>
-                      </span>
-                    </div>
-                  </div>
+                  <span className="hidden sm:block h-7 w-px bg-border/80" />
+
+                  {/* Stat 3: Quizzes & Exams */}
+                  <motion.button
+                    type="button"
+                    whileHover={{ y: -1 }}
+                    whileTap={{ scale: 0.95 }}
+                    onClick={() => {
+                      setFeedCategory((prev) => (prev === "exam" ? "all" : "exam"));
+                    }}
+                    title="Click to filter by exams and quizzes"
+                    className="flex flex-col text-left cursor-pointer group"
+                  >
+                    <AnimatePresence mode="popLayout">
+                      <motion.span
+                        key={quizzes.length + midterms.length + endterms.length}
+                        initial={{ opacity: 0, y: -8, scale: 0.85 }}
+                        animate={{ opacity: 1, y: 0, scale: 1 }}
+                        exit={{ opacity: 0, y: 8, scale: 0.85 }}
+                        transition={{ type: "spring", stiffness: 500, damping: 28 }}
+                        className={`font-display text-2xl sm:text-3xl font-black tabular-nums transition-colors ${
+                          feedCategory === "exam" ? "text-violet" : "text-ink group-hover:text-violet"
+                        }`}
+                      >
+                        {quizzes.length + midterms.length + endterms.length}
+                      </motion.span>
+                    </AnimatePresence>
+                    <span className={`text-[11px] font-medium mt-0.5 ${feedCategory === "exam" ? "text-violet font-bold" : "text-dim"}`}>
+                      Tests & Exams
+                    </span>
+                  </motion.button>
+
+                  <span className="hidden sm:block h-7 w-px bg-border/80" />
+
+                  {/* Stat 4: Checklist Prep */}
+                  <motion.button
+                    type="button"
+                    whileHover={{ y: -1 }}
+                    whileTap={{ scale: 0.95 }}
+                    onClick={() => setPendingOnly((prev) => !prev)}
+                    title="Click to toggle between all items and pending (unprepared) items"
+                    className="flex flex-col text-left cursor-pointer group"
+                  >
+                    <AnimatePresence mode="popLayout">
+                      <motion.span
+                        key={completedUpcomingCount}
+                        initial={{ opacity: 0, y: -8, scale: 0.85 }}
+                        animate={{ opacity: 1, y: 0, scale: 1 }}
+                        exit={{ opacity: 0, y: 8, scale: 0.85 }}
+                        transition={{ type: "spring", stiffness: 500, damping: 28 }}
+                        className={`font-display text-2xl sm:text-3xl font-black tabular-nums transition-colors ${
+                          pendingOnly ? "text-emerald-500" : "text-ink group-hover:text-emerald-500"
+                        }`}
+                      >
+                        {completedUpcomingCount}/{totalUpcomingCount}
+                      </motion.span>
+                    </AnimatePresence>
+                    <span className={`text-[11px] font-medium mt-0.5 ${pendingOnly ? "text-emerald-500 font-bold" : "text-dim"}`}>
+                      Prepared ({progressPercent}%)
+                    </span>
+                  </motion.button>
                 </div>
 
+                {/* ── Active Filter Bar (shows when any filter is toggled) ── */}
+                {(urgentOnly || pendingOnly || feedCategory !== "all" || feedSearch) && (
+                  <div className="flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-cyan/30 bg-cyan/10 px-3.5 py-2 text-xs backdrop-blur-md">
+                    <div className="flex items-center gap-2">
+                      <Filter className="size-3.5 text-cyan" />
+                      <span className="font-semibold text-ink">
+                        Active filter:{" "}
+                        <span className="text-cyan font-bold">
+                          {urgentOnly
+                            ? "Due in 48 Hours"
+                            : pendingOnly
+                            ? "Pending Checklist Only"
+                            : feedCategory !== "all"
+                            ? `${feedCategory.charAt(0).toUpperCase() + feedCategory.slice(1)}s`
+                            : `Search "${feedSearch}"`}
+                        </span>
+                      </span>
+                      <AnimatePresence mode="wait">
+                        <motion.span
+                          key={filteredUpcoming.length}
+                          initial={{ opacity: 0, y: -4 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          exit={{ opacity: 0, y: 4 }}
+                          transition={{ duration: 0.18 }}
+                          className="font-mono text-[11px] text-dim"
+                        >
+                          ({filteredUpcoming.length} {filteredUpcoming.length === 1 ? "event" : "events"} shown)
+                        </motion.span>
+                      </AnimatePresence>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setUrgentOnly(false);
+                        setPendingOnly(false);
+                        setFeedCategory("all");
+                        setFeedSearch("");
+                      }}
+                      className="font-mono text-xs font-bold text-cyan hover:underline cursor-pointer"
+                    >
+                      Reset all filters
+                    </button>
+                  </div>
+                )}
+
                 {/* ── Compact 48-Hour Urgency Ticker ── */}
-                {recencyBuckets.critical.length > 0 && (
+                {recencyBuckets.critical.length > 0 && !urgentOnly && (
                   <div className="flex items-center gap-2 rounded-xl border border-rose/30 bg-rose/5 px-3 py-1.5 text-xs backdrop-blur-md overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
                     <div className="flex items-center gap-1.5 shrink-0 text-rose font-bold">
                       <Flame className="size-3.5 animate-pulse" />
                       <span className="uppercase tracking-wider text-[10px] sm:text-[11px]">Due in 48h ({recencyBuckets.critical.length}):</span>
                     </div>
                     <div className="flex items-center gap-1.5 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden py-0.5">
-                      {recencyBuckets.critical.map((item) => {
+                      {recencyBuckets.critical.map((item, i) => {
                         const itemColor = autoColor(item.subject || item.title);
                         const isItemDone = isDone(item.id);
                         return (
-                          <button
+                          <motion.button
                             key={item.id}
                             type="button"
+                            initial={{ opacity: 0, x: -12, scale: 0.9 }}
+                            animate={{ opacity: 1, x: 0, scale: 1 }}
+                            transition={{ delay: i * 0.05, type: "spring", stiffness: 400, damping: 25 }}
+                            whileHover={{ scale: 1.05, y: -1 }}
+                            whileTap={{ scale: 0.96 }}
                             onClick={() => setSelected(item)}
                             className={`inline-flex shrink-0 items-center gap-1.5 rounded-lg border px-2 py-0.5 text-left transition-all cursor-pointer ${
                               isItemDone
                                 ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 opacity-85"
-                                : "border-border bg-surface hover:border-rose/50 hover:shadow-xs text-ink"
+                                : "border-border bg-surface hover:border-rose/50 hover:shadow-xs text-ink urgent-ring"
                             }`}
                           >
                             <span
@@ -634,16 +822,45 @@ export default function StudentBoard({ guestPreview }: { guestPreview?: boolean 
                               · {timeLeft(item.due_at, now)}
                             </span>
                             {isItemDone && <span className="text-[10px] text-emerald-500 font-bold">✓</span>}
-                          </button>
+                          </motion.button>
                         );
                       })}
                     </div>
                   </div>
                 )}
 
+                {/* ── Mobile View Switcher (Feed Timeline vs Batch Announcements) ── */}
+                <div className="lg:hidden flex rounded-2xl bg-surface2/70 p-1 border border-border/80">
+                  <button
+                    type="button"
+                    onClick={() => setMobileTab("timeline")}
+                    className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                      mobileTab === "timeline"
+                        ? "bg-surface text-ink shadow-xs"
+                        : "text-dim hover:text-ink"
+                    }`}
+                  >
+                    <ListFilter className="size-3.5" />
+                    <span>Events Timeline ({filteredUpcoming.length})</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setMobileTab("sidebar")}
+                    className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                      mobileTab === "sidebar"
+                        ? "bg-surface text-ink shadow-xs"
+                        : "text-dim hover:text-ink"
+                    }`}
+                  >
+                    <Megaphone className="size-3.5 text-cyan" />
+                    <span>Announcements & Attendance</span>
+                  </button>
+                </div>
+
                 {/* ── Main Feed & Sidebar Grid ── */}
                 <div className="grid grid-cols-1 items-start gap-5 lg:grid-cols-[minmax(0,1fr)_360px] xl:grid-cols-[minmax(0,1fr)_400px]">
-                  <div className="min-w-0 flex flex-col gap-3.5">
+                  {/* Left Column: Feed Timeline */}
+                  <div className={`min-w-0 flex flex-col gap-3.5 ${mobileTab === "sidebar" ? "hidden lg:flex" : "flex"}`}>
                     {/* Modern Feed Command Bar */}
                     <div className="rounded-2xl border border-border/80 bg-surface/90 p-2.5 sm:p-3 backdrop-blur-md shadow-xs space-y-2.5">
                       {/* Search Bar + Quick Actions */}
@@ -651,21 +868,34 @@ export default function StudentBoard({ guestPreview }: { guestPreview?: boolean 
                         <div className="relative flex-1">
                           <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-3.5 text-faint pointer-events-none" />
                           <input
+                            ref={searchInputRef}
                             type="text"
                             value={feedSearch}
                             onChange={(e) => setFeedSearch(e.target.value)}
-                            placeholder="Filter feed by title, course, location..."
-                            className="w-full rounded-xl bg-surface2/60 pl-8 pr-7 py-1.5 text-xs text-ink placeholder:text-faint border border-border/60 outline-none focus:border-cyan/50 focus:ring-1 focus:ring-cyan/30"
+                            onKeyDown={(e) => {
+                              if (e.key === "Escape") {
+                                setFeedSearch("");
+                                searchInputRef.current?.blur();
+                              }
+                            }}
+                            placeholder="Filter events by title, course, location... (Press / to search)"
+                            className="w-full rounded-xl bg-surface2/60 pl-8 pr-16 py-1.5 text-xs text-ink placeholder:text-faint border border-border/60 outline-none focus:border-cyan/50 focus:ring-1 focus:ring-cyan/30"
                           />
-                          {feedSearch && (
-                            <button
-                              type="button"
-                              onClick={() => setFeedSearch("")}
-                              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-faint hover:text-ink cursor-pointer"
-                            >
-                              <X className="size-3" />
-                            </button>
-                          )}
+                          <div className="absolute right-2.5 top-1/2 -translate-y-1/2 flex items-center gap-1">
+                            {feedSearch ? (
+                              <button
+                                type="button"
+                                onClick={() => setFeedSearch("")}
+                                className="text-faint hover:text-ink cursor-pointer p-0.5"
+                              >
+                                <X className="size-3" />
+                              </button>
+                            ) : (
+                              <kbd className="hidden sm:inline-block rounded px-1.5 py-0.2 text-[10px] font-mono bg-surface border border-border/70 text-faint">
+                                /
+                              </kbd>
+                            )}
+                          </div>
                         </div>
 
                         {/* Density Switcher: Comfortable Cards vs Compact Linear Rows */}
@@ -706,11 +936,15 @@ export default function StudentBoard({ guestPreview }: { guestPreview?: boolean 
                           {FEED_CATEGORIES.map((cat) => {
                             const active = feedCategory === cat.key;
                             return (
-                              <button
+                              <motion.button
                                 key={cat.key}
                                 type="button"
+                                whileHover={{ y: -2, scale: 1.03 }}
+                                whileTap={{ scale: 0.95 }}
+                                animate={active ? { scale: [1, 1.12, 0.97, 1.04, 1] } : { scale: 1 }}
+                                transition={{ type: "spring", stiffness: 500, damping: 22 }}
                                 onClick={() => setFeedCategory(cat.key)}
-                                className={`group inline-flex shrink-0 items-center gap-1.5 rounded-xl px-2.5 sm:px-3 py-1 text-xs font-medium transition-all cursor-pointer ${
+                                className={`group relative inline-flex shrink-0 items-center gap-1.5 rounded-xl px-2.5 sm:px-3 py-1 text-xs font-medium transition-colors cursor-pointer ${
                                   active
                                     ? "bg-cyan/15 text-cyan border border-cyan/30 shadow-xs shadow-cyan/10 font-bold"
                                     : "text-muted hover:text-ink hover:bg-surface2/60 border border-transparent"
@@ -729,7 +963,7 @@ export default function StudentBoard({ guestPreview }: { guestPreview?: boolean 
                                 >
                                   {cat.count}
                                 </span>
-                              </button>
+                              </motion.button>
                             );
                           })}
                         </div>
@@ -737,8 +971,9 @@ export default function StudentBoard({ guestPreview }: { guestPreview?: boolean 
                         {/* Personal Checklist Preparation Progress */}
                         {totalUpcomingCount > 0 && (
                           <div
-                            className="inline-flex items-center gap-2 rounded-xl bg-surface2/60 border border-border/60 px-2.5 py-1 text-xs text-muted shrink-0 self-end sm:self-auto"
-                            title={`${completedUpcomingCount} of ${totalUpcomingCount} upcoming events marked as prepared / done`}
+                            className="inline-flex items-center gap-2 rounded-xl bg-surface2/60 border border-border/60 px-2.5 py-1 text-xs text-muted shrink-0 self-end sm:self-auto cursor-pointer hover:bg-surface2 transition-all"
+                            onClick={() => setPendingOnly((v) => !v)}
+                            title={`${completedUpcomingCount} of ${totalUpcomingCount} upcoming events marked as prepared. Click to toggle pending only.`}
                           >
                             <CheckCircle2
                               className={`size-3.5 ${
@@ -754,9 +989,10 @@ export default function StudentBoard({ guestPreview }: { guestPreview?: boolean 
                             </span>
                             <span className="hidden md:inline text-[11px] text-faint">prepared</span>
                             <div className="w-12 h-1.5 rounded-full bg-surface overflow-hidden border border-border/40">
-                              <div
-                                className="h-full bg-gradient-to-r from-cyan to-emerald-400 transition-all duration-500 rounded-full"
-                                style={{ width: `${progressPercent}%` }}
+                              <motion.div
+                                className="h-full bg-gradient-to-r from-cyan to-emerald-400 rounded-full"
+                                animate={{ width: `${progressPercent}%` }}
+                                transition={{ type: "spring", stiffness: 120, damping: 22 }}
                               />
                             </div>
                             <span className="font-mono text-[10px] text-cyan font-bold">{progressPercent}%</span>
@@ -765,209 +1001,289 @@ export default function StudentBoard({ guestPreview }: { guestPreview?: boolean 
                       </div>
                     </div>
 
-                  {isFeedLoading ? (
-                    <div className="flex flex-col gap-4">
-                      {Array.from({ length: 3 }).map((_, i) => (
-                        <div key={i} className="h-32 animate-pulse rounded-3xl bg-surface/50 border border-border" />
-                      ))}
-                    </div>
-                  ) : filteredUpcoming.length === 0 ? (
-                    <div className="rounded-2xl border border-dashed border-border/80 bg-surface/30 p-8 text-center">
-                      <div className="mx-auto flex size-10 items-center justify-center rounded-xl bg-cyan/10 text-cyan mb-3">
-                        <Sparkles className="size-5" />
+                    {isFeedLoading ? (
+                      <div className="flex flex-col gap-4">
+                        {Array.from({ length: 3 }).map((_, i) => (
+                          <div key={i} className="h-32 rounded-2xl shimmer-sweep border border-border/40" />
+                        ))}
                       </div>
-                      <h3 className="text-sm font-semibold text-ink">No events found</h3>
-                      <p className="mt-1 text-xs text-dim max-w-xs mx-auto">
-                        {feedSearch
-                          ? `No deadlines or exams matching "${feedSearch}".`
-                          : feedCategory === "all"
-                          ? "No upcoming deadlines or exams scheduled."
-                          : `No upcoming events in ${feedCategory}.`}
-                      </p>
-                      {(feedCategory !== "all" || feedSearch) && (
+                    ) : filteredUpcoming.length === 0 ? (
+                      <div className="rounded-2xl border border-dashed border-border/80 bg-surface/30 p-8 text-center">
+                        <motion.div
+                          animate={{
+                            rotate: [0, -10, 10, -5, 5, 0],
+                            scale: [1, 1.1, 0.95, 1.05, 1],
+                          }}
+                          transition={{ duration: 2, repeat: Infinity, repeatDelay: 3 }}
+                          className="mx-auto flex size-12 items-center justify-center rounded-xl bg-cyan/10 text-cyan mb-4"
+                        >
+                          <Sparkles className="size-6" />
+                        </motion.div>
+                        <h3 className="text-sm font-semibold text-ink">No events found</h3>
+                        <p className="mt-1 text-xs text-dim max-w-xs mx-auto">
+                          {feedSearch
+                            ? `No deadlines or exams matching "${feedSearch}".`
+                            : urgentOnly
+                            ? "No deadlines due in the next 48 hours."
+                            : pendingOnly
+                            ? "All upcoming deadlines are marked as done!"
+                            : feedCategory === "all"
+                            ? "No upcoming deadlines or exams scheduled."
+                            : `No upcoming events in ${feedCategory}.`}
+                        </p>
+                        {(feedCategory !== "all" || feedSearch || urgentOnly || pendingOnly) && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setFeedCategory("all");
+                              setFeedSearch("");
+                              setUrgentOnly(false);
+                              setPendingOnly(false);
+                            }}
+                            className="mt-3 inline-flex items-center gap-1.5 rounded-lg bg-surface2 border border-border px-3 py-1.5 text-xs font-semibold text-ink hover:text-cyan transition-all cursor-pointer"
+                          >
+                            Reset filters
+                          </button>
+                        )}
+                      </div>
+                    ) : (
+                      <div className="relative pl-4 sm:pl-7 border-l-2 border-border/70 ml-3.5 sm:ml-5 flex flex-col gap-6">
+                        {/* Bucket 1: Due in 48 Hours / Ongoing */}
+                        {recencyBuckets.critical.length > 0 && (
+                          <div className="relative">
+                            {/* Spine Anchor Dot */}
+                            <div className="absolute -left-[29px] sm:-left-[43px] top-0 size-6 sm:size-7 rounded-full bg-surface border-2 border-rose flex items-center justify-center text-rose shadow-lg shadow-rose/20">
+                              <Flame className="size-3.5 fill-rose/30 animate-pulse" />
+                            </div>
+
+                            <div
+                              onClick={() =>
+                                setCollapsedBuckets((prev) => ({ ...prev, critical: !prev.critical }))
+                              }
+                              className="mb-3 flex items-center justify-between gap-2 cursor-pointer select-none group"
+                            >
+                              <div className="flex items-center gap-2">
+                                <h3 className="font-body text-[12px] font-semibold text-rose">
+                                  Due in 48 Hours
+                                </h3>
+                                <span className="rounded-full bg-rose/15 border border-rose/30 px-2 py-0.5 font-mono text-[10px] font-bold text-rose">
+                                  {recencyBuckets.critical.length}
+                                </span>
+                              </div>
+                              <span className="font-mono text-[10px] text-faint group-hover:text-ink flex items-center gap-1">
+                                {collapsedBuckets.critical ? (
+                                  <>
+                                    <span>Expand</span>
+                                    <ChevronDown className="size-3.5" />
+                                  </>
+                                ) : (
+                                  <>
+                                    <span>Collapse</span>
+                                    <ChevronUp className="size-3.5" />
+                                  </>
+                                )}
+                              </span>
+                            </div>
+
+                            {!collapsedBuckets.critical && (
+                              <FeedList
+                                items={recencyBuckets.critical}
+                                empty="Nothing due in 48 hours."
+                                now={now}
+                                isMod={isMod}
+                                onEdit={openEdit}
+                                onDelete={(x) => remove.mutate(x)}
+                                onOpen={setSelected}
+                                density={feedDensity}
+                                isDone={isDone}
+                                onToggleDone={toggleDone}
+                              />
+                            )}
+                          </div>
+                        )}
+
+                        {/* Bucket 2: This Week (3-7 Days) */}
+                        {recencyBuckets.thisWeek.length > 0 && (
+                          <div className="relative">
+                            {/* Spine Anchor Dot */}
+                            <div className="absolute -left-[29px] sm:-left-[43px] top-0 size-6 sm:size-7 rounded-full bg-surface border-2 border-cyan flex items-center justify-center text-cyan shadow-lg shadow-cyan/20">
+                              <Clock className="size-3.5" />
+                            </div>
+
+                            <div
+                              onClick={() =>
+                                setCollapsedBuckets((prev) => ({ ...prev, thisWeek: !prev.thisWeek }))
+                              }
+                              className="mb-3 flex items-center justify-between gap-2 cursor-pointer select-none group"
+                            >
+                              <div className="flex items-center gap-2">
+                                <h3 className="font-body text-[12px] font-semibold text-cyan">
+                                  This Week
+                                </h3>
+                                <span className="rounded-full bg-cyan/15 border border-cyan/30 px-2 py-0.5 font-mono text-[10px] font-bold text-cyan">
+                                  {recencyBuckets.thisWeek.length}
+                                </span>
+                              </div>
+                              <span className="font-mono text-[10px] text-faint group-hover:text-ink flex items-center gap-1">
+                                {collapsedBuckets.thisWeek ? (
+                                  <>
+                                    <span>Expand</span>
+                                    <ChevronDown className="size-3.5" />
+                                  </>
+                                ) : (
+                                  <>
+                                    <span>Collapse</span>
+                                    <ChevronUp className="size-3.5" />
+                                  </>
+                                )}
+                              </span>
+                            </div>
+
+                            {!collapsedBuckets.thisWeek && (
+                              <FeedList
+                                items={recencyBuckets.thisWeek}
+                                empty="No events this week."
+                                now={now}
+                                isMod={isMod}
+                                onEdit={openEdit}
+                                onDelete={(x) => remove.mutate(x)}
+                                onOpen={setSelected}
+                                density={feedDensity}
+                                isDone={isDone}
+                                onToggleDone={toggleDone}
+                              />
+                            )}
+                          </div>
+                        )}
+
+                        {/* Bucket 3: Coming Up Later */}
+                        {recencyBuckets.later.length > 0 && (
+                          <div className="relative">
+                            {/* Spine Anchor Dot */}
+                            <div className="absolute -left-[29px] sm:-left-[43px] top-0 size-6 sm:size-7 rounded-full bg-surface border-2 border-violet flex items-center justify-center text-violet shadow-lg shadow-violet/20">
+                              <Sparkles className="size-3.5" />
+                            </div>
+
+                            <div
+                              onClick={() =>
+                                setCollapsedBuckets((prev) => ({ ...prev, later: !prev.later }))
+                              }
+                              className="mb-3 flex items-center justify-between gap-2 cursor-pointer select-none group"
+                            >
+                              <div className="flex items-center gap-2">
+                                <h3 className="font-body text-[12px] font-semibold text-violet">
+                                  Later
+                                </h3>
+                                <span className="rounded-full bg-violet/15 border border-violet/30 px-2 py-0.5 font-mono text-[10px] font-bold text-violet">
+                                  {recencyBuckets.later.length}
+                                </span>
+                              </div>
+                              <span className="font-mono text-[10px] text-faint group-hover:text-ink flex items-center gap-1">
+                                {collapsedBuckets.later ? (
+                                  <>
+                                    <span>Expand</span>
+                                    <ChevronDown className="size-3.5" />
+                                  </>
+                                ) : (
+                                  <>
+                                    <span>Collapse</span>
+                                    <ChevronUp className="size-3.5" />
+                                  </>
+                                )}
+                              </span>
+                            </div>
+
+                            {!collapsedBuckets.later && (
+                              <FeedList
+                                items={recencyBuckets.later}
+                                empty="No later events."
+                                now={now}
+                                isMod={isMod}
+                                onEdit={openEdit}
+                                onDelete={(x) => remove.mutate(x)}
+                                onOpen={setSelected}
+                                density={feedDensity}
+                                isDone={isDone}
+                                onToggleDone={toggleDone}
+                              />
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Collapsible Past & Completed Events */}
+                    {allCompleted.length > 0 && (
+                      <div className="mt-4 rounded-2xl border border-border/60 bg-surface/30 p-4 transition-all">
                         <button
                           type="button"
-                          onClick={() => {
-                            setFeedCategory("all");
-                            setFeedSearch("");
-                          }}
-                          className="mt-3 inline-flex items-center gap-1.5 rounded-lg bg-surface2 border border-border px-3 py-1.5 text-xs font-semibold text-ink hover:text-cyan transition-all cursor-pointer"
+                          onClick={() => setShowPastFeed((prev) => !prev)}
+                          className="flex w-full items-center justify-between text-left group cursor-pointer"
                         >
-                          Reset filters
+                          <div className="flex items-center gap-2.5">
+                            <CheckCircle2 className="size-4 text-emerald-400" />
+                            <span className="text-xs font-semibold text-ink group-hover:text-cyan transition-colors">
+                              Past & Completed Events
+                            </span>
+                            <span className="rounded-full bg-surface2 border border-border/80 px-2 py-0.5 font-mono text-[10px] text-faint">
+                              {allCompleted.length}
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-1.5 text-xs text-muted group-hover:text-ink transition-colors">
+                            <span className="font-mono text-[11px]">
+                              {showPastFeed ? "Hide archive" : "Show archive"}
+                            </span>
+                            {showPastFeed ? (
+                              <ChevronUp className="size-4" />
+                            ) : (
+                              <ChevronDown className="size-4" />
+                            )}
+                          </div>
                         </button>
-                      )}
-                    </div>
-                  ) : (
-                    <div className="relative pl-4 sm:pl-7 border-l-2 border-border/70 ml-3.5 sm:ml-5 flex flex-col gap-6">
-                      {/* Bucket 1: Due in 48 Hours / Ongoing */}
-                      {recencyBuckets.critical.length > 0 && (
-                        <div className="relative">
-                          {/* Spine Anchor Dot */}
-                          <div className="absolute -left-[29px] sm:-left-[43px] top-0 size-6 sm:size-7 rounded-full bg-surface border-2 border-rose flex items-center justify-center text-rose shadow-lg shadow-rose/20">
-                            <Flame className="size-3.5 fill-rose/30 animate-pulse" />
-                          </div>
 
-                          <div className="mb-3 flex items-center gap-2">
-                            <h3 className="text-xs font-bold uppercase tracking-wider text-rose">
-                              Due in 48 Hours
-                            </h3>
-                            <span className="rounded-full bg-rose/15 border border-rose/30 px-2 py-0.5 font-mono text-[10px] font-bold text-rose">
-                              {recencyBuckets.critical.length}
-                            </span>
-                          </div>
-
-                          <FeedList
-                            items={recencyBuckets.critical}
-                            empty="Nothing due in 48 hours."
-                            now={now}
-                            isMod={isMod}
-                            onEdit={openEdit}
-                            onDelete={(x) => remove.mutate(x)}
-                            onOpen={setSelected}
-                            density={feedDensity}
-                            isDone={isDone}
-                            onToggleDone={toggleDone}
-                          />
-                        </div>
-                      )}
-
-                      {/* Bucket 2: This Week (3-7 Days) */}
-                      {recencyBuckets.thisWeek.length > 0 && (
-                        <div className="relative">
-                          {/* Spine Anchor Dot */}
-                          <div className="absolute -left-[29px] sm:-left-[43px] top-0 size-6 sm:size-7 rounded-full bg-surface border-2 border-amber flex items-center justify-center text-amber shadow-lg shadow-amber/20">
-                            <Clock className="size-3.5" />
-                          </div>
-
-                          <div className="mb-3 flex items-center gap-2">
-                            <h3 className="text-xs font-bold uppercase tracking-wider text-amber">
-                              This Week
-                            </h3>
-                            <span className="rounded-full bg-amber/15 border border-amber/30 px-2 py-0.5 font-mono text-[10px] font-bold text-amber">
-                              {recencyBuckets.thisWeek.length}
-                            </span>
-                          </div>
-
-                          <FeedList
-                            items={recencyBuckets.thisWeek}
-                            empty="No events this week."
-                            now={now}
-                            isMod={isMod}
-                            onEdit={openEdit}
-                            onDelete={(x) => remove.mutate(x)}
-                            onOpen={setSelected}
-                            density={feedDensity}
-                            isDone={isDone}
-                            onToggleDone={toggleDone}
-                          />
-                        </div>
-                      )}
-
-                      {/* Bucket 3: Coming Up Later */}
-                      {recencyBuckets.later.length > 0 && (
-                        <div className="relative">
-                          {/* Spine Anchor Dot */}
-                          <div className="absolute -left-[29px] sm:-left-[43px] top-0 size-6 sm:size-7 rounded-full bg-surface border-2 border-cyan flex items-center justify-center text-cyan shadow-lg shadow-cyan/20">
-                            <Sparkles className="size-3.5" />
-                          </div>
-
-                          <div className="mb-3 flex items-center gap-2">
-                            <h3 className="text-xs font-bold uppercase tracking-wider text-cyan">
-                              Later
-                            </h3>
-                            <span className="rounded-full bg-cyan/15 border border-cyan/30 px-2 py-0.5 font-mono text-[10px] font-bold text-cyan">
-                              {recencyBuckets.later.length}
-                            </span>
-                          </div>
-
-                          <FeedList
-                            items={recencyBuckets.later}
-                            empty="No later events."
-                            now={now}
-                            isMod={isMod}
-                            onEdit={openEdit}
-                            onDelete={(x) => remove.mutate(x)}
-                            onOpen={setSelected}
-                            density={feedDensity}
-                            isDone={isDone}
-                            onToggleDone={toggleDone}
-                          />
-                        </div>
-                      )}
-                    </div>
-                  )}
-
-                  {/* Collapsible Past & Completed Events */}
-                  {allCompleted.length > 0 && (
-                    <div className="mt-4 rounded-2xl border border-border/60 bg-surface/30 p-4 transition-all">
-                      <button
-                        type="button"
-                        onClick={() => setShowPastFeed((prev) => !prev)}
-                        className="flex w-full items-center justify-between text-left group"
-                      >
-                        <div className="flex items-center gap-2.5">
-                          <CheckCircle2 className="size-4 text-emerald-400" />
-                          <span className="text-xs font-semibold text-ink group-hover:text-cyan transition-colors">
-                            Past & Completed Events
-                          </span>
-                          <span className="rounded-full bg-surface-elevated border border-border/80 px-2 py-0.5 font-mono text-[10px] text-faint">
-                            {allCompleted.length}
-                          </span>
-                        </div>
-                        <div className="flex items-center gap-1.5 text-xs text-muted group-hover:text-ink transition-colors">
-                          <span className="font-mono text-[11px]">
-                            {showPastFeed ? "Hide archive" : "Show archive"}
-                          </span>
-                          {showPastFeed ? (
-                            <ChevronUp className="size-4" />
-                          ) : (
-                            <ChevronDown className="size-4" />
+                        <AnimatePresence>
+                          {showPastFeed && (
+                            <motion.div
+                              initial={{ height: 0, opacity: 0 }}
+                              animate={{ height: "auto", opacity: 1 }}
+                              exit={{ height: 0, opacity: 0 }}
+                              transition={{ duration: 0.25 }}
+                              className="overflow-hidden pt-4"
+                            >
+                              <FeedList
+                                items={allCompleted}
+                                empty="No completed events found."
+                                now={now}
+                                isMod={isMod}
+                                onEdit={openEdit}
+                                onDelete={(x) => remove.mutate(x)}
+                                onOpen={setSelected}
+                                density="compact"
+                                isDone={isDone}
+                                onToggleDone={toggleDone}
+                              />
+                            </motion.div>
                           )}
-                        </div>
-                      </button>
-
-                      <AnimatePresence>
-                        {showPastFeed && (
-                          <motion.div
-                            initial={{ height: 0, opacity: 0 }}
-                            animate={{ height: "auto", opacity: 1 }}
-                            exit={{ height: 0, opacity: 0 }}
-                            transition={{ duration: 0.25 }}
-                            className="overflow-hidden pt-4"
-                          >
-                            <FeedList
-                              items={allCompleted}
-                              empty="No completed events found."
-                              now={now}
-                              isMod={isMod}
-                              onEdit={openEdit}
-                              onDelete={(x) => remove.mutate(x)}
-                              onOpen={setSelected}
-                              density="compact"
-                              isDone={isDone}
-                              onToggleDone={toggleDone}
-                            />
-                          </motion.div>
-                        )}
-                      </AnimatePresence>
-                    </div>
-                  )}
-                </div>
-
-                <aside className="flex min-w-0 flex-col gap-6 lg:sticky lg:top-24">
-                  <AnnouncementsPanel compact />
-                  <div className="hidden lg:block">
-                    <FeedSection
-                      title="Attendance Overview"
-                      tone="text-cyan"
-                      onSeeAll={() => setTab("attendance")}
-                    >
-                      <AttendancePanel now={now} compact />
-                    </FeedSection>
+                        </AnimatePresence>
+                      </div>
+                    )}
                   </div>
-                  <ActivityPanel compact />
-                </aside>
-              </div>
+
+                  {/* Right Column: Announcements, Attendance, Activity Sidebar */}
+                  <aside className={`min-w-0 flex-col gap-6 lg:sticky lg:top-24 ${mobileTab === "sidebar" ? "flex" : "hidden lg:flex"}`}>
+                    <AnnouncementsPanel compact />
+                    <div className="block">
+                      <FeedSection
+                        title="Attendance Overview"
+                        tone="text-cyan"
+                        onSeeAll={() => setTab("attendance")}
+                      >
+                        <AttendancePanel now={now} compact />
+                      </FeedSection>
+                    </div>
+                    <ActivityPanel compact />
+                  </aside>
+                </div>
               </div>
             )}
 
@@ -1131,33 +1447,46 @@ function FeedList({
       animate="show"
       className={density === "compact" ? "flex flex-col gap-2" : "flex flex-col gap-4 sm:gap-5"}
     >
-      {items.map((d) => (
-        <motion.div key={d.id} variants={feedItemVariants} layout="position">
-          {density === "compact" ? (
-            <FeedCompactRow
-              deadline={d}
-              now={now}
-              canManage={isMod}
-              onEdit={onEdit}
-              onDelete={onDelete}
-              onOpen={onOpen}
-              isDone={isDone ? isDone(d.id) : false}
-              onToggleDone={onToggleDone}
-            />
-          ) : (
-            <FeedCard
-              deadline={d}
-              now={now}
-              canManage={isMod}
-              onEdit={onEdit}
-              onDelete={onDelete}
-              onOpen={onOpen}
-              isDone={isDone ? isDone(d.id) : false}
-              onToggleDone={onToggleDone}
-            />
-          )}
-        </motion.div>
-      ))}
+      <AnimatePresence mode="popLayout">
+        {items.map((d, index) => (
+          <motion.div
+            key={d.id}
+            variants={feedItemVariants}
+            layout="position"
+            exit={{ opacity: 0, x: -20, scale: 0.95, transition: { duration: 0.18 } }}
+            transition={{
+              type: "spring",
+              stiffness: 400,
+              damping: 28,
+              delay: Math.min(index * 0.04, 0.3),
+            }}
+          >
+            {density === "compact" ? (
+              <FeedCompactRow
+                deadline={d}
+                now={now}
+                canManage={isMod}
+                onEdit={onEdit}
+                onDelete={onDelete}
+                onOpen={onOpen}
+                isDone={isDone ? isDone(d.id) : false}
+                onToggleDone={onToggleDone}
+              />
+            ) : (
+              <FeedCard
+                deadline={d}
+                now={now}
+                canManage={isMod}
+                onEdit={onEdit}
+                onDelete={onDelete}
+                onOpen={onOpen}
+                isDone={isDone ? isDone(d.id) : false}
+                onToggleDone={onToggleDone}
+              />
+            )}
+          </motion.div>
+        ))}
+      </AnimatePresence>
     </motion.div>
   );
 }

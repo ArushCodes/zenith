@@ -134,12 +134,18 @@ export function MembersPanel() {
             ) : null}
             <button
               onClick={() => {
-                if (window.confirm(`Are you sure you want to remove ${name} from this batch?`)) {
-                  remove.mutate(m.id);
-                }
+                toast(`Remove ${name} from this batch?`, {
+                  action: {
+                    label: "Remove",
+                    onClick: () => remove.mutate(m.id),
+                  },
+                  cancel: {
+                    label: "Cancel",
+                  },
+                });
               }}
               aria-label="Remove member"
-              className="rounded-lg p-1.5 text-dim ring-1 ring-border transition-colors hover:text-rose"
+              className="rounded-lg p-1.5 text-dim ring-1 ring-border transition-colors hover:text-rose cursor-pointer"
             >
               <Trash2 className="size-3.5" />
             </button>

@@ -195,11 +195,11 @@ export function LiveClassHud({
       )}
 
       {hudState.type === "upcoming_today" && (
-        <div className="relative overflow-hidden rounded-2xl border border-amber-500/30 bg-gradient-to-r from-amber-500/10 via-surface to-surface p-3.5 sm:p-4 shadow-sm ring-1 ring-amber-500/15">
+        <div className="relative overflow-hidden rounded-2xl border border-cyan/40 bg-gradient-to-r from-cyan/10 via-surface to-surface p-3.5 sm:p-4 shadow-sm ring-1 ring-cyan/15">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div className="flex items-center gap-2">
-              <span className="flex size-2.5 rounded-full bg-amber-400 shrink-0" />
-              <span className="font-mono text-[10px] font-bold uppercase tracking-[0.2em] text-amber-500">
+              <span className="flex size-2.5 rounded-full bg-cyan shrink-0" />
+              <span className="font-mono text-[10px] font-bold uppercase tracking-[0.2em] text-cyan">
                 Up Next · Starts in {formatDuration(hudState.diffMins)}
               </span>
             </div>
@@ -212,7 +212,7 @@ export function LiveClassHud({
                 <button
                   type="button"
                   onClick={onNavigateToTimetable}
-                  className="inline-flex items-center gap-1 rounded-lg bg-amber-500/15 px-2.5 py-1 font-mono text-[10px] font-bold text-amber-500 hover:bg-amber-500/25 transition-all cursor-pointer"
+                  className="inline-flex items-center gap-1 rounded-lg bg-cyan/15 px-2.5 py-1 font-mono text-[10px] font-bold text-cyan hover:bg-cyan/25 transition-all cursor-pointer"
                 >
                   Timetable <ChevronRight className="size-3" />
                 </button>
@@ -230,7 +230,7 @@ export function LiveClassHud({
 
           <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-dim">
             <div className="flex items-center gap-1.5 font-medium text-ink">
-              <MapPin className="size-3.5 text-amber-400 shrink-0" />
+              <MapPin className="size-3.5 text-cyan shrink-0" />
               <span>{hudState.session.classroom || "Academic Block"}</span>
             </div>
             {hudState.session.faculty_name && (

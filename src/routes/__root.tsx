@@ -176,7 +176,7 @@ function RootComponent() {
           <Outlet />
         </BatchProvider>
       </SessionProvider>
-      <Toaster position="top-right" />
+      <Toaster position="bottom-right" duration={2000} visibleToasts={1} />
     </QueryClientProvider>
   );
 }

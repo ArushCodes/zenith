@@ -78,26 +78,26 @@
   --font-body-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   --font-mono-family: "JetBrains Mono", ui-monospace, monospace;
 
-  /* Zenith light: warm white ground, sunrise-orange accent */
-  --ground: oklch(0.988 0.006 70);
-  --surface: oklch(1 0 0);
-  --surface2: oklch(0.968 0.009 68);
-  --ink: oklch(0.130 0.020 55);
-  --dim: oklch(0.350 0.020 55);
-  --faint: oklch(0.480 0.018 55);
-  --cyan: oklch(0.585 0.188 44);
-  --magenta: oklch(0.548 0.176 32);
-  --violet: oklch(0.470 0.148 275);
-  --amber: oklch(0.618 0.152 72);
-  --rose: oklch(0.522 0.208 27);
-  --hairline: oklch(0.235 0.021 55 / 16%);
+  /* Zenith light: Cool slate ground, Electric Cyan & Azure palette */
+  --ground: oklch(0.986 0.004 245);       /* crisp cool slate off-white, zero yellow/orange */
+  --surface: oklch(1 0 0);                /* pure crisp white */
+  --surface2: oklch(0.962 0.007 245);     /* soft cool slate surface */
+  --ink: oklch(0.120 0.020 245);          /* deep cool slate-black */
+  --dim: oklch(0.380 0.020 245);          /* clear readable secondary slate */
+  --faint: oklch(0.530 0.018 245);        /* subtle muted slate */
+  --cyan: oklch(0.580 0.190 220);         /* VIBRANT ELECTRIC CYAN / AZURE */
+  --magenta: oklch(0.535 0.182 320);      /* cool fuchsia-magenta */
+  --violet: oklch(0.480 0.180 275);       /* royal indigo / violet */
+  --amber: oklch(0.680 0.150 85);         /* bright clean gold, no muddy brown */
+  --rose: oklch(0.520 0.220 25);          /* crisp crimson rose */
+  --hairline: oklch(0.200 0.018 245 / 12%);
 
-  /* Event type palette, tuned for a light surface */
-  --evt-exam: oklch(0.505 0.208 26);
-  --evt-quiz: oklch(0.552 0.152 62);
-  --evt-assign: oklch(0.478 0.196 277);
-  --evt-present: oklch(0.492 0.130 162);
-  --evt-lecture: oklch(0.492 0.204 293);
+  /* Event type palette, tuned for high-contrast slate surface */
+  --evt-exam: oklch(0.520 0.220 25);
+  --evt-quiz: oklch(0.520 0.180 275);
+  --evt-assign: oklch(0.580 0.190 220);
+  --evt-present: oklch(0.540 0.150 165);
+  --evt-lecture: oklch(0.500 0.190 295);
 
 
   --background: var(--ground);
@@ -117,30 +117,30 @@
   --destructive: var(--rose);
   --destructive-foreground: oklch(1 0 0);
   --border: var(--hairline);
-  --input: oklch(0.235 0.021 55 / 16%);
+  --input: oklch(0.200 0.018 245 / 14%);
   --ring: var(--cyan);
 }
 
 .dark {
-  /* Zenith dark: warm charcoal ground, same sunrise-orange accent */
-  --ground: oklch(0.181 0.012 62);
-  --surface: oklch(0.226 0.014 62);
-  --surface2: oklch(0.268 0.016 62);
-  --ink: oklch(0.985 0.005 70);
-  --dim: oklch(0.820 0.012 70);
-  --faint: oklch(0.680 0.015 70);
-  --cyan: oklch(0.742 0.168 52);
-  --magenta: oklch(0.688 0.166 34);
-  --violet: oklch(0.668 0.148 285);
-  --amber: oklch(0.802 0.148 78);
-  --rose: oklch(0.665 0.192 25);
-  --hairline: oklch(0.962 0.008 70 / 14%);
+  /* Zenith dark: Cool deep midnight slate, luminous electric cyan */
+  --ground: oklch(0.125 0.012 245);       /* deep midnight slate, zero brown */
+  --surface: oklch(0.168 0.015 245);      /* elevated slate surface */
+  --surface2: oklch(0.215 0.018 245);     /* interactive hover surface */
+  --ink: oklch(0.980 0.006 245);          /* clean bright diamond white */
+  --dim: oklch(0.740 0.014 245);          /* high-contrast readable slate */
+  --faint: oklch(0.560 0.014 245);        /* subtle secondary slate */
+  --cyan: oklch(0.740 0.170 215);         /* LUMINOUS NEON ELECTRIC CYAN */
+  --magenta: oklch(0.700 0.170 325);
+  --violet: oklch(0.700 0.160 275);
+  --amber: oklch(0.800 0.140 85);         /* clean luminous gold */
+  --rose: oklch(0.680 0.200 25);
+  --hairline: oklch(0.950 0.008 245 / 12%);
 
-  --evt-exam: oklch(0.688 0.192 26);
-  --evt-quiz: oklch(0.782 0.152 66);
-  --evt-assign: oklch(0.688 0.158 278);
-  --evt-present: oklch(0.722 0.128 164);
-  --evt-lecture: oklch(0.702 0.168 295);
+  --evt-exam: oklch(0.680 0.200 25);
+  --evt-quiz: oklch(0.720 0.160 275);
+  --evt-assign: oklch(0.740 0.170 215);
+  --evt-present: oklch(0.740 0.140 165);
+  --evt-lecture: oklch(0.720 0.170 295);
 
   --background: var(--ground);
   --foreground: var(--ink);
@@ -149,7 +149,7 @@
   --popover: var(--surface);
   --popover-foreground: var(--ink);
   --primary: var(--cyan);
-  --primary-foreground: oklch(0.181 0.012 62);
+  --primary-foreground: oklch(0.125 0.012 245);
   --secondary: var(--surface2);
   --secondary-foreground: var(--ink);
   --muted: var(--surface2);
@@ -157,9 +157,9 @@
   --accent: var(--surface2);
   --accent-foreground: var(--ink);
   --destructive: var(--rose);
-  --destructive-foreground: oklch(0.181 0.012 62);
+  --destructive-foreground: oklch(0.125 0.012 245);
   --border: var(--hairline);
-  --input: oklch(0.962 0.008 70 / 20%);
+  --input: oklch(0.950 0.008 245 / 16%);
   --ring: var(--cyan);
 }
 
@@ -175,6 +175,19 @@
     max-width: 100%;
     width: 100%;
     -webkit-overflow-scrolling: touch;
+  }
+
+  html {
+    font-size: 13.5px;
+  }
+
+  h1, h2, h3 {
+    font-family: var(--font-display-family);
+    letter-spacing: -0.02em;
+  }
+
+  .font-mono {
+    font-size: 0.9em;
   }
 
   body {
@@ -210,14 +223,66 @@
 
 @utility pulse-dot { animation: pulse-ring 1.8s cubic-bezier(0.4, 0, 0.6, 1) infinite; }
 
+/* Satisfying number counter tick (for KPI stat strip) */
+@keyframes stat-pop {
+  0%   { transform: scale(1); }
+  40%  { transform: scale(1.18) translateY(-2px); }
+  100% { transform: scale(1) translateY(0); }
+}
+@utility stat-pop { animation: stat-pop 0.35s cubic-bezier(0.34, 1.56, 0.64, 1); }
+
+/* Shimmer sweep for skeleton loaders */
+@keyframes shimmer {
+  0%   { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+@utility shimmer-sweep {
+  background: linear-gradient(90deg, var(--surface) 25%, var(--surface2) 50%, var(--surface) 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s ease-in-out infinite;
+}
+
+/* Card entrance stagger */
+@keyframes card-in {
+  from { opacity: 0; transform: translateY(12px) scale(0.98); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+@utility card-in {
+  animation: card-in 0.4s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+/* Urgent pulse ring (for critical deadline cards) */
+@keyframes urgent-ring {
+  0%   { box-shadow: 0 0 0 0 oklch(0.505 0.215 25 / 50%); }
+  70%  { box-shadow: 0 0 0 8px oklch(0.505 0.215 25 / 0%); }
+  100% { box-shadow: 0 0 0 0 oklch(0.505 0.215 25 / 0%); }
+}
+@utility urgent-ring { animation: urgent-ring 2s ease-out infinite; }
+
+/* Done checkmark pop */
+@keyframes check-pop {
+  0%   { transform: scale(0) rotate(-15deg); }
+  60%  { transform: scale(1.3) rotate(5deg); }
+  100% { transform: scale(1) rotate(0deg); }
+}
+@utility check-pop { animation: check-pop 0.3s cubic-bezier(0.34, 1.56, 0.64, 1) both; }
+
 /* Filter chips and toolbar buttons keep their own ring styling — the browser
    focus outline lingers after a click and reads as a stuck border. */
 @layer base {
-  button:focus,
+  button:focus:not(:focus-visible),
+  [role="tab"]:focus:not(:focus-visible),
+  [role="button"]:focus:not(:focus-visible) {
+    outline: none;
+  }
+
   button:focus-visible,
   [role="tab"]:focus-visible,
   [role="button"]:focus-visible {
     outline: none;
+    ring: 2px;
+    ring-offset: 2px;
+    box-shadow: 0 0 0 2px var(--color-cyan);
   }
 
   button,

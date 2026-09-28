@@ -278,8 +278,8 @@ export function LiveClassHero({
               Live Class in Session
             </span>
           ) : nextClassToday ? (
-            <span className="inline-flex items-center gap-2 rounded-xl bg-amber/15 px-3 py-1 text-xs font-bold text-amber border border-amber/30">
-              <Clock className="size-3.5 text-amber" />
+            <span className="inline-flex items-center gap-2 rounded-xl bg-cyan/15 px-3 py-1 text-xs font-bold text-cyan border border-cyan/30">
+              <Clock className="size-3.5 text-cyan" />
               Next Class at {clockTimeFmt.format(new Date(nextClassToday.start_at))}
             </span>
           ) : isWeekendOff ? (
@@ -364,7 +364,7 @@ export function LiveClassHero({
                   )}
                   {liveClass.faculty_name && (
                     <span className="flex items-center gap-1.5 bg-surface2/60 border border-border px-2.5 sm:px-3 py-1 rounded-xl">
-                      <User className="size-3.5 sm:size-4 text-amber shrink-0" />
+                      <User className="size-3.5 sm:size-4 text-cyan shrink-0" />
                       {liveClass.faculty_name}
                     </span>
                   )}
@@ -432,7 +432,7 @@ export function LiveClassHero({
               <span className="font-mono text-xs font-bold text-dim bg-surface2 px-2.5 py-1 rounded-lg border border-border">
                 {clockTimeFmt.format(new Date(nextClassToday.start_at))} – {clockTimeFmt.format(new Date(nextClassToday.end_at))}
               </span>
-              <span className="rounded-xl bg-amber/15 px-3 py-1 font-mono text-xs font-bold text-amber border border-amber/30">
+              <span className="rounded-xl bg-cyan/15 px-3 py-1 font-mono text-xs font-bold text-cyan border border-cyan/30">
                 Starts in {timeLeft(nextClassToday.start_at, now)}
               </span>
               {nextClassToday.classroom && (

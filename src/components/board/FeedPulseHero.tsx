@@ -158,7 +158,7 @@ export function FeedPulseHero({
                 </span>
 
                 {nextExam.is_major && (
-                  <span className="rounded-lg bg-amber/15 px-2.5 py-1 font-mono text-xs font-bold text-amber ring-1 ring-amber/30">
+                  <span className="rounded-lg bg-violet/15 px-2.5 py-1 font-mono text-xs font-bold text-violet ring-1 ring-violet/30">
                     20% Weightage
                   </span>
                 )}
@@ -183,7 +183,7 @@ export function FeedPulseHero({
                 </div>
                 <span className="text-border">·</span>
                 <div className="flex items-center gap-1.5">
-                  <Clock className="size-4 text-amber" />
+                  <Clock className="size-4 text-cyan" />
                   <span className="font-semibold text-ink">{nextExamTimeInfo.time}</span>
                   <span className="text-dim">({nextExamTimeInfo.dur})</span>
                 </div>
@@ -218,7 +218,7 @@ export function FeedPulseHero({
         </div>
 
         <div className="flex flex-col justify-between rounded-2xl border border-border/70 bg-surface2/40 p-4">
-          <div className="flex items-center gap-2 text-amber mb-2">
+          <div className="flex items-center gap-2 text-violet mb-2">
             <BookOpen className="size-4" />
             <span className="font-sans text-xs font-bold uppercase tracking-wider text-dim">
               Deliverables

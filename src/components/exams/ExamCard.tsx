@@ -1,5 +1,6 @@
 import { useMemo } from "react";
 import { motion } from "framer-motion";
+import { toast } from "sonner";
 import {
   Award,
   BookOpen,
@@ -290,9 +291,15 @@ export function ExamCard({ deadline, now, canManage, onEdit, onDelete, onOpen }:
             <button
               type="button"
               onClick={() => {
-                if (window.confirm(`Are you sure you want to delete "${cleanTitle}" exam?`)) {
-                  onDelete(deadline);
-                }
+                toast(`Delete "${cleanTitle}" exam?`, {
+                  action: {
+                    label: "Delete",
+                    onClick: () => onDelete(deadline),
+                  },
+                  cancel: {
+                    label: "Cancel",
+                  },
+                });
               }}
               className="flex items-center gap-1.5 rounded-xl border border-rose/30 bg-rose/10 px-3 py-1.5 font-sans text-xs font-semibold text-rose hover:bg-rose/20 transition-colors cursor-pointer"
             >
