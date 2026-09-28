@@ -130,13 +130,19 @@ export function BoardHeader({ menuItems = [], onMenuSelect }: Props) {
                     <UserRound className="size-4 text-dim" /> Profile
                   </Link>
                 </DropdownMenuItem>
-                {isModerator && (
+                {(isAdmin || isArush) ? (
+                  <DropdownMenuItem asChild>
+                    <Link to="/admin" className="flex items-center gap-2">
+                      <ShieldCheck className="size-4 text-emerald-400" /> Admin console
+                    </Link>
+                  </DropdownMenuItem>
+                ) : isModerator ? (
                   <DropdownMenuItem asChild>
                     <Link to="/admin" className="flex items-center gap-2">
                       <ShieldCheck className="size-4 text-dim" /> Moderator console
                     </Link>
                   </DropdownMenuItem>
-                )}
+                ) : null}
 
                 {menuItems.length > 0 && (
                   <>

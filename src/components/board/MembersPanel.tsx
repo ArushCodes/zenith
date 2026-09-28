@@ -1,12 +1,13 @@
 import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { motion } from "framer-motion";
-import { ShieldPlus, ShieldMinus, Trash2, UserPlus } from "lucide-react";
+import { ShieldPlus, ShieldMinus, Trash2, UserPlus, KeyRound } from "lucide-react";
 import { toast } from "sonner";
 import { db as supabase } from "@/lib/backend";
 import { useAuth } from "@/hooks/use-auth";
 import { useBatch } from "@/hooks/use-batch";
 import { directoryQuery, type DirectoryRow, type Membership } from "@/lib/batches";
+import { ChangePasswordDialog, type PasswordTarget } from "@/components/admin/ChangePasswordDialog";
 
 type Row = DirectoryRow;
 
@@ -18,8 +19,12 @@ const ROLE_LABEL: Record<string, string> = {
 
 export function MembersPanel() {
   const { batchId, canManage, isMember } = useBatch();
+  const { isAdmin, isArush } = useAuth();
+  const isFullAdmin = isAdmin || isArush;
   const queryClient = useQueryClient();
   const { data: members = [], isLoading } = useQuery(directoryQuery(isMember));
+  const [passwordDialogOpen, setPasswordDialogOpen] = useState(false);
+  const [passwordTargetUser, setPasswordTargetUser] = useState<PasswordTarget | null>(null);
 
   const update = useMutation({
     mutationFn: async ({ id, patch }: { id: string; patch: Partial<Membership> }) => {
@@ -117,6 +122,25 @@ export function MembersPanel() {
 
         {canManage && m.batch_id === batchId && (
           <>
+            {isFullAdmin && (
+              <button
+                type="button"
+                onClick={() => {
+                  setPasswordTargetUser({
+                    userId: m.user_id,
+                    name,
+                    email: m.profiles?.email || undefined,
+                    roll: m.profiles?.registration_no || undefined,
+                    batchName: m.batches?.name,
+                  });
+                  setPasswordDialogOpen(true);
+                }}
+                className="flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 font-mono text-[11px] text-cyan ring-1 ring-border hover:bg-cyan/10 transition-colors cursor-pointer"
+                title={`Change password for ${name}`}
+              >
+                <KeyRound className="size-3.5" /> Password
+              </button>
+            )}
             {m.role === "student" ? (
               <button
                 onClick={() => update.mutate({ id: m.id, patch: { role: "mod" } })}
@@ -179,6 +203,14 @@ export function MembersPanel() {
           </section>
         ))
       )}
+
+      {/* Admin Password Reset Dialog */}
+      <ChangePasswordDialog
+        open={passwordDialogOpen}
+        onOpenChange={setPasswordDialogOpen}
+        targetUser={passwordTargetUser}
+        allMembers={members}
+      />
     </div>
   );
 }

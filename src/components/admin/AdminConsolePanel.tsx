@@ -23,6 +23,7 @@ import {
   RefreshCw,
   Eye,
   Sliders,
+  KeyRound,
 } from "lucide-react";
 import { toast } from "sonner";
 import { db as supabase } from "@/lib/backend";
@@ -31,6 +32,7 @@ import { useBatch } from "@/hooks/use-batch";
 import { directoryQuery, type DirectoryRow, type Membership } from "@/lib/batches";
 import { IPM_BATCHES } from "@/lib/roster.data";
 import { getLocalActivityStream, type ActivityLogItem } from "@/lib/telemetry";
+import { ChangePasswordDialog, type PasswordTarget } from "./ChangePasswordDialog";
 
 type ConsoleTab = "members" | "activity" | "tracker";
 
@@ -51,6 +53,8 @@ export function AdminConsolePanel() {
   const [roleFilter, setRoleFilter] = useState<string>("all");
   const [localActivityLogs, setLocalActivityLogs] = useState<ActivityLogItem[]>([]);
   const [selectedLogDetail, setSelectedLogDetail] = useState<ActivityLogItem | null>(null);
+  const [passwordDialogOpen, setPasswordDialogOpen] = useState(false);
+  const [passwordTargetUser, setPasswordTargetUser] = useState<PasswordTarget | null>(null);
 
   // 1. Fetch all members across batches
   const { data: members = [], isLoading: membersLoading, refetch: refetchMembers } = useQuery(
@@ -269,13 +273,25 @@ export function AdminConsolePanel() {
         </div>
 
         {activeTab === "members" && (
-          <button
-            onClick={exportCSV}
-            className="flex shrink-0 items-center gap-1.5 rounded-xl border border-border bg-surface px-3 py-1.5 text-xs font-medium text-dim hover:text-ink hover:border-cyan/40 transition-colors shadow-2xs"
-          >
-            <Download className="size-3.5" />
-            <span className="hidden sm:inline">Export CSV</span>
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => {
+                setPasswordTargetUser(null);
+                setPasswordDialogOpen(true);
+              }}
+              className="flex shrink-0 items-center gap-1.5 rounded-xl border border-cyan/40 bg-cyan/10 px-3 py-1.5 text-xs font-semibold text-cyan hover:bg-cyan hover:text-ground transition-all shadow-xs"
+            >
+              <KeyRound className="size-3.5" />
+              <span>Change Password</span>
+            </button>
+            <button
+              onClick={exportCSV}
+              className="flex shrink-0 items-center gap-1.5 rounded-xl border border-border bg-surface px-3 py-1.5 text-xs font-medium text-dim hover:text-ink hover:border-cyan/40 transition-colors shadow-2xs"
+            >
+              <Download className="size-3.5" />
+              <span className="hidden sm:inline">Export CSV</span>
+            </button>
+          </div>
         )}
       </div>
 
@@ -392,6 +408,23 @@ export function AdminConsolePanel() {
                       </div>
 
                       <div className="flex items-center justify-end gap-1.5">
+                        <button
+                          onClick={() => {
+                            setPasswordTargetUser({
+                              userId: m.user_id,
+                              name,
+                              email,
+                              roll: reg,
+                              batchName,
+                            });
+                            setPasswordDialogOpen(true);
+                          }}
+                          title={`Change password for ${name}`}
+                          className="flex items-center gap-1 rounded-lg border border-border bg-surface px-2 py-1 text-[11px] font-medium text-dim hover:border-cyan/50 hover:text-cyan hover:bg-cyan/5 transition-colors"
+                        >
+                          <KeyRound className="size-3 text-cyan" />
+                          <span className="hidden sm:inline">Password</span>
+                        </button>
                         {!isCurrentMod && (
                           <button
                             onClick={() => updateRole.mutate({ membershipId: m.id, newRole: "mod" })}
@@ -595,6 +628,14 @@ export function AdminConsolePanel() {
           </div>
         </div>
       )}
+
+      {/* Admin Password Change Dialog */}
+      <ChangePasswordDialog
+        open={passwordDialogOpen}
+        onOpenChange={setPasswordDialogOpen}
+        targetUser={passwordTargetUser}
+        allMembers={members as DirectoryRow[]}
+      />
     </section>
   );
 }

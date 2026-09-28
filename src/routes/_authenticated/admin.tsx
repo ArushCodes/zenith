@@ -1,12 +1,14 @@
 import { useState } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { ShieldCheck, CalendarClock } from "lucide-react";
 import { toast } from "sonner";
 import { db as supabase } from "@/lib/backend";
 import { useAuth } from "@/hooks/use-auth";
 import { useBatch } from "@/hooks/use-batch";
 import { BoardHeader } from "@/components/board/BoardHeader";
 import { DeadlineDialog } from "@/components/board/DeadlineDialog";
+import { AdminConsolePanel } from "@/components/admin/AdminConsolePanel";
 import {
   deadlinesQueryFor,
   formatDue,
@@ -18,16 +20,16 @@ import {
 export const Route = createFileRoute("/_authenticated/admin")({
   head: () => ({
     meta: [
-      { title: "Moderator console — Zenith" },
+      { title: "Admin & Moderator console — Zenith" },
       {
         name: "description",
         content:
-          "Moderator console for managing Zenith deadlines: subjects, due dates, submission links and group tags.",
+          "Admin & Moderator console for Zenith: student management, password resets, activity telemetry, and deadlines.",
       },
-      { property: "og:title", content: "Moderator console — Zenith" },
+      { property: "og:title", content: "Admin & Moderator console — Zenith" },
       {
         property: "og:description",
-        content: "Manage upcoming deadlines for your batch on Zenith.",
+        content: "Manage students, credentials, and deadlines on Zenith.",
       },
     ],
   }),
@@ -39,6 +41,8 @@ function AdminPage() {
   const queryClient = useQueryClient();
   const { batchId, canManage } = useBatch();
   const canAccess = isModerator || canManage || isAdmin || isArush;
+  const isFullAdmin = isAdmin || isArush;
+  const [adminTab, setAdminTab] = useState<"console" | "deadlines">(isFullAdmin ? "console" : "deadlines");
   const { data: deadlines = [] } = useQuery(deadlinesQueryFor(batchId));
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<Deadline | null>(null);
@@ -87,84 +91,119 @@ function AdminPage() {
             </Link>
           </div>
         ) : (
-          <div className="mt-4 rounded-2xl bg-surface2/60 p-5 ring-1 ring-border backdrop-blur-md">
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <div>
-                <p className="font-mono text-[11px] uppercase tracking-[0.18em] text-dim">
-                  Moderator console
-                </p>
-                <h1 className="font-display text-lg font-semibold tracking-tight">
-                  Manage upcoming deadlines
-                </h1>
-              </div>
-              <button
-                onClick={() => {
-                  setEditing(null);
-                  setDialogOpen(true);
-                }}
-                className="rounded-lg bg-cyan px-3 py-2 text-sm font-semibold text-ground ring-1 ring-cyan"
-              >
-                New deadline
-              </button>
-            </div>
-
-            <div className="mt-4 overflow-hidden rounded-lg ring-1 ring-border">
-              <div className="hidden grid-cols-[minmax(0,1fr)_auto_auto_auto] gap-4 border-b border-border bg-surface px-4 py-2 font-mono text-[10px] uppercase tracking-[0.15em] text-faint sm:grid">
-                <span>Deadline</span>
-                <span className="text-right">Type</span>
-                <span className="text-right">Due</span>
-                <span className="text-right">Actions</span>
-              </div>
-
-              {deadlines.length === 0 && (
-                <p className="px-4 py-6 text-center font-mono text-[11px] text-faint">
-                  No deadlines on the board yet.
-                </p>
-              )}
-
-              {deadlines.map((d, i) => (
-                <div
-                  key={d.id}
-                  className={`grid grid-cols-[minmax(0,1fr)_auto] items-center gap-4 px-4 py-3 sm:grid-cols-[minmax(0,1fr)_auto_auto_auto] ${
-                    i > 0 ? "border-t border-border" : ""
+          <div className="space-y-4">
+            {isFullAdmin && (
+              <div className="flex items-center gap-2 border-b border-border/60 pb-3">
+                <button
+                  type="button"
+                  onClick={() => setAdminTab("console")}
+                  className={`flex items-center gap-2 rounded-xl px-3.5 py-1.5 text-xs font-semibold transition-all ${
+                    adminTab === "console"
+                      ? "bg-cyan text-ground shadow-xs font-bold"
+                      : "border border-border bg-surface text-dim hover:text-ink hover:bg-surface2"
                   }`}
                 >
-                  <div className="min-w-0">
-                    <p className="truncate text-sm font-medium">
-                      {fullDeadlineLabel(d)}
+                  <ShieldCheck className="size-4" />
+                  <span>Command Center & Students</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setAdminTab("deadlines")}
+                  className={`flex items-center gap-2 rounded-xl px-3.5 py-1.5 text-xs font-semibold transition-all ${
+                    adminTab === "deadlines"
+                      ? "bg-cyan text-ground shadow-xs font-bold"
+                      : "border border-border bg-surface text-dim hover:text-ink hover:bg-surface2"
+                  }`}
+                >
+                  <CalendarClock className="size-4" />
+                  <span>Deadlines & Submissions</span>
+                </button>
+              </div>
+            )}
+
+            {isFullAdmin && adminTab === "console" ? (
+              <AdminConsolePanel />
+            ) : (
+              <div className="mt-4 rounded-2xl bg-surface2/60 p-5 ring-1 ring-border backdrop-blur-md">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div>
+                    <p className="font-mono text-[11px] uppercase tracking-[0.18em] text-dim">
+                      Moderator console
                     </p>
-                    <p className="truncate font-mono text-[11px] text-faint">
-                      {[d.subject_code, d.work_mode === "group" ? `Group${d.group_size ? ` · ${d.group_size}` : ""}` : "Individual", d.submission_link]
-                        .filter(Boolean)
-                        .join(" · ")}
-                    </p>
+                    <h1 className="font-display text-lg font-semibold tracking-tight">
+                      Manage upcoming deadlines
+                    </h1>
                   </div>
-                  <span className="hidden font-mono text-[11px] text-dim sm:block">
-                    {typeLabel(d.type)}
-                  </span>
-                  <span className="hidden font-mono text-[11px] text-dim sm:block">
-                    {formatDue(d.due_at)}
-                  </span>
-                  <div className="flex justify-self-end gap-1">
-                    <button
-                      onClick={() => {
-                        setEditing(d);
-                        setDialogOpen(true);
-                      }}
-                      className="rounded-md px-2 py-1 font-mono text-[11px] text-dim ring-1 ring-border transition-colors hover:text-amber"
-                    >
-                      Edit
-                    </button>
-                    <button
-                      onClick={() => remove.mutate(d.id)}
-                      className="rounded-md px-2 py-1 font-mono text-[11px] text-dim ring-1 ring-border transition-colors hover:text-rose"
-                    >
-                      Del
-                    </button>
-                  </div>
+                  <button
+                    onClick={() => {
+                      setEditing(null);
+                      setDialogOpen(true);
+                    }}
+                    className="rounded-lg bg-cyan px-3 py-2 text-sm font-semibold text-ground ring-1 ring-cyan"
+                  >
+                    New deadline
+                  </button>
                 </div>
-              ))}
-            </div>
+
+                <div className="mt-4 overflow-hidden rounded-lg ring-1 ring-border">
+                  <div className="hidden grid-cols-[minmax(0,1fr)_auto_auto_auto] gap-4 border-b border-border bg-surface px-4 py-2 font-mono text-[10px] uppercase tracking-[0.15em] text-faint sm:grid">
+                    <span>Deadline</span>
+                    <span className="text-right">Type</span>
+                    <span className="text-right">Due</span>
+                    <span className="text-right">Actions</span>
+                  </div>
+
+                  {deadlines.length === 0 && (
+                    <p className="px-4 py-6 text-center font-mono text-[11px] text-faint">
+                      No deadlines on the board yet.
+                    </p>
+                  )}
+
+                  {deadlines.map((d, i) => (
+                    <div
+                      key={d.id}
+                      className={`grid grid-cols-[minmax(0,1fr)_auto] items-center gap-4 px-4 py-3 sm:grid-cols-[minmax(0,1fr)_auto_auto_auto] ${
+                        i > 0 ? "border-t border-border" : ""
+                      }`}
+                    >
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-medium">
+                          {fullDeadlineLabel(d)}
+                        </p>
+                        <p className="truncate font-mono text-[11px] text-faint">
+                          {[d.subject_code, d.work_mode === "group" ? `Group${d.group_size ? ` · ${d.group_size}` : ""}` : "Individual", d.submission_link]
+                            .filter(Boolean)
+                            .join(" · ")}
+                        </p>
+                      </div>
+                      <span className="hidden font-mono text-[11px] text-dim sm:block">
+                        {typeLabel(d.type)}
+                      </span>
+                      <span className="hidden font-mono text-[11px] text-dim sm:block">
+                        {formatDue(d.due_at)}
+                      </span>
+                      <div className="flex justify-self-end gap-1">
+                        <button
+                          onClick={() => {
+                            setEditing(d);
+                            setDialogOpen(true);
+                          }}
+                          className="rounded-md px-2 py-1 font-mono text-[11px] text-dim ring-1 ring-border transition-colors hover:text-amber"
+                        >
+                          Edit
+                        </button>
+                        <button
+                          onClick={() => remove.mutate(d.id)}
+                          className="rounded-md px-2 py-1 font-mono text-[11px] text-dim ring-1 ring-border transition-colors hover:text-rose"
+                        >
+                          Del
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         )}
       </main>

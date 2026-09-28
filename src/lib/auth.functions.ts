@@ -505,3 +505,152 @@ export const registerWithRoster = createServerFn({ method: "POST" })
       email: cleanEmail,
     };
   });
+
+export const adminResetUserPassword = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .validator((input: unknown) =>
+    z
+      .object({
+        targetUserId: z.string().uuid("Invalid target user ID").optional(),
+        targetEmail: z.string().trim().toLowerCase().optional(),
+        targetRollNo: z.string().trim().optional(),
+        newPassword: z.string().min(6, "Password must be at least 6 characters"),
+      })
+      .refine(
+        (data) => !!data.targetUserId || !!data.targetEmail || !!data.targetRollNo,
+        {
+          message: "Please provide a target student ID, email address, or roll number.",
+        },
+      )
+      .parse(input),
+  )
+  .handler(async ({ data, context }) => {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+
+    // 1. Enforce caller authorization: must be admin or Arush
+    const callerId = context.userId;
+    const callerEmail = (context.claims.email as string | undefined)?.toLowerCase() ?? "";
+
+    // Check user_roles table for 'admin'
+    const { data: roleRow } = await supabaseAdmin
+      .from("user_roles")
+      .select("role")
+      .eq("user_id", callerId)
+      .eq("role", "admin")
+      .maybeSingle();
+
+    // Check batch_memberships for 'admin' role
+    const { data: adminMembership } = await supabaseAdmin
+      .from("batch_memberships")
+      .select("role")
+      .eq("user_id", callerId)
+      .eq("role", "admin")
+      .maybeSingle();
+
+    // Check caller profile
+    const { data: callerProfile } = await supabaseAdmin
+      .from("profiles")
+      .select("email, full_name, registration_no")
+      .eq("id", callerId)
+      .maybeSingle();
+
+    const profileEmail = (callerProfile?.email || "").toLowerCase();
+    const profileReg = (callerProfile?.registration_no || "").toUpperCase();
+    const profileName = (callerProfile?.full_name || "").toUpperCase();
+
+    // Arush Vipul Gaur override
+    const isArush =
+      callerEmail.includes("arush") ||
+      profileEmail.includes("arush") ||
+      profileName.includes("ARUSH") ||
+      profileReg === "26U17";
+
+    const isAuthorizedAdmin = !!roleRow || !!adminMembership || isArush;
+
+    if (!isAuthorizedAdmin) {
+      throw new Error("Forbidden: Only administrators can change student passwords.");
+    }
+
+    // 2. Resolve target user ID
+    let finalTargetUserId = data.targetUserId;
+    let targetIdentifier = data.targetEmail || data.targetRollNo || data.targetUserId;
+
+    if (!finalTargetUserId && data.targetEmail) {
+      const cleanEmail = data.targetEmail.trim().toLowerCase();
+      const { data: prof } = await supabaseAdmin
+        .from("profiles")
+        .select("id, email")
+        .eq("email", cleanEmail)
+        .maybeSingle();
+
+      if (prof?.id) {
+        finalTargetUserId = prof.id;
+        targetIdentifier = prof.email || cleanEmail;
+      } else {
+        const { data: usersData } = await supabaseAdmin.auth.admin.listUsers({ page: 1, perPage: 1000 });
+        const found = usersData?.users?.find((u) => u.email?.toLowerCase() === cleanEmail);
+        if (found?.id) {
+          finalTargetUserId = found.id;
+          targetIdentifier = found.email || cleanEmail;
+        }
+      }
+    }
+
+    if (!finalTargetUserId && data.targetRollNo) {
+      const cleanRoll = data.targetRollNo.trim().toUpperCase();
+      const { data: prof } = await supabaseAdmin
+        .from("profiles")
+        .select("id, email, registration_no")
+        .eq("registration_no", cleanRoll)
+        .maybeSingle();
+
+      if (prof?.id) {
+        finalTargetUserId = prof.id;
+        targetIdentifier = prof.email || prof.registration_no || cleanRoll;
+      }
+    }
+
+    if (!finalTargetUserId) {
+      throw new Error("No student account found matching the provided identifier.");
+    }
+
+    // 3. Update password via Supabase Auth Admin
+    const { data: updateData, error: updateError } = await supabaseAdmin.auth.admin.updateUserById(
+      finalTargetUserId,
+      { password: data.newPassword },
+    );
+
+    if (updateError) {
+      throw new Error(updateError.message || "Failed to update user password.");
+    }
+
+    const finalEmail = updateData?.user?.email || targetIdentifier || "student";
+
+    // 4. Log the action for audit trail in user_activity_logs
+    try {
+      await supabaseAdmin.from("user_activity_logs" as any).insert({
+        user_id: callerId,
+        user_name: callerProfile?.full_name || "Admin",
+        user_email: callerEmail || profileEmail,
+        user_roll: profileReg,
+        action: "admin_password_change",
+        title: `Changed password for ${finalEmail}`,
+        details: {
+          targetUserId: finalTargetUserId,
+          targetEmail: finalEmail,
+          updatedAt: new Date().toISOString(),
+          changedBy: callerEmail || profileEmail,
+        },
+      });
+    } catch {
+      // Non-blocking telemetry
+    }
+
+    return {
+      ok: true,
+      userId: finalTargetUserId,
+      email: finalEmail,
+      message: `Password successfully updated for ${finalEmail}.`,
+    };
+  });
+
