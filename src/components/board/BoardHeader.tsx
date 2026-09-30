@@ -32,9 +32,12 @@ type Props = {
   /** Secondary board sections surfaced from the profile menu instead of the tab bar. */
   menuItems?: HeaderMenuItem[];
   onMenuSelect?: (key: string) => void;
+  onLogoClick?: () => void;
 };
 
-export function BoardHeader({ menuItems = [], onMenuSelect }: Props) {
+const LOGO_LETTERS = ["z", "e", "n", "i", "t", "h"];
+
+export function BoardHeader({ menuItems = [], onMenuSelect, onLogoClick }: Props) {
   const { user, isModerator, isAdmin, isArush } = useAuth();
   const me = useMe();
   const { theme, toggle } = useTheme();
@@ -42,6 +45,7 @@ export function BoardHeader({ menuItems = [], onMenuSelect }: Props) {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [scrolled, setScrolled] = useState(false);
+  const [isLogoHovered, setIsLogoHovered] = useState(false);
 
   useEffect(() => {
     const handler = () => setScrolled(window.scrollY > 10);
@@ -74,14 +78,76 @@ export function BoardHeader({ menuItems = [], onMenuSelect }: Props) {
       }`}
     >
       <div className="mx-auto flex h-14 sm:h-16 max-w-7xl items-center justify-between gap-1.5 sm:gap-3 px-3 sm:px-6 lg:px-8">
-        <Link to="/" className="group flex shrink-0 items-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan/60 rounded-xl">
-          <motion.div whileHover={{ scale: 1.03 }} transition={spring} className="leading-none">
-            <p className="font-display text-xl sm:text-2xl font-black italic tracking-[-0.04em] text-cyan">
-              Zenith
-            </p>
-            <p className="mt-0.5 hidden font-mono text-[9px] uppercase tracking-[0.2em] text-faint sm:block">
-              TAPMI
-            </p>
+        {/* Kinetic Animated Zenith Logo */}
+        <Link
+          to="/board"
+          onClick={(e) => {
+            if (onLogoClick) {
+              e.preventDefault();
+              onLogoClick();
+            }
+          }}
+          onMouseEnter={() => setIsLogoHovered(true)}
+          onMouseLeave={() => setIsLogoHovered(false)}
+          className="group relative flex shrink-0 items-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan/60 rounded-xl py-1 px-1 -ml-1 select-none cursor-pointer"
+        >
+          <motion.div whileTap={{ scale: 0.94 }} className="relative flex items-center leading-none">
+            {/* Luminous ambient glow on hover */}
+            <motion.div
+              animate={{
+                opacity: isLogoHovered ? 0.35 : 0,
+                scale: isLogoHovered ? 1.3 : 0.8,
+                filter: "blur(14px)",
+              }}
+              transition={{ duration: 0.25 }}
+              className="absolute -inset-1 rounded-full bg-cyan pointer-events-none -z-10"
+            />
+
+            {/* Letter-by-letter kinetic spring wave */}
+            <div className="flex items-baseline">
+              {LOGO_LETTERS.map((letter, i) => (
+                <motion.span
+                  key={i}
+                  animate={
+                    isLogoHovered
+                      ? {
+                          y: [0, -5, 0],
+                          scale: [1, 1.14, 1],
+                          rotate: i % 2 === 0 ? [0, -4, 0] : [0, 4, 0],
+                        }
+                      : { y: 0, scale: 1, rotate: 0 }
+                  }
+                  transition={{
+                    delay: i * 0.04,
+                    type: "spring",
+                    stiffness: 600,
+                    damping: 14,
+                  }}
+                  className="font-display text-2xl sm:text-[28px] font-black italic tracking-[-0.05em] text-cyan transition-colors"
+                >
+                  {letter}
+                </motion.span>
+              ))}
+
+              {/* Animated pulse dot */}
+              <motion.span
+                animate={
+                  isLogoHovered
+                    ? {
+                        scale: [1, 1.6, 1],
+                        y: [0, -3, 0],
+                      }
+                    : { scale: 1, y: 0 }
+                }
+                transition={{
+                  delay: 0.24,
+                  type: "spring",
+                  stiffness: 700,
+                  damping: 12,
+                }}
+                className="ml-0.5 size-1.5 sm:size-2 rounded-full bg-cyan inline-block shadow-xs shadow-cyan/60"
+              />
+            </div>
           </motion.div>
         </Link>
 

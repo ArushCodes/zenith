@@ -456,17 +456,29 @@ export default function StudentBoard({ guestPreview }: { guestPreview?: boolean 
 
   return (
     <div className="relative min-h-screen overflow-x-hidden bg-ground font-body text-ink">
-      <BoardHeader menuItems={menuItems} onMenuSelect={(k) => setPanel(k as PanelKey)} />
+      <BoardHeader
+        menuItems={menuItems}
+        onMenuSelect={(k) => setPanel(k as PanelKey)}
+        onLogoClick={() => {
+          setPanel(null);
+          setTab("feed");
+          setFeedCategory("all");
+          setFeedSearch("");
+          setUrgentOnly(false);
+          setPendingOnly(false);
+          window.scrollTo({ top: 0, behavior: "smooth" });
+        }}
+      />
 
       <main className="relative z-10 mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 pt-4 sm:pt-6 pb-20">
         {/* ── Best Practice Workspace Control Deck: Editorial Context + Flat Navigation ── */}
         <div className="mb-4 flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between border-b border-border/70 pb-3">
           <div className="min-w-0">
             <h1 className="font-display text-2xl font-black tracking-tight text-ink">
-              Academic Board
+              {batch ? formatBatchLabel(batch).code : "Board"}
             </h1>
             <p className="text-[12px] font-medium text-dim mt-0.5 truncate">
-              {batch ? formatBatchLabel(batch).code : "Student Portal"} · {new Intl.DateTimeFormat("en-GB", { weekday: "short", day: "numeric", month: "short", year: "numeric" }).format(now)}
+              {new Intl.DateTimeFormat("en-GB", { weekday: "short", day: "numeric", month: "short" }).format(now)}
             </p>
           </div>
 
@@ -609,135 +621,7 @@ export default function StudentBoard({ guestPreview }: { guestPreview?: boolean 
                   canManage={isMod}
                 />
 
-                {/* ── Editorial Horizontal Stat Strip ── */}
-                <div className="flex flex-wrap items-center justify-between gap-y-3 gap-x-2 border-b border-border/70 pb-3.5 mb-1">
-                  {/* Stat 1: All Active Events */}
-                  <motion.button
-                    type="button"
-                    whileHover={{ y: -1 }}
-                    whileTap={{ scale: 0.95 }}
-                    onClick={() => {
-                      setUrgentOnly(false);
-                      setPendingOnly(false);
-                      setFeedCategory("all");
-                      setFeedSearch("");
-                    }}
-                    title="Click to reset filters and view all active deadlines"
-                    className="flex flex-col text-left cursor-pointer group"
-                  >
-                    <AnimatePresence mode="popLayout">
-                      <motion.span
-                        key={totalUpcomingCount}
-                        initial={{ opacity: 0, y: -8, scale: 0.85 }}
-                        animate={{ opacity: 1, y: 0, scale: 1 }}
-                        exit={{ opacity: 0, y: 8, scale: 0.85 }}
-                        transition={{ type: "spring", stiffness: 500, damping: 28 }}
-                        className={`font-display text-2xl sm:text-3xl font-black tabular-nums transition-colors ${
-                          !urgentOnly && !pendingOnly && feedCategory === "all" && !feedSearch
-                            ? "text-cyan"
-                            : "text-ink group-hover:text-cyan"
-                        }`}
-                      >
-                        {totalUpcomingCount}
-                      </motion.span>
-                    </AnimatePresence>
-                    <span className="text-[11px] font-medium text-dim mt-0.5">
-                      Active Events
-                    </span>
-                  </motion.button>
 
-                  <span className="hidden sm:block h-7 w-px bg-border/80" />
-
-                  {/* Stat 2: Due in 48 Hours */}
-                  <motion.button
-                    type="button"
-                    whileHover={{ y: -1 }}
-                    whileTap={{ scale: 0.95 }}
-                    onClick={() => setUrgentOnly((prev) => !prev)}
-                    title="Click to filter only urgent events due in 48 hours"
-                    className="flex flex-col text-left cursor-pointer group"
-                  >
-                    <AnimatePresence mode="popLayout">
-                      <motion.span
-                        key={recencyBuckets.critical.length}
-                        initial={{ opacity: 0, y: -8, scale: 0.85 }}
-                        animate={{ opacity: 1, y: 0, scale: 1 }}
-                        exit={{ opacity: 0, y: 8, scale: 0.85 }}
-                        transition={{ type: "spring", stiffness: 500, damping: 28 }}
-                        className={`font-display text-2xl sm:text-3xl font-black tabular-nums transition-colors ${
-                          urgentOnly ? "text-rose" : "text-ink group-hover:text-rose"
-                        }`}
-                      >
-                        {recencyBuckets.critical.length}
-                      </motion.span>
-                    </AnimatePresence>
-                    <span className={`text-[11px] font-medium mt-0.5 ${urgentOnly ? "text-rose font-bold" : "text-dim"}`}>
-                      Urgent (48h)
-                    </span>
-                  </motion.button>
-
-                  <span className="hidden sm:block h-7 w-px bg-border/80" />
-
-                  {/* Stat 3: Quizzes & Exams */}
-                  <motion.button
-                    type="button"
-                    whileHover={{ y: -1 }}
-                    whileTap={{ scale: 0.95 }}
-                    onClick={() => {
-                      setFeedCategory((prev) => (prev === "exam" ? "all" : "exam"));
-                    }}
-                    title="Click to filter by exams and quizzes"
-                    className="flex flex-col text-left cursor-pointer group"
-                  >
-                    <AnimatePresence mode="popLayout">
-                      <motion.span
-                        key={quizzes.length + midterms.length + endterms.length}
-                        initial={{ opacity: 0, y: -8, scale: 0.85 }}
-                        animate={{ opacity: 1, y: 0, scale: 1 }}
-                        exit={{ opacity: 0, y: 8, scale: 0.85 }}
-                        transition={{ type: "spring", stiffness: 500, damping: 28 }}
-                        className={`font-display text-2xl sm:text-3xl font-black tabular-nums transition-colors ${
-                          feedCategory === "exam" ? "text-violet" : "text-ink group-hover:text-violet"
-                        }`}
-                      >
-                        {quizzes.length + midterms.length + endterms.length}
-                      </motion.span>
-                    </AnimatePresence>
-                    <span className={`text-[11px] font-medium mt-0.5 ${feedCategory === "exam" ? "text-violet font-bold" : "text-dim"}`}>
-                      Tests & Exams
-                    </span>
-                  </motion.button>
-
-                  <span className="hidden sm:block h-7 w-px bg-border/80" />
-
-                  {/* Stat 4: Checklist Prep */}
-                  <motion.button
-                    type="button"
-                    whileHover={{ y: -1 }}
-                    whileTap={{ scale: 0.95 }}
-                    onClick={() => setPendingOnly((prev) => !prev)}
-                    title="Click to toggle between all items and pending (unprepared) items"
-                    className="flex flex-col text-left cursor-pointer group"
-                  >
-                    <AnimatePresence mode="popLayout">
-                      <motion.span
-                        key={completedUpcomingCount}
-                        initial={{ opacity: 0, y: -8, scale: 0.85 }}
-                        animate={{ opacity: 1, y: 0, scale: 1 }}
-                        exit={{ opacity: 0, y: 8, scale: 0.85 }}
-                        transition={{ type: "spring", stiffness: 500, damping: 28 }}
-                        className={`font-display text-2xl sm:text-3xl font-black tabular-nums transition-colors ${
-                          pendingOnly ? "text-emerald-500" : "text-ink group-hover:text-emerald-500"
-                        }`}
-                      >
-                        {completedUpcomingCount}/{totalUpcomingCount}
-                      </motion.span>
-                    </AnimatePresence>
-                    <span className={`text-[11px] font-medium mt-0.5 ${pendingOnly ? "text-emerald-500 font-bold" : "text-dim"}`}>
-                      Prepared ({progressPercent}%)
-                    </span>
-                  </motion.button>
-                </div>
 
                 {/* ── Active Filter Bar (shows when any filter is toggled) ── */}
                 {(urgentOnly || pendingOnly || feedCategory !== "all" || feedSearch) && (

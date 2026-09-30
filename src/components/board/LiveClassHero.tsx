@@ -563,16 +563,13 @@ export function LiveClassHero({
             </span>
             <div>
               <h3 className="font-display text-sm font-bold text-ink flex items-center gap-2">
-                <span>Upcoming Examinations & Verified Syllabus</span>
+                <span>Upcoming Exams</span>
                 {upcomingExams.length > 0 && (
-                  <span className="rounded-full bg-cyan/15 border border-cyan/30 px-2 py-0.5 font-mono text-[10px] font-bold text-cyan">
+                  <span className="rounded-full bg-cyan/15 border border-cyan/30 px-2 py-0.5 text-[10px] font-bold text-cyan">
                     {upcomingExams.length} Scheduled
                   </span>
                 )}
               </h3>
-              <p className="font-sans text-xs text-dim">
-                Curriculum coverage, test venue, and revision syllabus scope
-              </p>
             </div>
           </div>
 
@@ -691,26 +688,19 @@ export function LiveClassHero({
         )}
       </div>
 
-      {/* ── Bottom Status Strip: Term & Timetable Shortcut ── */}
-      <div className="relative z-10 mt-6 flex flex-wrap items-center justify-between gap-4 border-t border-border/60 pt-5 text-xs text-dim">
-        <div className="flex items-center gap-2">
-          <span className="font-mono text-[11px] font-bold uppercase tracking-wider text-ink">
-            {batch ? `${batch.programme_name} · ${batch.name}` : "Trimester 1 (2026)"}
-          </span>
-          <span className="text-dim">· Verified Academic Tracker</span>
-        </div>
-
-        {onSeeFullTimetable && (
+      {/* ── Bottom Timetable Shortcut ── */}
+      {onSeeFullTimetable && (
+        <div className="relative z-10 mt-4 flex items-center justify-end border-t border-border/50 pt-3 text-xs">
           <button
             type="button"
             onClick={onSeeFullTimetable}
-            className="flex items-center gap-1 font-sans text-xs font-semibold text-cyan hover:underline cursor-pointer"
+            className="flex items-center gap-1.5 font-semibold text-cyan hover:text-cyan/80 transition-colors cursor-pointer"
           >
             <span>Open Interactive Timetable</span>
             <ArrowRight className="size-3.5" />
           </button>
-        )}
-      </div>
+        </div>
+      )}
 
       {/* ── Syllabus Dialog ── */}
       <SyllabusDialog
