@@ -80,7 +80,7 @@ export function BoardHeader({ menuItems = [], onMenuSelect, onLogoClick }: Props
       <div className="mx-auto flex h-14 sm:h-16 max-w-7xl items-center justify-between gap-1.5 sm:gap-3 px-3 sm:px-6 lg:px-8">
         {/* Kinetic Animated Zenith Logo */}
         <Link
-          to="/board"
+          to="/"
           onClick={(e) => {
             if (onLogoClick) {
               e.preventDefault();

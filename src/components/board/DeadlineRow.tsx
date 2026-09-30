@@ -170,6 +170,7 @@ export function DeadlineRow({ deadline, now, canManage, onEdit, onDelete, onOpen
                     },
                     cancel: {
                       label: "Cancel",
+                      onClick: () => {},
                     },
                   });
                 }}

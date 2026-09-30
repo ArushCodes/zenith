@@ -400,6 +400,7 @@ export function FeedCard({
                     },
                     cancel: {
                       label: "Cancel",
+                      onClick: () => {},
                     },
                   });
                 }}

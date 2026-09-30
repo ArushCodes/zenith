@@ -189,6 +189,7 @@ export function AnnouncementsPanel({ compact = false }: { compact?: boolean }) {
                           },
                           cancel: {
                             label: "Cancel",
+                            onClick: () => {},
                           },
                         });
                       }}

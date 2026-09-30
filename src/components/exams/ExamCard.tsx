@@ -298,6 +298,7 @@ export function ExamCard({ deadline, now, canManage, onEdit, onDelete, onOpen }:
                   },
                   cancel: {
                     label: "Cancel",
+                    onClick: () => {},
                   },
                 });
               }}

@@ -63,7 +63,7 @@ import { AdminConsolePanel } from "@/components/admin/AdminConsolePanel";
 import { EmailInboxPanel } from "@/components/board/EmailInboxPanel";
 import { MembersPanel } from "@/components/board/MembersPanel";
 import { FeedbackPanel } from "@/components/board/FeedbackPanel";
-import { coursesQuery, sessionsQuery } from "@/lib/batches";
+import { coursesQuery, sessionsQuery, formatBatchLabel } from "@/lib/batches";
 import { autoColor } from "@/lib/courses";
 import { Marker, shapeForDeadline } from "@/lib/shapes";
 import {
@@ -140,7 +140,11 @@ export default function StudentBoard({ guestPreview }: { guestPreview?: boolean 
   const [urgentOnly, setUrgentOnly] = useState(false);
   const [pendingOnly, setPendingOnly] = useState(false);
   const [mobileTab, setMobileTab] = useState<"timeline" | "sidebar">("timeline");
-  const [collapsedBuckets, setCollapsedBuckets] = useState<Record<string, boolean>>({
+  const [collapsedBuckets, setCollapsedBuckets] = useState<{
+    critical: boolean;
+    thisWeek: boolean;
+    later: boolean;
+  }>({
     critical: false,
     thisWeek: false,
     later: false,

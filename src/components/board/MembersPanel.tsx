@@ -165,6 +165,7 @@ export function MembersPanel() {
                   },
                   cancel: {
                     label: "Cancel",
+                    onClick: () => {},
                   },
                 });
               }}
