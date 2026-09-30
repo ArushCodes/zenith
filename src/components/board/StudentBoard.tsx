@@ -458,7 +458,7 @@ export default function StudentBoard({ guestPreview }: { guestPreview?: boolean 
     <div className="relative min-h-screen overflow-x-hidden bg-ground font-body text-ink">
       <BoardHeader menuItems={menuItems} onMenuSelect={(k) => setPanel(k as PanelKey)} />
 
-      <main className="relative z-10 mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 pt-2.5 sm:pt-4 pb-20">
+      <main className="relative z-10 mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 pt-4 sm:pt-6 pb-20">
         {/* ── Best Practice Workspace Control Deck: Editorial Context + Flat Navigation ── */}
         <div className="mb-4 flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between border-b border-border/70 pb-3">
           <div className="min-w-0">
@@ -466,7 +466,7 @@ export default function StudentBoard({ guestPreview }: { guestPreview?: boolean 
               Academic Board
             </h1>
             <p className="text-[12px] font-medium text-dim mt-0.5 truncate">
-              {batch ? `${batch.programme_name ? `${batch.programme_name} · ` : ""}${batch.name}` : "TAPMI Student Portal"} · {new Intl.DateTimeFormat("en-GB", { weekday: "short", day: "numeric", month: "short", year: "numeric" }).format(now)}
+              {batch ? formatBatchLabel(batch).code : "Student Portal"} · {new Intl.DateTimeFormat("en-GB", { weekday: "short", day: "numeric", month: "short", year: "numeric" }).format(now)}
             </p>
           </div>
 

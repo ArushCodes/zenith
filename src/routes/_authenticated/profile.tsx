@@ -24,6 +24,7 @@ import { toast } from "sonner";
 import { db as supabase } from "@/lib/backend";
 import { useAuth } from "@/hooks/use-auth";
 import { useBatch } from "@/hooks/use-batch";
+import { formatBatchLabel } from "@/lib/batches";
 import { BoardHeader } from "@/components/board/BoardHeader";
 import {
   TIMEZONES,
@@ -241,8 +242,8 @@ function ProfilePage() {
             </motion.div>
 
             <div className="min-w-0 flex-1 space-y-2">
-              <p className="font-mono text-[11px] uppercase tracking-[0.22em] text-dim">
-                {batch ? `${batch.path} · ${batch.name}` : "MAHE academic portal"}
+              <p className="font-mono text-[11px] uppercase tracking-[0.22em] text-cyan font-bold">
+                {batch ? formatBatchLabel(batch).code : "Zenith"}
               </p>
               <h1 className="font-display text-3xl font-semibold tracking-tight text-balance sm:text-4xl">
                 {name}

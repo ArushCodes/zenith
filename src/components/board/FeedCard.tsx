@@ -114,12 +114,18 @@ export function FeedCard({
   const fullCourse = subjectFullName(deadline.subject || deadline.title);
   const shortSubject = subjectShortName(deadline.subject || deadline.subject_code);
 
-  // Intelligent title: uses full formal course name for exams/classes without clipping
-  const title = isExam
-    ? (deadline.title && !/[-–—:]?\s*(mid[\s-]*term|end[\s-]*term)(\s*exam)?/i.test(deadline.title)
-        ? `${fullCourse} — ${cleanExamTitle(deadline.title, deadline.subject)}`
-        : `${fullCourse} — ${typeLabel(deadline.type)}`)
-    : displayTitle(deadline.subject, deadline.title);
+  // Intelligent title: clean, punchy topic without echoing the subject name already in the badge
+  const title = useMemo(() => {
+    if (isExam) {
+      const cleanExam = cleanExamTitle(deadline.title, deadline.subject);
+      if (cleanExam && !/^(mid[\s-]*term|end[\s-]*term)(\s*exam)?$/i.test(cleanExam)) {
+        return cleanExam;
+      }
+      return typeLabel(deadline.type);
+    }
+    const clean = displayTitle(deadline.subject, deadline.title);
+    return clean || deadline.title || typeLabel(deadline.type);
+  }, [isExam, deadline.title, deadline.subject, deadline.type]);
 
   // Time calculations
   const { dateStr, timeStr, durationStr, isCriticalUrgent } = useMemo(() => {
@@ -212,30 +218,22 @@ export function FeedCard({
             </button>
           )}
 
-          {deadline.subject_code && (
-            <span
-              className="rounded-md px-2 py-0.5 font-mono text-[11px] font-bold tracking-wider"
-              style={{
-                backgroundColor: `${subjectColor}15`,
-                color: subjectColor,
-                border: `1px solid ${subjectColor}35`,
-              }}
-            >
-              {deadline.subject_code}
+          {/* Unified Subject Badge: Code + Name */}
+          <span
+            className="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-0.5 font-mono text-[11px] font-bold"
+            style={{
+              backgroundColor: `${subjectColor}15`,
+              color: subjectColor,
+              border: `1px solid ${subjectColor}35`,
+            }}
+          >
+            <span className="size-1.5 rounded-full shrink-0" style={{ backgroundColor: subjectColor }} />
+            <span>
+              {deadline.subject_code && shortSubject
+                ? `${deadline.subject_code} · ${shortSubject}`
+                : deadline.subject_code || shortSubject || deadline.subject || "Academic"}
             </span>
-          )}
-
-          {shortSubject && (
-            <span
-              className="rounded-md px-2 py-0.5 font-sans text-xs font-bold"
-              style={{
-                backgroundColor: `${subjectColor}15`,
-                color: subjectColor,
-              }}
-            >
-              {shortSubject}
-            </span>
-          )}
+          </span>
 
           <span
             className={`flex items-center gap-1 rounded-md px-2 py-0.5 font-mono text-[10px] font-semibold uppercase tracking-wider ${meta.chip}`}
@@ -295,44 +293,50 @@ export function FeedCard({
           {title}
         </h3>
 
-        {/* Structured Info Row */}
-        <div className="mt-2.5 flex flex-wrap items-center gap-2 text-xs">
-          <div className="flex items-center gap-1.5 rounded-lg border border-border/70 bg-surface2/50 px-2.5 py-1 font-sans font-medium text-ink">
-            <Calendar className="size-3.5 text-cyan" />
+        {/* Sleek Metadata Row: dot-separated, clean and responsive */}
+        <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1.5 text-xs text-dim">
+          <div className="flex items-center gap-1.5 font-medium text-ink">
+            <Calendar className="size-3.5 text-cyan shrink-0" />
             <span>{dateStr}</span>
           </div>
-
-          <div className="flex items-center gap-1.5 rounded-lg border border-border/70 bg-surface2/50 px-2.5 py-1 font-sans font-medium text-ink">
-            <Clock className="size-3.5 text-cyan" />
+          <span className="text-border hidden sm:inline">·</span>
+          <div className="flex items-center gap-1.5 font-medium text-ink">
+            <Clock className="size-3.5 text-cyan shrink-0" />
             <span>{timeStr}</span>
             <span className="font-mono text-[10px] text-faint ml-0.5">({durationStr})</span>
           </div>
-
-          <div className="flex items-center gap-1.5 rounded-lg border border-border/70 bg-surface2/50 px-2.5 py-1 font-sans font-medium text-dim">
-            <UserCheck className="size-3.5 text-dim" />
-            <span>{deadline.work_mode === "group" ? "Group Work" : "Individual"}</span>
-          </div>
-
           {deadline.location && (
-            <div className="flex items-center gap-1.5 rounded-lg border border-border/70 bg-surface2/50 px-2.5 py-1 font-sans font-medium text-dim">
-              <MapPin className="size-3.5 text-rose" />
-              <span>{deadline.location}</span>
-            </div>
+            <>
+              <span className="text-border hidden sm:inline">·</span>
+              <div className="flex items-center gap-1.5 text-dim">
+                <MapPin className="size-3.5 text-rose shrink-0" />
+                <span>{deadline.location}</span>
+              </div>
+            </>
+          )}
+          {deadline.work_mode === "group" && (
+            <>
+              <span className="text-border hidden sm:inline">·</span>
+              <div className="flex items-center gap-1.5 text-dim">
+                <UserCheck className="size-3.5 text-dim shrink-0" />
+                <span>Group</span>
+              </div>
+            </>
           )}
         </div>
 
-        {/* Verified Syllabus/Notes - Rendered cleanly when present */}
+        {/* Compact Syllabus / Scope Preview — clamped to prevent giant text blocks */}
         {deadline.notes && (
-          <div className="mt-3 rounded-xl bg-surface2/40 border border-border/70 p-3 text-xs text-ink leading-relaxed space-y-1">
-            <div className="flex items-center gap-1.5 font-body text-[11px] font-bold uppercase tracking-wider text-cyan">
-              <BookOpen className="size-3" />
+          <div className="mt-3 rounded-xl bg-surface2/40 border border-border/60 p-2.5 sm:p-3 text-xs text-ink leading-relaxed">
+            <div className="flex items-center gap-1.5 font-body text-[10px] font-bold uppercase tracking-wider text-cyan mb-1">
+              <BookOpen className="size-3 shrink-0" />
               <span>
                 {deadline.type === "midterm" || deadline.type === "endterm"
-                  ? "Exam Syllabus"
-                  : "Scope & Guidelines"}
+                  ? "Syllabus"
+                  : "Scope & Details"}
               </span>
             </div>
-            <p className="text-ink font-sans text-xs whitespace-pre-wrap">{deadline.notes}</p>
+            <p className="text-dim font-sans text-xs line-clamp-2">{deadline.notes}</p>
           </div>
         )}
       </div>
@@ -438,7 +442,7 @@ export function FeedCompactRow({
   const shortSubject = subjectShortName(deadline.subject || deadline.subject_code);
 
   const title = isExam
-    ? `${fullCourse} — ${typeLabel(deadline.type)}`
+    ? (cleanExamTitle(deadline.title, deadline.subject) || typeLabel(deadline.type))
     : displayTitle(deadline.subject, deadline.title);
 
   const { dateStr, isCriticalUrgent } = useMemo(() => {
@@ -499,7 +503,9 @@ export function FeedCompactRow({
             border: `1px solid ${subjectColor}30`,
           }}
         >
-          {deadline.subject_code || shortSubject}
+          {deadline.subject_code && shortSubject
+            ? `${deadline.subject_code} · ${shortSubject}`
+            : deadline.subject_code || shortSubject || "Academic"}
         </span>
 
         {/* Type Icon */}

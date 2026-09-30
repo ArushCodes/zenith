@@ -69,33 +69,33 @@ export function BoardHeader({ menuItems = [], onMenuSelect }: Props) {
       initial={{ opacity: 0, y: -14 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
-      className={`sticky top-0 z-30 border-b border-border bg-ground/80 backdrop-blur-xl transition-shadow duration-300 ${
+      className={`sticky top-0 z-40 border-b border-border bg-ground/85 backdrop-blur-xl transition-shadow duration-300 ${
         scrolled ? "shadow-lg shadow-black/[0.06] dark:shadow-black/20" : ""
       }`}
     >
-      <div className="mx-auto flex h-16 max-w-7xl items-center justify-between gap-2 px-4 sm:px-6 lg:px-8">
-        <Link to="/" className="group flex min-w-0 items-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan/60 rounded-xl">
-          <motion.div whileHover={{ scale: 1.03 }} transition={spring} className="min-w-0 leading-none">
-            <p className="truncate font-display text-2xl font-black italic tracking-[-0.04em] text-cyan">
+      <div className="mx-auto flex h-14 sm:h-16 max-w-7xl items-center justify-between gap-1.5 sm:gap-3 px-3 sm:px-6 lg:px-8">
+        <Link to="/" className="group flex shrink-0 items-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan/60 rounded-xl">
+          <motion.div whileHover={{ scale: 1.03 }} transition={spring} className="leading-none">
+            <p className="font-display text-xl sm:text-2xl font-black italic tracking-[-0.04em] text-cyan">
               Zenith
             </p>
-            <p className="mt-0.5 hidden font-mono text-[10px] uppercase tracking-[0.18em] text-faint sm:block">
-              TAPMI Manipal · MAHE
+            <p className="mt-0.5 hidden font-mono text-[9px] uppercase tracking-[0.2em] text-faint sm:block">
+              TAPMI
             </p>
           </motion.div>
         </Link>
 
 
-        <div className="flex min-w-0 items-center gap-1.5 sm:gap-2.5">
+        <div className="flex shrink-0 items-center gap-1 sm:gap-2">
           {user && <GlobalSearch />}
           <BatchSelector />
 
           {(isAdmin || isArush) && (
             <div
               title="Master Administrator Mode Active"
-              className="hidden sm:flex items-center gap-1.5 rounded-xl border border-emerald-500/35 bg-emerald-500/10 px-2.5 py-1 font-mono text-[11px] font-bold text-emerald-600 dark:text-emerald-400 shadow-2xs cursor-default"
+              className="hidden md:flex items-center gap-1.5 rounded-xl border border-emerald-500/35 bg-emerald-500/10 px-2.5 py-1 font-mono text-[10px] font-bold text-emerald-600 dark:text-emerald-400 shadow-2xs cursor-default"
             >
-              <ShieldCheck className="size-3.5" />
+              <ShieldCheck className="size-3" />
               <span>ADMIN</span>
             </div>
           )}
@@ -112,16 +112,16 @@ export function BoardHeader({ menuItems = [], onMenuSelect }: Props) {
 
           {user ? (
             <DropdownMenu>
-              <DropdownMenuTrigger className="flex items-center gap-1.5 sm:gap-2 rounded-xl border border-border bg-surface py-1 sm:py-1.5 pl-1 sm:pl-1.5 pr-2 sm:pr-2.5 transition-colors hover:border-cyan/40 cursor-pointer">
+              <DropdownMenuTrigger className="flex items-center gap-1.5 sm:gap-2 rounded-xl border border-border bg-surface py-1 sm:py-1.5 pl-1 sm:pl-1.5 pr-2 sm:pr-2.5 transition-colors hover:border-cyan/40 cursor-pointer shrink-0">
                 <span className="grid size-6 sm:size-7 place-items-center rounded-lg bg-cyan/12 font-display text-[10px] sm:text-[11px] font-semibold text-cyan">
                   {initials || "Z"}
                 </span>
-                <span className="hidden max-w-[110px] truncate text-[13px] font-medium sm:inline">
+                <span className="hidden max-w-[90px] sm:max-w-[120px] truncate text-[12px] sm:text-[13px] font-medium sm:inline">
                   {me.name || "Account"}
                 </span>
                 <ChevronDown className="size-3 sm:size-3.5 text-faint" />
               </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-56">
+              <DropdownMenuContent align="end" sideOffset={6} collisionPadding={12} className="w-56 z-50">
                 <DropdownMenuLabel className="font-mono text-[10px] uppercase tracking-[0.18em] text-faint">
                   Account
                 </DropdownMenuLabel>

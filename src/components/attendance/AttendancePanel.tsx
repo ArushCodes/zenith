@@ -27,7 +27,9 @@ import {
   TOTAL_CAP_PCT,
   bandFor,
   consecutiveNeededFor75,
+  courseCredits,
   eligibilityMisses,
+  getBunkStatus,
   gradePenalty,
   leaveCaps,
   longestAbsenceRun,
@@ -190,8 +192,10 @@ export function AttendancePanel({ now, compact = false }: { now: number; compact
 
     return [...rows.entries()]
       .map(([course, v]) => {
-        const planned = plannedFor(course, scheduled.get(course) ?? v.held);
+        const credits = courseCredits(course);
+        const planned = credits * 8; // Strictly 8, 16, or 24 sessions based on credits
         const absent = v.pl + v.il;
+        const bunk = getBunkStatus(course, absent);
         const attended = Math.max(0, planned - absent);
         const caps = leaveCaps(planned, v.pl);
         const pct = planned ? Math.round((attended / planned) * 100) : 100;
@@ -202,6 +206,7 @@ export function AttendancePanel({ now, compact = false }: { now: number; compact
         const safeBuffer = safeMissBufferFor75(held, attendedHeld);
         return {
           course,
+          credits,
           planned,
           pl: v.pl,
           il: v.il,
@@ -217,9 +222,12 @@ export function AttendancePanel({ now, compact = false }: { now: number; compact
           plLeft: caps.personal - v.pl,
           ilLeft: caps.institutional - v.il,
           totalLeft: caps.total - absent,
-          safeLeft: safeMisses(planned) - absent,
+          safeLeft: bunk.safeLeft,
+          allowedMisses: bunk.allowed,
+          excessMisses: bunk.excess,
           eligibleLeft: eligibilityMisses(planned) - absent,
-          penalty: gradePenalty(planned, absent),
+          penalty: bunk.penalty,
+          bunkStatus: bunk,
           pct,
         };
       })
@@ -227,7 +235,7 @@ export function AttendancePanel({ now, compact = false }: { now: number; compact
         const aRisk = a.held > 0 && a.heldPct < DEBARMENT_LINE;
         const bRisk = b.held > 0 && b.heldPct < DEBARMENT_LINE;
         if (aRisk !== bRisk) return aRisk ? -1 : 1;
-        if (a.safeLeft !== b.safeLeft) return b.safeLeft - a.safeLeft;
+        if (a.safeLeft !== b.safeLeft) return a.safeLeft - b.safeLeft;
         return b.pct - a.pct;
       });
   }, [resolvedMine, classes, now]);
@@ -702,29 +710,26 @@ function LeaveBar({ type, used, cap }: { type: LeaveType; used: number; cap: num
 /** The handbook rules, spelled out so nobody has to open the PDF. */
 function PolicyCard() {
   return (
-    <div className="rounded-2xl bg-surface p-4 font-mono text-[11px] leading-relaxed text-dim ring-1 ring-border">
+    <div className="rounded-2xl bg-surface p-4 font-mono text-[11px] leading-relaxed text-dim ring-1 border border-border">
       <div className="flex flex-wrap items-center gap-2 mb-2">
-        <p className="font-display text-sm font-semibold text-ink">TAPMI IPM Handbook: Attendance Rules & Terms</p>
-        <span className="rounded bg-cyan/15 px-2 py-0.5 font-mono text-[10px] text-cyan">Term 1: July 29 – October 23, 2026</span>
+        <p className="font-display text-sm font-semibold text-ink">TAPMI IPM Attendance & GPA Policy</p>
+        <span className="rounded bg-cyan/15 px-2 py-0.5 font-mono text-[10px] text-cyan">Credit & Bunk Rules</span>
       </div>
       <ul className="mt-2 flex flex-col gap-2">
         <li>
-          <strong className="text-ink">Credit System:</strong> 1 Credit equals 8 class sessions (24 sessions for 3-credit courses, 16 for 2-credit, and 8 for 1-credit). Term 1 total is <span className="text-cyan font-semibold">20 Credits</span>.
+          <strong className="text-ink">Credit-to-Session Ratio:</strong> Total course sessions are strictly fixed by credits: <span className="text-ink font-semibold">1 Credit = 8 Sessions</span>, <span className="text-ink font-semibold">2 Credits = 16 Sessions</span>, and <span className="text-ink font-semibold">3 Credits = 24 Sessions</span> (never from Registro counts).
         </li>
         <li>
-          <strong className="text-ink">85% and above:</strong> Safe zone. No grade points deducted.
+          <strong className="text-ink">1 Miss Per Credit Rule:</strong> You are allowed to miss exactly <span className="text-emerald-500 font-semibold">1 class per credit</span> without penalty (1 bunk for 1-credit, 2 bunks for 2-credit, and 3 bunks for 3-credit courses).
         </li>
         <li>
-          <strong className="text-ink">70% to 85%:</strong> Grade penalty. You lose <span className="text-amber font-semibold">0.5 grade points</span> for every session missed below 85%.
+          <strong className="text-ink">0.5 GPA Cut Penalty:</strong> Missing any class beyond your credit allowance incurs an immediate <span className="text-rose font-bold">0.5 GPA deduction for every subsequent class missed</span>.
         </li>
         <li>
-          <strong className="text-ink">Below 70%:</strong> Incomplete ('I') grade. You'll have to repeat the subject next year and cannot take the end-term exam.
+          <strong className="text-ink">75% Debarment Threshold:</strong> In addition to safe bunks, TAPMI regulations mandate <span className="text-amber-500 font-semibold">&ge;75% attendance</span> across sessions held so far to appear for end-term examinations.
         </li>
         <li>
-          <strong className="text-ink">Leave Types:</strong> Personal Leaves (PL) can cover up to 15% of sessions. Official/Institutional Leaves (IL) cover up to 15% (or 30% combined if PL isn't used).
-        </li>
-        <li>
-          <strong className="text-ink">Continuous Absence:</strong> Missing more than 13 straight calendar days without written approval from the Director means automatic withdrawal from the program.
+          <strong className="text-ink">Continuous Absence:</strong> Missing more than 13 straight calendar days without written approval from the Director results in automatic withdrawal.
         </li>
       </ul>
     </div>
@@ -790,12 +795,15 @@ function BandChip({ pct }: { pct: number }) {
 
 type SubjectStat = {
   course: string;
+  credits: number;
   planned: number;
   pl: number;
   il: number;
   absent: number;
   penalty: number;
   safeLeft: number;
+  allowedMisses: number;
+  excessMisses: number;
   eligibleLeft: number;
   pct: number;
   held: number;
@@ -818,25 +826,41 @@ function SubjectRow({
   compact?: boolean;
 }) {
   const color = meterColor(row.pct);
+  const isCut = row.penalty > 0;
+  const isDanger = row.safeLeft === 1;
+  const isLimit = row.safeLeft === 0 && !isCut;
+
   const status =
     row.pct < HARD_LINE
-      ? { text: "Incomplete — repeat next year", tone: "text-rose" }
-      : row.penalty > 0
+      ? { text: "Incomplete (I) — repeat next year", tone: "text-rose font-bold" }
+      : isCut
         ? {
             text: compact
-              ? `−${row.penalty.toFixed(1)} pts · ${Math.max(0, row.eligibleLeft)} left`
-              : `−${row.penalty.toFixed(1)} grade points · ${Math.max(0, row.eligibleLeft)} left before ${HARD_LINE}%`,
-            tone: "text-amber",
+              ? `🚨 −${row.penalty.toFixed(1)} GPA cut (${row.excessMisses} excess)`
+              : `🚨 −${row.penalty.toFixed(1)} GPA cut · ${row.excessMisses} excess missed beyond ${row.allowedMisses} allowance`,
+            tone: "text-rose font-bold",
           }
-        : {
-            text: `Safe · ${Math.max(0, row.safeLeft)}* ${Math.max(0, row.safeLeft) === 1 ? "miss" : "misses"} left`,
-            tone: "text-evt-present",
-          };
+        : isDanger
+          ? {
+              text: `⚠️ 1 class left to miss — next miss triggers 0.5 GPA cut!`,
+              tone: "text-amber-500 font-bold",
+            }
+          : isLimit
+            ? {
+                text: `🚨 0 bunks left — reached the limit! Next miss cuts 0.5 GPA`,
+                tone: "text-amber-500 font-bold",
+              }
+            : {
+                text: `Safe · ${row.safeLeft} of ${row.allowedMisses} bunks left (1 miss/credit)`,
+                tone: "text-emerald-500 font-medium",
+              };
 
   return (
-    <button
+    <motion.button
+      whileHover={{ x: 2 }}
+      whileTap={{ scale: 0.995 }}
       onClick={onClick}
-      className={`flex w-full items-center gap-3.5 border-b border-border px-3.5 py-3 text-left last:border-b-0 transition-colors ${
+      className={`flex w-full items-center gap-3.5 border-b border-border px-3.5 py-3 text-left last:border-b-0 transition-colors cursor-pointer ${
         active ? "bg-surface2/70" : "hover:bg-surface2/40"
       }`}
     >
@@ -850,14 +874,31 @@ function SubjectRow({
       </div>
 
       <span className="min-w-0 flex-1">
-        <span className="flex items-center gap-2">
+        <span className="flex flex-wrap items-center gap-2">
           <span
             className="size-2 rounded-full shrink-0"
             style={{ backgroundColor: autoColor(row.course) }}
           />
           <span className="truncate font-display text-sm font-semibold text-ink">
-            {shortSubject(row.course, 42)}
+            {shortSubject(row.course, 36)}
           </span>
+          <span className="rounded bg-surface2 px-1.5 py-0.5 font-mono text-[9px] text-dim shrink-0">
+            {row.credits} Cr · {row.planned} S
+          </span>
+          {isDanger && (
+            <motion.span
+              animate={{ scale: [1, 1.05, 1] }}
+              transition={{ repeat: Infinity, duration: 1.8 }}
+              className="rounded-md bg-amber-500/15 border border-amber-500/35 px-1.5 py-0.5 font-mono text-[9px] font-extrabold text-amber-500 shrink-0"
+            >
+              ⚠️ 1 Class Left
+            </motion.span>
+          )}
+          {isCut && (
+            <span className="rounded-md bg-rose/15 border border-rose/30 px-1.5 py-0.5 font-mono text-[9px] font-extrabold text-rose shrink-0">
+              -{row.penalty.toFixed(1)} GPA Cut
+            </span>
+          )}
         </span>
         <span className={`mt-0.5 block truncate font-mono text-[10px] leading-relaxed ${status.tone}`}>
           {status.text}
@@ -898,7 +939,7 @@ function SubjectRow({
           PL {row.pl} · IL {row.il}
         </span>
       </span>
-    </button>
+    </motion.button>
   );
 }
 

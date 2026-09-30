@@ -20,7 +20,9 @@ import {
   HARD_LINE,
   CONTINUOUS_ABSENCE_DAYS,
   PENALTY_PER_SESSION,
+  courseCredits,
   plannedFor,
+  safeMisses,
   subjectKeyOf,
 } from "@/lib/attendance";
 import type { AttendanceMark, ClassSession } from "@/lib/batches";
@@ -124,7 +126,7 @@ export function BunkSimulatorModal({
         attended: 0,
         scheduled: 0,
         absent: 0,
-        plannedTotal: plannedFor(subj, 24),
+        plannedTotal: plannedFor(subj),
       };
       existing.scheduled += 1;
       map.set(key, existing);
@@ -156,7 +158,8 @@ export function BunkSimulatorModal({
 
     const courses = Array.from(currentSubjectStats.entries()).map(([key, data]) => {
       const willMiss = subjectMissCounts.get(key) || 0;
-      const planned = data.plannedTotal;
+      const credits = courseCredits(data.subject);
+      const planned = credits * 8; // Strictly 8, 16, or 24 sessions
       // Current percentage (if no classes held yet, assume 100%)
       const currentMisses = data.absent;
       const currentPct = Math.max(
@@ -171,27 +174,30 @@ export function BunkSimulatorModal({
         Math.round(((planned - projectedMisses) / planned) * 100)
       );
 
-      // Distance to safe line (85%)
-      const safeMissAllowed = Math.floor(planned * (1 - SAFE_LINE / 100));
-      const remainingSafeMisses = Math.max(0, safeMissAllowed - projectedMisses);
+      // TAPMI Credit Policy: exactly 1 miss allowed per credit
+      const safeMissAllowed = credits * 1;
+      const remainingSafeMisses = safeMissAllowed - projectedMisses;
 
-      // Penalty check
-      const missesBelowSafe = Math.max(0, projectedMisses - safeMissAllowed);
-      const gradePenaltyScore = missesBelowSafe * PENALTY_PER_SESSION;
+      // Penalty check: 0.5 GPA cut for each subsequent class missed beyond safe limit
+      const excessMisses = Math.max(0, projectedMisses - safeMissAllowed);
+      const gradePenaltyScore = excessMisses * PENALTY_PER_SESSION;
 
       let status: "safe" | "warn" | "danger" = "safe";
-      if (projectedPct < HARD_LINE) {
+      if (excessMisses > 0 || projectedPct < HARD_LINE) {
         status = "danger";
-      } else if (projectedPct < SAFE_LINE) {
+      } else if (remainingSafeMisses === 1 || remainingSafeMisses === 0 || projectedPct < SAFE_LINE) {
         status = "warn";
       }
 
       return {
         subject: data.subject,
+        credits,
+        planned,
         willMiss,
         currentPct,
         projectedPct,
         remainingSafeMisses,
+        excessMisses,
         gradePenaltyScore,
         status,
       };
@@ -255,7 +261,7 @@ export function BunkSimulatorModal({
                 Can I Sleep In? — Bunk & Trip Simulator
               </h3>
               <p className="text-[11px] text-dim">
-                Simulate attendance impact under TAPMI's 85% safe line and continuous absence policy
+                Simulate attendance impact under TAPMI's 1-miss/credit rule & 0.5 GPA cut policy
               </p>
             </div>
           </div>
@@ -410,11 +416,28 @@ export function BunkSimulatorModal({
                 return (
                   <div key={c.subject} className="flex items-center justify-between p-3 text-xs">
                     <div className="flex items-center gap-2.5">
-                      <span className="size-2 rounded-full" style={{ backgroundColor: color }} />
+                      <span className="size-2 rounded-full shrink-0" style={{ backgroundColor: color }} />
                       <div>
-                        <p className="font-display font-semibold text-ink">{c.subject}</p>
+                        <div className="flex items-center gap-2">
+                          <p className="font-display font-semibold text-ink">{c.subject}</p>
+                          <span className="rounded bg-surface2 px-1.5 py-0.5 font-mono text-[9px] text-dim">
+                            {c.credits} Cr · {c.planned} S
+                          </span>
+                        </div>
                         <p className="text-[10px] text-dim">
                           {c.willMiss > 0 ? `Missing ${c.willMiss} session(s)` : "No sessions missed"}
+                          {" · "}
+                          {c.remainingSafeMisses === 1 ? (
+                            <span className="font-semibold text-amber-500">⚠️ 1 bunk left</span>
+                          ) : c.remainingSafeMisses <= 0 ? (
+                            <span className="font-semibold text-rose">
+                              {c.excessMisses > 0 ? `${c.excessMisses} over limit` : "0 bunks left"}
+                            </span>
+                          ) : (
+                            <span className="text-emerald-500 font-medium">
+                              {c.remainingSafeMisses} bunks left
+                            </span>
+                          )}
                         </p>
                       </div>
                     </div>
@@ -428,7 +451,7 @@ export function BunkSimulatorModal({
                               c.status === "danger"
                                 ? "text-rose"
                                 : c.status === "warn"
-                                ? "text-amber"
+                                ? "text-amber-500"
                                 : "text-emerald-500"
                             }
                           >
@@ -436,8 +459,8 @@ export function BunkSimulatorModal({
                           </span>
                         </span>
                         {c.gradePenaltyScore > 0 && (
-                          <p className="font-mono text-[10px] text-rose">
-                            -{c.gradePenaltyScore} grade pts
+                          <p className="font-mono text-[10px] font-bold text-rose">
+                            -{c.gradePenaltyScore.toFixed(1)} GPA cut
                           </p>
                         )}
                       </div>

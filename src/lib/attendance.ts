@@ -1,8 +1,9 @@
 import type { AttendanceMark, ClassSession } from "@/lib/batches";
 import { sessionLabel, subjectCanonicalKey } from "@/lib/courses";
 
-/** Planned number of sessions per subject for Term 1 (July 29 - Oct 23, 2026).
- *  Rule from Handbook: 1 Credit = 8 sessions (for 3-credit CC = 24 sessions, 2-credit PC = 16 sessions, 1-credit MLC = 8 sessions). */
+/** Planned number of sessions per subject:
+ *  Rule: 1 Credit = 8 sessions (3-credit = 24 sessions, 2-credit = 16 sessions, 1-credit = 8 sessions).
+ *  Never sourced from Registro timetable. */
 export const COURSE_CREDITS: Record<string, number> = {
   psychology: 3,
   sociology: 3,
@@ -14,6 +15,14 @@ export const COURSE_CREDITS: Record<string, number> = {
   ai: 2,
   "team building": 1,
   "team-building": 1,
+  economics: 3,
+  accounting: 3,
+  marketing: 3,
+  finance: 3,
+  operations: 3,
+  law: 3,
+  python: 2,
+  analytics: 2,
 };
 
 export const PLANNED_SESSIONS: Record<string, number> = {
@@ -27,10 +36,30 @@ export const PLANNED_SESSIONS: Record<string, number> = {
   ai: 16,
   "team building": 8,
   "team-building": 8,
+  economics: 24,
+  accounting: 24,
+  marketing: 24,
+  finance: 24,
+  operations: 24,
+  law: 24,
+  python: 16,
+  analytics: 16,
 };
 
 export function subjectKeyOf(name: string) {
   return name.trim().toLowerCase().replace(/\s+/g, " ");
+}
+
+/** Determine credits for any course (1, 2, or 3). Defaults to 3 credits for standard IPM core courses. */
+export function courseCredits(subject: string): number {
+  const key = subjectKeyOf(subject);
+  if (COURSE_CREDITS[key]) return COURSE_CREDITS[key];
+  for (const [k, c] of Object.entries(COURSE_CREDITS)) {
+    if (key.includes(k)) return c;
+  }
+  if (key.includes("team") || key.includes("workshop") || key.includes("1 credit")) return 1;
+  if (key.includes("spreadsheet") || key.includes("ai") || key.includes("lab") || key.includes("2 credit")) return 2;
+  return 3;
 }
 
 /** Nicely shortened label for tight mobile layouts. */
@@ -39,11 +68,9 @@ export function shortSubject(name: string, max = 18) {
   return clean.length > max ? `${clean.slice(0, max - 1)}…` : clean;
 }
 
-/** Planned total for a subject. The scheduled count always wins when it is
- *  bigger, so batches with subjects outside the map still work correctly. */
-export function plannedFor(subject: string, fallback: number) {
-  const planned = PLANNED_SESSIONS[subjectKeyOf(subject)];
-  return planned ? Math.max(planned, fallback) : fallback;
+/** Planned total for a subject: strictly 8, 16, or 24 based on credits (never from Registro). */
+export function plannedFor(subject: string, _fallback?: number): number {
+  return courseCredits(subject) * 8;
 }
 
 export type Band = "good" | "warn" | "risk";
@@ -142,9 +169,13 @@ export function leaveCaps(planned: number, personalUsed = 0) {
   return { total, personal, institutionalBase, institutional };
 }
 
-/** Sessions you may still miss before dropping out of the 85% bracket. */
-export function safeMisses(planned: number) {
-  return Math.floor((planned * (100 - SAFE_LINE)) / 100);
+/** Allowed misses: strictly 1 class per credit (1-credit = 1, 2-credit = 2, 3-credit = 3). */
+export function safeMisses(plannedOrCredits: number): number {
+  if (plannedOrCredits <= 4) {
+    return Math.max(1, plannedOrCredits);
+  }
+  // Planned sessions: 8 -> 1 miss, 16 -> 2 misses, 24 -> 3 misses
+  return Math.max(1, Math.round(plannedOrCredits / 8));
 }
 
 /** Sessions you may still miss before the 70% eligibility line. */
@@ -152,11 +183,97 @@ export function eligibilityMisses(planned: number) {
   return Math.floor((planned * (100 - HARD_LINE)) / 100);
 }
 
-/** Grade points lost: 0.5 for every session missed below the 85% threshold.
- *  Under 70% the grade is Incomplete instead, so no number is meaningful. */
-export function gradePenalty(planned: number, absent: number) {
-  const over = Math.max(0, absent - safeMisses(planned));
+/** Grade points cut: 0.5 GPA cut for every subsequent class missed beyond the allowed 1 miss per credit. */
+export function gradePenalty(planned: number, absent: number): number {
+  const allowed = safeMisses(planned);
+  const over = Math.max(0, absent - allowed);
   return over * PENALTY_PER_SESSION;
+}
+
+export type BunkStatus = {
+  credits: number;
+  planned: number;
+  allowed: number;
+  safeLeft: number;
+  excess: number;
+  penalty: number;
+  label: string;
+  tone: string;
+  badge: string;
+  isDanger: boolean;
+  isCut: boolean;
+};
+
+/** Computes real-time bunk safety & GPA penalty status for a course. */
+export function getBunkStatus(courseOrCredits: string | number, absent: number): BunkStatus {
+  const credits = typeof courseOrCredits === "number" ? courseOrCredits : courseCredits(courseOrCredits);
+  const planned = credits * 8;
+  const allowed = credits * 1;
+  const safeLeft = allowed - absent;
+  const excess = Math.max(0, absent - allowed);
+  const penalty = excess * PENALTY_PER_SESSION;
+
+  if (excess > 0) {
+    return {
+      credits,
+      planned,
+      allowed,
+      safeLeft: 0,
+      excess,
+      penalty,
+      label: `-${penalty.toFixed(1)} GPA Cut (${excess} excess missed)`,
+      tone: "text-rose font-bold",
+      badge: `-${penalty.toFixed(1)} GPA`,
+      isDanger: true,
+      isCut: true,
+    };
+  }
+
+  if (safeLeft === 0) {
+    return {
+      credits,
+      planned,
+      allowed,
+      safeLeft: 0,
+      excess: 0,
+      penalty: 0,
+      label: "0 bunks left — at the limit! Next miss cuts 0.5 GPA",
+      tone: "text-amber-500 font-bold",
+      badge: "0 Bunks Left",
+      isDanger: true,
+      isCut: false,
+    };
+  }
+
+  if (safeLeft === 1) {
+    return {
+      credits,
+      planned,
+      allowed,
+      safeLeft: 1,
+      excess: 0,
+      penalty: 0,
+      label: "⚠️ 1 class left — danger zone! Next miss triggers GPA cut",
+      tone: "text-amber-500 font-bold",
+      badge: "1 Class Left",
+      isDanger: true,
+      isCut: false,
+    };
+  }
+
+  return {
+    credits,
+    planned,
+    allowed,
+    safeLeft,
+    excess: 0,
+    penalty: 0,
+    label: `Safe · ${safeLeft} of ${allowed} bunks remaining`,
+    tone: "text-emerald-500 font-semibold",
+    badge: `${safeLeft} Bunks Left`,
+    isDanger: false,
+    isCut: false,
+  };
 }
 
 /** Longest unbroken stretch of missed classes, measured in calendar days —

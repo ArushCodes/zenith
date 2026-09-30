@@ -55,24 +55,25 @@ export function BatchSelector() {
   const [open, setOpen] = useState(false);
   const [creating, setCreating] = useState(false);
 
-  const tree = useMemo(() => buildTree(batches), [batches]);
   const activeInfo = batch ? formatBatchLabel(batch) : null;
 
   return (
-    <div className="flex items-center gap-2">
+    <div className="flex items-center gap-2 shrink-0">
       <div className="relative">
         <button
           onClick={() => setOpen((v) => !v)}
-          className="flex max-w-[34vw] sm:max-w-none items-center gap-1.5 sm:gap-2 rounded-xl bg-surface2 px-2 sm:px-3 py-1.5 sm:py-2 text-left ring-1 ring-border transition-colors hover:ring-cyan/40 cursor-pointer"
+          className="flex shrink-0 items-center gap-1.5 sm:gap-2 rounded-xl bg-surface2 px-2.5 sm:px-3 py-1.5 text-left ring-1 ring-border transition-colors hover:ring-cyan/40 cursor-pointer"
         >
           <GraduationCap className="size-3.5 sm:size-4 shrink-0 text-cyan" />
           <span className="min-w-0">
-            <span className="block truncate font-display text-xs sm:text-sm font-semibold leading-tight">
-              {activeInfo ? activeInfo.code : "Select batch"}
+            <span className="block truncate font-display text-xs sm:text-sm font-bold leading-tight text-ink">
+              {activeInfo ? activeInfo.code : "Batch"}
             </span>
-            <span className="hidden sm:block truncate font-mono text-[10px] text-dim">
-              {activeInfo ? `${activeInfo.years ? `${activeInfo.years} · ` : ""}MAHE · TAPMI` : "MAHE"}
-            </span>
+            {activeInfo?.years && (
+              <span className="hidden sm:block truncate font-mono text-[10px] text-faint">
+                {activeInfo.years}
+              </span>
+            )}
           </span>
           <ChevronDown className="size-3 sm:size-3.5 shrink-0 text-dim" />
         </button>
@@ -80,76 +81,52 @@ export function BatchSelector() {
         <AnimatePresence>
           {open && (
             <>
-              <div className="fixed inset-0 z-30" onClick={() => setOpen(false)} />
+              <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
               <motion.div
                 initial={{ opacity: 0, y: -6, scale: 0.98 }}
                 animate={{ opacity: 1, y: 0, scale: 1 }}
                 exit={{ opacity: 0, y: -6, scale: 0.98 }}
                 transition={{ duration: 0.16 }}
-                className="absolute right-0 z-40 mt-2 max-h-[70vh] w-[min(20rem,calc(100vw-2rem))] overflow-auto rounded-xl bg-surface p-2 shadow-2xl shadow-black/20 ring-1 ring-border"
+                className="absolute right-0 z-50 mt-2 max-h-[70vh] w-64 overflow-auto rounded-xl bg-surface p-2 shadow-2xl shadow-black/20 ring-1 ring-border"
               >
-                {tree.length === 0 && (
-                  <p className="px-3 py-4 text-center font-mono text-[11px] text-faint">
-                    No batches yet.
+                <div className="px-2.5 py-1.5 border-b border-border/60 mb-1">
+                  <p className="font-mono text-[9px] uppercase tracking-wider text-dim">
+                    Select Academic Cohort
                   </p>
-                )}
+                </div>
 
-                {tree.map((uni) => (
-                  <div key={uni.name} className="mb-1">
-                    <p className="px-2 pb-1 pt-1.5 font-mono text-[9px] uppercase tracking-[0.18em] text-faint">
-                      University
-                    </p>
-                    <p className="px-2 pb-1 text-[13px] font-semibold text-ink">{uni.name}</p>
-
-                    {uni.institutions.map((inst) => (
-                      <div key={inst.name} className="ml-2 border-l border-border pl-2">
-                        <p className="px-2 pt-1.5 font-mono text-[9px] uppercase tracking-[0.18em] text-faint">
-                          Institution
-                        </p>
-                        <p className="px-2 pb-1 text-[13px] font-semibold text-ink">{inst.name}</p>
-
-                        {inst.programmes.map((prog) => (
-                          <div key={prog.name} className="ml-2 border-l border-border pl-2">
-                            <p className="px-2 pt-1.5 font-mono text-[9px] uppercase tracking-[0.18em] text-faint">
-                              Programme
-                            </p>
-                            <p className="px-2 pb-1 text-[13px] font-semibold text-ink">
-                              {prog.name}
-                            </p>
-
-                            {prog.batches.map((b) => {
-                              const bInfo = formatBatchLabel(b);
-                              return (
-                                <button
-                                  key={b.id}
-                                  onClick={() => {
-                                    setBatchId(b.id);
-                                    setOpen(false);
-                                  }}
-                                  className={`flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left transition-colors hover:bg-surface2 ${
-                                    b.id === batchId ? "bg-surface2" : ""
-                                  }`}
-                                >
-                                  <span className="min-w-0 flex-1">
-                                    <span className="block truncate text-sm font-semibold text-ink">
-                                      {bInfo.code}
-                                    </span>
-                                    <span className="block truncate font-mono text-[10px] text-dim">
-                                      {bInfo.years || years(b) || "Year not set"}
-                                    </span>
-                                  </span>
-                                  {b.id === batchId && (
-                                    <Check className="size-3.5 shrink-0 text-cyan" />
-                                  )}
-                                </button>
-                              );
-                            })}
+                {batches.length === 0 ? (
+                  <p className="px-3 py-4 text-center font-mono text-[11px] text-faint">
+                    No batches found.
+                  </p>
+                ) : (
+                  <div className="space-y-1">
+                    {batches.map((b) => {
+                      const bInfo = formatBatchLabel(b);
+                      const isSelected = b.id === batchId;
+                      return (
+                        <button
+                          key={b.id}
+                          onClick={() => {
+                            setBatchId(b.id);
+                            setOpen(false);
+                          }}
+                          className={`flex w-full items-center justify-between gap-2.5 rounded-lg px-2.5 py-2 text-left transition-colors cursor-pointer ${
+                            isSelected
+                              ? "bg-cyan/12 text-cyan font-bold"
+                              : "hover:bg-surface2 text-ink font-medium"
+                          }`}
+                        >
+                          <div className="min-w-0">
+                            <p className="truncate text-xs font-bold leading-tight">{bInfo.code}</p>
+                            <p className="truncate font-mono text-[10px] text-dim">{bInfo.years || years(b)}</p>
                           </div>
-                        ))}
-                      </div>
-                    ))}
+                          {isSelected && <Check className="size-3.5 shrink-0 text-cyan" />}
+                        </button>
+                      );
+                    })}
                   </div>
-                ))}
+                )}
 
                 {isAdmin && (
                   <button
@@ -157,7 +134,7 @@ export function BatchSelector() {
                       setOpen(false);
                       setCreating(true);
                     }}
-                    className="mt-1 flex w-full items-center gap-2 rounded-lg border-t border-border px-3 py-2 text-left font-mono text-[11px] uppercase tracking-wide text-cyan transition-colors hover:bg-surface2"
+                    className="mt-1 flex w-full items-center gap-2 rounded-lg border-t border-border px-3 py-2 text-left font-mono text-[11px] uppercase tracking-wide text-cyan transition-colors hover:bg-surface2 cursor-pointer"
                   >
                     <Plus className="size-3.5" /> New batch
                   </button>
