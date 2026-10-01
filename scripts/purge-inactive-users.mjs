@@ -40,8 +40,8 @@ async function run() {
   const neverLoggedIn = users.filter((u) => {
     if (u.last_sign_in_at) return false;
     const em = (u.email || "").toLowerCase();
-    // Safety guard for admin
-    if (em.includes("arush") || em.includes("admin")) return false;
+    // Safety guard for admin Arush
+    if (em === "arush.tapmimpl2026@learner.manipal.edu" || em.includes("admin@")) return false;
     return true;
   });
 

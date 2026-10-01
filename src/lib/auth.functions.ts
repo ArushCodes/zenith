@@ -772,7 +772,7 @@ export const purgeNeverLoggedInUsers = createServerFn({ method: "POST" })
       if (u.last_sign_in_at) return false;
       // Protect administrator and Arush accounts under all circumstances
       const em = (u.email || "").toLowerCase();
-      if (em.includes("arush") || em.includes("admin")) return false;
+      if (em === "arush.tapmimpl2026@learner.manipal.edu" || em.includes("admin@")) return false;
       if (u.id === callerId) return false;
       return true;
     });
