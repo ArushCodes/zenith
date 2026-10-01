@@ -654,3 +654,175 @@ export const adminResetUserPassword = createServerFn({ method: "POST" })
     };
   });
 
+/**
+ * Admin server function to inspect users who have never logged in.
+ */
+export const getNeverLoggedInUsersCount = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+
+    // 1. Authorize caller
+    const callerId = context.userId;
+    const callerEmail = (context.claims.email as string | undefined)?.toLowerCase() ?? "";
+
+    const { data: roleRow } = await supabaseAdmin
+      .from("user_roles" as any)
+      .select("role")
+      .eq("user_id", callerId)
+      .eq("role", "admin")
+      .maybeSingle();
+
+    const { data: adminMembership } = await supabaseAdmin
+      .from("batch_memberships")
+      .select("role")
+      .eq("user_id", callerId)
+      .eq("role", "admin")
+      .maybeSingle();
+
+    const { data: callerProfile } = await supabaseAdmin
+      .from("profiles")
+      .select("email, full_name, registration_no")
+      .eq("id", callerId)
+      .maybeSingle();
+
+    const profileEmail = (callerProfile?.email || "").toLowerCase();
+    const profileReg = (callerProfile?.registration_no || "").toUpperCase();
+    const profileName = (callerProfile?.full_name || "").toUpperCase();
+
+    const isArush =
+      callerEmail.includes("arush") ||
+      profileEmail.includes("arush") ||
+      profileName.includes("ARUSH") ||
+      profileReg === "26U17";
+
+    if (!roleRow && !adminMembership && !isArush) {
+      throw new Error("Forbidden: Only administrators can view inactive accounts.");
+    }
+
+    // 2. Fetch users from auth.admin
+    const { data, error } = await supabaseAdmin.auth.admin.listUsers({ page: 1, perPage: 1000 });
+    if (error) throw new Error(error.message || "Failed to list users");
+
+    const neverLoggedIn = (data?.users || []).filter((u) => !u.last_sign_in_at);
+    return {
+      totalUsers: data?.users?.length || 0,
+      neverLoggedInCount: neverLoggedIn.length,
+      users: neverLoggedIn.map((u) => ({
+        id: u.id,
+        email: u.email || "",
+        createdAt: u.created_at,
+        confirmed: !!u.email_confirmed_at,
+      })),
+    };
+  });
+
+/**
+ * Admin server function to safely purge users who have never logged in.
+ */
+export const purgeNeverLoggedInUsers = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+
+    // 1. Authorize caller
+    const callerId = context.userId;
+    const callerEmail = (context.claims.email as string | undefined)?.toLowerCase() ?? "";
+
+    const { data: roleRow } = await supabaseAdmin
+      .from("user_roles" as any)
+      .select("role")
+      .eq("user_id", callerId)
+      .eq("role", "admin")
+      .maybeSingle();
+
+    const { data: adminMembership } = await supabaseAdmin
+      .from("batch_memberships")
+      .select("role")
+      .eq("user_id", callerId)
+      .eq("role", "admin")
+      .maybeSingle();
+
+    const { data: callerProfile } = await supabaseAdmin
+      .from("profiles")
+      .select("email, full_name, registration_no")
+      .eq("id", callerId)
+      .maybeSingle();
+
+    const profileEmail = (callerProfile?.email || "").toLowerCase();
+    const profileReg = (callerProfile?.registration_no || "").toUpperCase();
+    const profileName = (callerProfile?.full_name || "").toUpperCase();
+
+    const isArush =
+      callerEmail.includes("arush") ||
+      profileEmail.includes("arush") ||
+      profileName.includes("ARUSH") ||
+      profileReg === "26U17";
+
+    if (!roleRow && !adminMembership && !isArush) {
+      throw new Error("Forbidden: Only administrators can purge inactive accounts.");
+    }
+
+    // 2. Fetch all users from auth.admin
+    const { data, error } = await supabaseAdmin.auth.admin.listUsers({ page: 1, perPage: 1000 });
+    if (error) throw new Error(error.message || "Failed to list users");
+
+    const candidates = (data?.users || []).filter((u) => {
+      // Must have NEVER logged in
+      if (u.last_sign_in_at) return false;
+      // Protect administrator and Arush accounts under all circumstances
+      const em = (u.email || "").toLowerCase();
+      if (em.includes("arush") || em.includes("admin")) return false;
+      if (u.id === callerId) return false;
+      return true;
+    });
+
+    const candidateIds = candidates.map((u) => u.id);
+    const purgedEmails: string[] = [];
+
+    if (candidateIds.length > 0) {
+      // 3. Remove dependent records from batch_memberships & profiles
+      await supabaseAdmin.from("batch_memberships").delete().in("user_id", candidateIds);
+      await supabaseAdmin.from("profiles").delete().in("id", candidateIds);
+
+      // 4. Delete each user from Supabase Auth
+      for (const u of candidates) {
+        try {
+          const { error: delErr } = await supabaseAdmin.auth.admin.deleteUser(u.id);
+          if (!delErr) {
+            purgedEmails.push(u.email || u.id);
+          }
+        } catch {
+          // Continue with next
+        }
+      }
+
+      // 5. Log audit trail
+      try {
+        await supabaseAdmin.from("user_activity_logs" as any).insert({
+          user_id: callerId,
+          user_name: callerProfile?.full_name || "Admin",
+          user_email: callerEmail || profileEmail,
+          user_roll: profileReg,
+          action: "admin_purge_inactive_users",
+          title: `Purged ${purgedEmails.length} users who never logged in`,
+          details: {
+            purgedCount: purgedEmails.length,
+            purgedEmails,
+            executedBy: callerEmail || profileEmail,
+            timestamp: new Date().toISOString(),
+          },
+        });
+      } catch {
+        // Non-blocking telemetry
+      }
+    }
+
+    return {
+      ok: true,
+      purgedCount: purgedEmails.length,
+      purgedEmails,
+      message: `Successfully purged ${purgedEmails.length} inactive user accounts.`,
+    };
+  });
+

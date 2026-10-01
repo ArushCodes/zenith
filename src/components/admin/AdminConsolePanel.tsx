@@ -24,6 +24,8 @@ import {
   Eye,
   Sliders,
   KeyRound,
+  Trash2,
+  Loader2,
 } from "lucide-react";
 import { toast } from "sonner";
 import { db as supabase } from "@/lib/backend";
@@ -33,6 +35,15 @@ import { directoryQuery, type DirectoryRow, type Membership } from "@/lib/batche
 import { IPM_BATCHES } from "@/lib/roster.data";
 import { getLocalActivityStream, type ActivityLogItem } from "@/lib/telemetry";
 import { ChangePasswordDialog, type PasswordTarget } from "./ChangePasswordDialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import { purgeNeverLoggedInUsers } from "@/lib/auth.functions";
 
 type ConsoleTab = "members" | "activity" | "tracker";
 
@@ -55,6 +66,21 @@ export function AdminConsolePanel() {
   const [selectedLogDetail, setSelectedLogDetail] = useState<ActivityLogItem | null>(null);
   const [passwordDialogOpen, setPasswordDialogOpen] = useState(false);
   const [passwordTargetUser, setPasswordTargetUser] = useState<PasswordTarget | null>(null);
+  const [purgeDialogOpen, setPurgeDialogOpen] = useState(false);
+
+  const purgeMutation = useMutation({
+    mutationFn: async () => {
+      return await purgeNeverLoggedInUsers();
+    },
+    onSuccess: (res) => {
+      toast.success(res.message || `Successfully purged ${res.purgedCount} inactive accounts.`);
+      queryClient.invalidateQueries({ queryKey: ["directory"] });
+      setPurgeDialogOpen(false);
+    },
+    onError: (err: any) => {
+      toast.error(err.message || "Failed to purge inactive accounts.");
+    },
+  });
 
   // 1. Fetch all members across batches
   const { data: members = [], isLoading: membersLoading, refetch: refetchMembers } = useQuery(
@@ -274,6 +300,17 @@ export function AdminConsolePanel() {
 
         {activeTab === "members" && (
           <div className="flex items-center gap-2">
+            {(isAdmin || isArush) && (
+              <button
+                type="button"
+                onClick={() => setPurgeDialogOpen(true)}
+                className="flex shrink-0 items-center gap-1.5 rounded-xl border border-rose/40 bg-rose/10 px-3 py-1.5 text-xs font-semibold text-rose hover:bg-rose hover:text-white transition-all shadow-xs cursor-pointer"
+                title="Purge accounts that have never logged in"
+              >
+                <Trash2 className="size-3.5" />
+                <span className="hidden sm:inline">Purge Inactive</span>
+              </button>
+            )}
             <button
               onClick={() => {
                 setPasswordTargetUser(null);
@@ -636,6 +673,66 @@ export function AdminConsolePanel() {
         targetUser={passwordTargetUser}
         allMembers={members as DirectoryRow[]}
       />
+
+      {/* Purge Inactive Users Confirmation Dialog */}
+      <Dialog open={purgeDialogOpen} onOpenChange={setPurgeDialogOpen}>
+        <DialogContent className="sm:max-w-md border border-border bg-surface/95 backdrop-blur-2xl shadow-2xl p-6 rounded-2xl">
+          <DialogHeader className="space-y-2">
+            <div className="flex items-center gap-2.5">
+              <div className="grid size-9 place-items-center rounded-xl bg-rose/15 text-rose ring-1 ring-rose/30">
+                <Trash2 className="size-4.5" />
+              </div>
+              <div>
+                <DialogTitle className="font-display text-lg font-bold text-ink">
+                  Purge Inactive Accounts
+                </DialogTitle>
+                <DialogDescription className="font-mono text-xs text-dim">
+                  Permanently delete accounts that have never logged in.
+                </DialogDescription>
+              </div>
+            </div>
+          </DialogHeader>
+
+          <div className="space-y-3 py-2 text-xs font-body text-dim leading-relaxed">
+            <p>
+              This will permanently remove all accounts that were created or seeded but have{" "}
+              <strong className="text-ink">never logged in</strong> (zero sign-in history and zero attendance marks).
+            </p>
+            <div className="rounded-xl border border-rose/30 bg-rose/10 p-3 font-mono text-[11px] text-rose">
+              🛡️ <strong>Safety Protection Active:</strong> All active logged-in students, administrators, and Arush's accounts are strictly protected and will not be touched.
+            </div>
+          </div>
+
+          <DialogFooter className="flex items-center justify-end gap-2 pt-2">
+            <button
+              type="button"
+              onClick={() => setPurgeDialogOpen(false)}
+              disabled={purgeMutation.isPending}
+              className="rounded-xl px-4 py-2 font-mono text-xs text-dim hover:text-ink ring-1 ring-border transition-colors cursor-pointer"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              disabled={purgeMutation.isPending}
+              onClick={() => purgeMutation.mutate()}
+              className="flex items-center gap-1.5 rounded-xl bg-rose px-4 py-2 text-xs font-semibold text-white shadow-sm hover:bg-rose/90 disabled:opacity-50 transition-all cursor-pointer"
+            >
+              {purgeMutation.isPending ? (
+                <>
+                  <Loader2 className="size-3.5 animate-spin" />
+                  <span>Purging…</span>
+                </>
+              ) : (
+                <>
+                  <Trash2 className="size-3.5" />
+                  <span>Confirm Purge</span>
+                </>
+              )}
+            </button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </section>
   );
 }

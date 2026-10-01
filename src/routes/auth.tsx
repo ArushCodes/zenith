@@ -364,7 +364,7 @@ function AuthPage() {
     if (e) e.preventDefault();
     const cleanOtp = otp.trim().replace(/\D/g, "");
     if (cleanOtp.length < 6) {
-      toast.error("Please enter the complete 6-digit recovery code.");
+      toast.error("Please enter the complete recovery code.");
       return;
     }
     if (newPassword.length < 6) {
@@ -508,27 +508,39 @@ function AuthPage() {
                 Create new password
               </h1>
               <p className="mt-1 font-mono text-xs text-dim">
-                We sent a 6-digit recovery code to <span className="text-cyan font-semibold">{email}</span>.
+                We sent an 8-digit recovery code to <span className="text-cyan font-semibold">{email}</span>.
               </p>
             </div>
 
             <form onSubmit={handleConfirmReset} className="flex flex-col gap-4">
               <div>
                 <label className="block mb-1.5 font-mono text-[10px] uppercase tracking-[0.18em] text-dim text-center">
-                  6-Digit Recovery Code
+                  8-Digit Recovery Code
                 </label>
                 <div className="flex justify-center my-2">
-                  <InputOTP maxLength={6} value={otp} onChange={(val) => setOtp(val)}>
+                  <InputOTP
+                    maxLength={8}
+                    value={otp}
+                    onChange={(val) => {
+                      setOtp(val);
+                      if (val.replace(/\D/g, "").length === 8) {
+                        const nextInput = document.getElementById("new-password") as HTMLInputElement;
+                        if (nextInput) nextInput.focus();
+                      }
+                    }}
+                  >
                     <InputOTPGroup>
                       <InputOTPSlot index={0} />
                       <InputOTPSlot index={1} />
                       <InputOTPSlot index={2} />
+                      <InputOTPSlot index={3} />
                     </InputOTPGroup>
                     <InputOTPSeparator />
                     <InputOTPGroup>
-                      <InputOTPSlot index={3} />
                       <InputOTPSlot index={4} />
                       <InputOTPSlot index={5} />
+                      <InputOTPSlot index={6} />
+                      <InputOTPSlot index={7} />
                     </InputOTPGroup>
                   </InputOTP>
                 </div>

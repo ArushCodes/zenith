@@ -12,11 +12,13 @@ import {
   Globe,
   Hash,
   IdCard,
+  KeyRound,
   Linkedin,
   Loader2,
   Lock,
   Phone,
   RotateCcw,
+  ShieldCheck,
   Sparkles,
   UserRound,
 } from "lucide-react";
@@ -26,6 +28,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { useBatch } from "@/hooks/use-batch";
 import { formatBatchLabel } from "@/lib/batches";
 import { BoardHeader } from "@/components/board/BoardHeader";
+import { UserChangePasswordDialog } from "@/components/profile/UserChangePasswordDialog";
 import {
   TIMEZONES,
   completeness,
@@ -57,12 +60,13 @@ export const Route = createFileRoute("/_authenticated/profile")({
   component: ProfilePage,
 });
 
-type SectionKey = "identity" | "links" | "prefs" | "locked";
+type SectionKey = "identity" | "links" | "prefs" | "security" | "locked";
 
 const SECTIONS: { key: SectionKey; label: string; icon: React.ReactNode }[] = [
   { key: "identity", label: "Identity", icon: <UserRound className="size-3.5" /> },
   { key: "links", label: "Links", icon: <Globe className="size-3.5" /> },
   { key: "prefs", label: "Preferences", icon: <Bell className="size-3.5" /> },
+  { key: "security", label: "Security", icon: <KeyRound className="size-3.5" /> },
   { key: "locked", label: "Permanent", icon: <Lock className="size-3.5" /> },
 ];
 
@@ -108,6 +112,7 @@ function ProfilePage() {
   const [section, setSection] = useState<SectionKey>("identity");
   const [form, setForm] = useState<EditableProfile>(() => toEditable(null));
   const [hydrated, setHydrated] = useState(false);
+  const [passwordDialogOpen, setPasswordDialogOpen] = useState(false);
 
   useEffect(() => {
     if (profile && !hydrated) {
@@ -265,6 +270,16 @@ function ProfilePage() {
                       {chip}
                     </motion.span>
                   ))}
+                <motion.button
+                  type="button"
+                  whileHover={{ scale: 1.02, y: -1 }}
+                  whileTap={{ scale: 0.97 }}
+                  onClick={() => setPasswordDialogOpen(true)}
+                  className="flex items-center gap-1.5 rounded-full border border-cyan/40 bg-cyan/10 px-3 py-1 font-mono text-[10px] font-bold text-cyan shadow-2xs hover:bg-cyan hover:text-ground transition-all cursor-pointer"
+                >
+                  <KeyRound className="size-3" />
+                  <span>Change Password</span>
+                </motion.button>
               </div>
             </div>
 
@@ -516,6 +531,57 @@ function ProfilePage() {
                 </div>
               )}
 
+              {section === "security" && (
+                <div className="space-y-6">
+                  <div className="rounded-2xl border border-border bg-surface2/40 p-6 sm:p-7 space-y-5">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                      <div className="flex items-center gap-3.5">
+                        <div className="grid size-11 place-items-center rounded-2xl bg-cyan/15 text-cyan ring-1 ring-cyan/30">
+                          <KeyRound className="size-5" />
+                        </div>
+                        <div>
+                          <h3 className="font-display text-base font-bold text-ink">Account Password</h3>
+                          <p className="font-mono text-xs text-dim">
+                            Keep your student credentials secure and updated.
+                          </p>
+                        </div>
+                      </div>
+                      <motion.button
+                        type="button"
+                        whileHover={{ scale: 1.02, y: -1 }}
+                        whileTap={{ scale: 0.97 }}
+                        onClick={() => setPasswordDialogOpen(true)}
+                        className="flex items-center justify-center gap-2 rounded-xl bg-cyan px-4 py-2.5 text-xs font-semibold text-ground shadow-sm hover:bg-cyan/90 transition-all cursor-pointer"
+                      >
+                        <KeyRound className="size-3.5" />
+                        <span>Change Password</span>
+                      </motion.button>
+                    </div>
+
+                    <div className="border-t border-border/70 pt-4 grid gap-3 sm:grid-cols-2 font-mono text-xs">
+                      <div className="rounded-xl border border-border/80 bg-surface/70 p-3.5">
+                        <span className="text-[10px] uppercase text-faint tracking-wider">Login Email</span>
+                        <p className="mt-1 font-semibold text-ink truncate">{user?.email || "—"}</p>
+                      </div>
+                      <div className="rounded-xl border border-border/80 bg-surface/70 p-3.5">
+                        <span className="text-[10px] uppercase text-faint tracking-wider">Authentication Method</span>
+                        <p className="mt-1 font-semibold text-ink">Official MAHE Credentials</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="rounded-2xl border border-border/70 bg-surface2/25 p-5 font-mono text-xs text-dim space-y-2">
+                    <div className="flex items-center gap-2 text-ink font-semibold">
+                      <ShieldCheck className="size-4 text-emerald-500" />
+                      <span>Security Best Practices</span>
+                    </div>
+                    <p className="text-[11px] leading-relaxed text-faint">
+                      Zenith is your academic portal. Never share your credentials or login codes with anyone. For maximum security, use at least 8 characters with a mix of letters, numbers, and special symbols.
+                    </p>
+                  </div>
+                </div>
+              )}
+
               {section === "locked" && (
                 <div className="grid gap-5 sm:grid-cols-2">
                   <p className="font-mono text-[11px] leading-relaxed text-faint sm:col-span-2">
@@ -546,6 +612,12 @@ function ProfilePage() {
             </motion.section>
           </AnimatePresence>
         )}
+
+        <UserChangePasswordDialog
+          open={passwordDialogOpen}
+          onOpenChange={setPasswordDialogOpen}
+          userEmail={user?.email}
+        />
       </main>
 
       {/* Sticky save bar */}
