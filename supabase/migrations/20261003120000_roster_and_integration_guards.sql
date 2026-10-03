@@ -1,8 +1,10 @@
 -- Apply before deploying the new auth/sync handlers. Existing accounts are retained.
+BEGIN;
 CREATE TABLE IF NOT EXISTS private.auth_attempts (
   bucket text PRIMARY KEY, attempts integer NOT NULL, expires_at timestamptz NOT NULL
 );
 REVOKE ALL ON private.auth_attempts FROM PUBLIC, anon, authenticated;
+ALTER TABLE private.auth_attempts ENABLE ROW LEVEL SECURITY;
 CREATE OR REPLACE FUNCTION public.consume_auth_attempt(bucket_key text, max_attempts integer DEFAULT 8)
 RETURNS boolean LANGUAGE plpgsql SECURITY DEFINER SET search_path TO public, private AS $$
 DECLARE count_now integer;
@@ -123,8 +125,36 @@ REVOKE ALL ON FUNCTION public.review_email_candidate(uuid, boolean, jsonb) FROM 
 GRANT EXECUTE ON FUNCTION public.review_email_candidate(uuid, boolean, jsonb) TO authenticated;
 
 DROP POLICY IF EXISTS "members view attendance" ON public.attendance_marks;
+DROP POLICY IF EXISTS "self or batch managers view attendance" ON public.attendance_marks;
 CREATE POLICY "self or batch managers view attendance" ON public.attendance_marks FOR SELECT TO authenticated
 USING (private.is_batch_member(auth.uid(), batch_id) AND (user_id = auth.uid() OR private.is_batch_mod(auth.uid(), batch_id)));
+
+-- Some deployed projects never received the historical telemetry migration.
+CREATE TABLE IF NOT EXISTS public.user_activity_logs (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id uuid REFERENCES auth.users(id) ON DELETE CASCADE,
+  user_name text,
+  user_email text,
+  user_roll text,
+  batch_id uuid REFERENCES public.batches(id) ON DELETE SET NULL,
+  action text NOT NULL,
+  title text NOT NULL,
+  details jsonb DEFAULT '{}'::jsonb,
+  created_at timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS user_activity_logs_created_at_idx ON public.user_activity_logs(created_at DESC);
+CREATE INDEX IF NOT EXISTS user_activity_logs_batch_idx ON public.user_activity_logs(batch_id);
+CREATE INDEX IF NOT EXISTS user_activity_logs_user_idx ON public.user_activity_logs(user_id);
+ALTER TABLE public.user_activity_logs ENABLE ROW LEVEL SECURITY;
+REVOKE ALL ON public.user_activity_logs FROM anon;
+GRANT SELECT, INSERT ON public.user_activity_logs TO authenticated;
+GRANT ALL ON public.user_activity_logs TO service_role;
+DROP POLICY IF EXISTS "Users can insert activity logs" ON public.user_activity_logs;
+CREATE POLICY "Users can insert activity logs" ON public.user_activity_logs FOR INSERT TO authenticated
+WITH CHECK (user_id = (SELECT auth.uid()));
 DROP POLICY IF EXISTS "Mods can view all activity logs" ON public.user_activity_logs;
+DROP POLICY IF EXISTS "admins or own batch managers view activity logs" ON public.user_activity_logs;
 CREATE POLICY "admins or own batch managers view activity logs" ON public.user_activity_logs FOR SELECT TO authenticated
 USING (private.has_role(auth.uid(), 'admin') OR (batch_id IS NOT NULL AND private.is_batch_mod(auth.uid(), batch_id)));
+NOTIFY pgrst, 'reload schema';
+COMMIT;
