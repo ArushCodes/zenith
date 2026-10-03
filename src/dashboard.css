@@ -1298,6 +1298,137 @@
 }
 
 /* The signed-in feed starts with useful controls, not introductory copy. */
+.zenith-workspace .board-header-search {
+  margin-right: auto;
+}
+@media (min-width: 901px) {
+  .zenith-workspace .board-header-search input {
+    width: min(32vw, 380px);
+  }
+}
+.class-tracker-minimal {
+  min-height: 230px;
+  overflow: clip;
+}
+.class-tracker-minimal .class-tracker-feature {
+  padding: 10px 145px 10px 0 !important;
+}
+.class-tracker-minimal .class-tracker-toolbar {
+  padding-bottom: 12px;
+  margin-bottom: 8px;
+}
+.class-tracker-minimal .class-tracker-schedule {
+  padding-top: 12px;
+  margin-top: 8px;
+}
+.class-tracker-minimal .class-tracker-feature h2 {
+  padding-right: 0;
+}
+.class-tracker-minimal .class-tracker-feature button {
+  padding: 10px 14px;
+  font-size: 12px;
+}
+.class-tracker-minimal > div:first-of-type {
+  z-index: 0;
+}
+.class-tracker-minimal > .relative.z-10 {
+  padding-bottom: 10px;
+  margin-bottom: 10px;
+}
+.class-tracker-minimal > .relative.z-10:not(:first-of-type) {
+  margin-top: 10px;
+  padding-top: 10px;
+}
+.class-tracker-minimal > .relative.z-10 + div > .relative.z-10 {
+  padding: 12px 0;
+  padding-right: 145px;
+}
+.class-tracker-minimal h2 {
+  font-size: clamp(20px, 2.3vw, 30px);
+}
+.class-tracker-minimal .text-center {
+  text-align: left;
+}
+.class-tracker-minimal .text-center > div {
+  display: none;
+}
+.class-tracker-minimal .text-center > p {
+  max-width: 80%;
+}
+.class-tracker-minimal [aria-pressed] {
+  min-width: 145px;
+  padding: 10px 14px;
+  text-align: left;
+}
+.class-tracker-minimal [aria-pressed="true"] {
+  border-color: var(--cyan);
+  background: color-mix(in srgb, var(--cyan) 10%, var(--surface));
+}
+.class-tracker-minimal [aria-pressed] > div:last-child {
+  display: none;
+}
+.class-tracker-minimal [aria-pressed] > div:first-of-type > div:last-child {
+  display: none;
+}
+.class-progress-dial {
+  position: absolute;
+  right: 25px;
+  top: 84px;
+  width: 112px;
+  height: 112px;
+}
+.class-progress-dial svg {
+  width: 100%;
+  height: 100%;
+}
+.class-progress-dial > div {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+}
+.class-progress-dial strong {
+  font-size: 30px;
+  font-variant-numeric: tabular-nums;
+}
+.class-progress-dial span {
+  font-size: 10px;
+  color: var(--dim);
+}
+.class-inspected {
+  position: relative;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+  font-size: 12px;
+  padding-top: 10px;
+  overflow: hidden;
+}
+.class-inspected span {
+  color: var(--dim);
+}
+@media (max-width: 600px) {
+  .class-tracker-minimal .class-tracker-feature {
+    padding-right: 82px !important;
+  }
+  .class-progress-dial {
+    width: 72px;
+    height: 72px;
+    right: 14px;
+    top: 126px;
+  }
+  .class-progress-dial strong {
+    font-size: 21px;
+  }
+  .class-tracker-minimal > .relative.z-10 + div > .relative.z-10 {
+    padding-right: 82px;
+  }
+  .class-tracker-minimal h2 {
+    padding-right: 75px;
+  }
+}
 .zenith-workspace > .workspace-main.feed-page {
   padding-top: 16px;
 }

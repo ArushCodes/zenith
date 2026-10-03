@@ -643,52 +643,12 @@ export default function StudentBoard({ guestPreview }: { guestPreview?: boolean 
           >
             {tab === "feed" && (
               <div className="flex flex-col gap-5 sm:gap-6">
-                {/* ── Active Filter Bar (shows when any filter is toggled) ── */}
-                {(urgentOnly || pendingOnly || feedCategory !== "all" || feedSearch) && (
-                  <div className="flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-cyan/30 bg-cyan/10 px-3.5 py-2 text-xs backdrop-blur-md">
-                    <div className="flex items-center gap-2">
-                      <Filter className="size-3.5 text-cyan" />
-                      <span className="font-semibold text-ink">
-                        Active filter:{" "}
-                        <span className="text-cyan font-bold">
-                          {urgentOnly
-                            ? "Due in 48 Hours"
-                            : pendingOnly
-                              ? "Pending Checklist Only"
-                              : feedCategory !== "all"
-                                ? `${feedCategory.charAt(0).toUpperCase() + feedCategory.slice(1)}s`
-                                : `Search "${feedSearch}"`}
-                        </span>
-                      </span>
-                      <AnimatePresence mode="wait">
-                        <motion.span
-                          key={filteredUpcoming.length}
-                          initial={{ opacity: 0, y: -4 }}
-                          animate={{ opacity: 1, y: 0 }}
-                          exit={{ opacity: 0, y: 4 }}
-                          transition={{ duration: 0.18 }}
-                          className="font-mono text-[11px] text-dim"
-                        >
-                          ({filteredUpcoming.length}{" "}
-                          {filteredUpcoming.length === 1 ? "event" : "events"} shown)
-                        </motion.span>
-                      </AnimatePresence>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setUrgentOnly(false);
-                        setPendingOnly(false);
-                        setFeedCategory("all");
-                        setFeedSearch("");
-                      }}
-                      className="font-mono text-xs font-bold text-cyan hover:underline cursor-pointer"
-                    >
-                      Clear filters
-                    </button>
-                  </div>
-                )}
-
+                <LiveClassHero
+                  now={now}
+                  onSeeFullTimetable={() => setTab("timetable")}
+                  canManage={isMod}
+                  minimal
+                />
                 {/* ── Mobile View Switcher (Feed Timeline vs Batch Announcements) ── */}
                 <div className="lg:hidden flex rounded-2xl bg-surface2/70 p-1 border border-border/80">
                   <button
@@ -1155,20 +1115,6 @@ export default function StudentBoard({ guestPreview }: { guestPreview?: boolean 
                   <aside
                     className={`min-w-0 flex-col gap-6 lg:sticky lg:top-24 ${mobileTab === "sidebar" ? "flex" : "hidden lg:flex"}`}
                   >
-                    <details className="feed-today">
-                      <summary>Today’s classes</summary>{" "}
-                      {/* ── Top Live Class / Timetable Hero (Centerpiece) ── */}
-                      <LiveClassHero
-                        now={now}
-                        deadlines={deadlines}
-                        onSeeFullTimetable={() => setTab("timetable")}
-                        onSeeExams={() => {
-                          setTab("exams");
-                          setExamSubTab("midterm");
-                        }}
-                        canManage={isMod}
-                      />
-                    </details>
                     <AnnouncementsPanel compact />
                     <div className="block">
                       <FeedSection

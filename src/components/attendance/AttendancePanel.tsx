@@ -900,26 +900,26 @@ function SubjectRow({
 
   const status =
     row.pct < HARD_LINE
-      ? { text: "Incomplete (I) — repeat next year", tone: "text-rose font-bold" }
+      ? { text: "Below 70% · Incomplete (I)", tone: "text-rose font-bold" }
       : isCut
         ? {
             text: compact
-              ? `🚨 −${row.penalty.toFixed(1)} course grade points (${row.excessMisses} excess)`
-              : `🚨 −${row.penalty.toFixed(1)} course grade points · ${row.excessMisses} excess missed beyond ${row.allowedMisses} allowance`,
+              ? `−${row.penalty.toFixed(1)} grade pts · ${row.excessMisses} excess`
+              : `−${row.penalty.toFixed(1)} grade pts · ${row.excessMisses} excess`,
             tone: "text-rose font-bold",
           }
         : isDanger
           ? {
-              text: `⚠️ 1 safe absence left — one more miss uses your final safe class`,
+              text: `1 safe miss left`,
               tone: "text-amber-500 font-bold",
             }
           : isLimit
             ? {
-                text: `🚨 0 bunks left — reached the limit! Next miss cuts 0.5 course grade points`,
+                text: `0 safe misses · next: −0.5 pts`,
                 tone: "text-amber-500 font-bold",
               }
             : {
-                text: `Safe · ${row.safeLeft} of ${row.allowedMisses} bunks left (1 miss/credit)`,
+                text: `${row.safeLeft}/${row.allowedMisses} safe misses left`,
                 tone: "text-emerald-500 font-medium",
               };
 
@@ -948,20 +948,6 @@ function SubjectRow({
           <span className="rounded bg-surface2 px-1.5 py-0.5 font-mono text-[9px] text-dim shrink-0">
             {row.credits} Cr · {row.planned} S
           </span>
-          {isDanger && (
-            <motion.span
-              animate={{ scale: [1, 1.05, 1] }}
-              transition={{ repeat: Infinity, duration: 1.8 }}
-              className="rounded-md bg-amber-500/15 border border-amber-500/35 px-1.5 py-0.5 font-mono text-[9px] font-extrabold text-amber-500 shrink-0"
-            >
-              ⚠️ 1 Class Left
-            </motion.span>
-          )}
-          {isCut && (
-            <span className="rounded-md bg-rose/15 border border-rose/30 px-1.5 py-0.5 font-mono text-[9px] font-extrabold text-rose shrink-0">
-              -{row.penalty.toFixed(1)} course grade points
-            </span>
-          )}
         </span>
         <span
           className={`mt-0.5 block truncate font-mono text-[10px] leading-relaxed ${status.tone}`}
@@ -972,7 +958,7 @@ function SubjectRow({
           <span className="mt-1 flex flex-wrap items-center gap-1.5">
             {row.heldPct < DEBARMENT_LINE ? (
               <span className="inline-flex items-center gap-1 rounded-md bg-rose/15 border border-rose/30 px-1.5 py-0.5 font-mono text-[9px] font-bold text-rose">
-                🚨 {row.heldPct}% held · Need +{row.recoveryNeeded} consecutive
+                {row.heldPct}% held · +{row.recoveryNeeded} to recover
               </span>
             ) : row.heldPct < 80 ? (
               <span className="inline-flex items-center gap-1 rounded-md bg-amber-500/15 border border-amber-500/30 px-1.5 py-0.5 font-mono text-[9px] font-semibold text-amber-500">
@@ -981,7 +967,7 @@ function SubjectRow({
               </span>
             ) : (
               <span className="inline-flex items-center gap-1 font-mono text-[9px] text-faint">
-                Held: {row.attendedHeld}/{row.held} ({row.heldPct}%) · Buffer: {row.safeBuffer}
+                {row.attendedHeld}/{row.held} held · {row.heldPct}%
               </span>
             )}
           </span>

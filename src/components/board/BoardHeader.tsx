@@ -154,8 +154,12 @@ export function BoardHeader({ menuItems = [], onMenuSelect, onLogoClick }: Props
           </motion.div>
         </Link>
 
-        <div className="flex shrink-0 items-center gap-1 sm:gap-2">
-          {user && <GlobalSearch />}
+        <div className="board-header-actions flex min-w-0 flex-1 items-center justify-end gap-1 sm:gap-2">
+          {user && (
+            <div className="board-header-search min-w-0 mr-auto">
+              <GlobalSearch />
+            </div>
+          )}
           <BatchSelector />
 
           {(isAdmin || isArush) && (
