@@ -11,6 +11,7 @@ export default defineConfig(({ mode }) => {
   for (const key of [
     "SUPABASE_URL",
     "SUPABASE_SERVICE_ROLE_KEY",
+    "SUPABASE_PUBLISHABLE_KEY",
     "SMTP_HOST",
     "SMTP_PORT",
     "SMTP_USER",
