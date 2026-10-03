@@ -35,13 +35,13 @@ export function BatchProvider({ children }: { children: React.ReactNode }) {
   /** Students only ever see the batch(es) they belong to; global admins see everything. */
   const batches = useMemo(() => {
     if (isAdmin) return allBatches;
-    const mine = new Set(
-      memberships.filter((m) => m.status === "approved").map((m) => m.batch_id),
-    );
+    const mine = new Set(memberships.filter((m) => m.status === "approved").map((m) => m.batch_id));
     return allBatches.filter((b) => mine.has(b.id));
   }, [allBatches, memberships, isAdmin]);
 
-  const userMetadataBatch = (user?.user_metadata as Record<string, any> | undefined)?.["batch_id"];
+  const userMetadataBatch = (user?.user_metadata as Record<string, unknown> | undefined)?.[
+    "batch_id"
+  ];
   const [batchId, setBatchIdState] = useState<string | null>(() => {
     if (typeof window === "undefined") return null;
     const stored = window.localStorage.getItem(BATCH_STORAGE_KEY);
@@ -53,18 +53,24 @@ export function BatchProvider({ children }: { children: React.ReactNode }) {
   // Restore the last batch before the batch tree arrives so batch-scoped
   // queries can start in parallel instead of waiting on it.
   useEffect(() => {
+    if (!user) {
+      setBatchIdState(null);
+      return;
+    }
     if (batchId) return;
     const stored = window.localStorage.getItem(BATCH_STORAGE_KEY);
     if (stored) {
       setBatchIdState(stored);
       return;
     }
-    const metaBatch = (user?.user_metadata as Record<string, any> | undefined)?.["batch_id"];
+    const metaBatch = (user?.user_metadata as Record<string, unknown> | undefined)?.["batch_id"];
     if (metaBatch && typeof metaBatch === "string") {
       setBatchIdState(metaBatch);
       try {
         window.localStorage.setItem(BATCH_STORAGE_KEY, metaBatch);
-      } catch {}
+      } catch {
+        /* Storage may be unavailable in private browsing. */
+      }
     }
   }, [batchId, user]);
 
@@ -72,25 +78,28 @@ export function BatchProvider({ children }: { children: React.ReactNode }) {
     if (batches.length === 0) return;
     if (batchId && batches.some((b) => b.id === batchId)) return;
     const mine = memberships.find((m) => m.status === "approved");
-    const next =
-      (mine && batches.find((b) => b.id === mine.batch_id)?.id) ?? batches[0]!.id;
+    const next = (mine && batches.find((b) => b.id === mine.batch_id)?.id) ?? batches[0]!.id;
     setBatchIdState(next);
     try {
       window.localStorage.setItem(BATCH_STORAGE_KEY, next);
-    } catch {}
+    } catch {
+      /* Storage may be unavailable in private browsing. */
+    }
   }, [batchId, batches, memberships]);
 
   function setBatchId(id: string) {
     setBatchIdState(id);
     try {
       window.localStorage.setItem(BATCH_STORAGE_KEY, id);
-    } catch {}
+    } catch {
+      /* Storage may be unavailable in private browsing. */
+    }
   }
 
   const value = useMemo<BatchContextValue>(() => {
     const activeBatch =
       batches.find((b) => b.id === batchId) ?? (batches.length === 1 ? batches[0]! : null);
-    const resolvedBatchId = activeBatch?.id ?? batchId ?? (batches[0]?.id ?? null);
+    const resolvedBatchId = activeBatch?.id ?? batchId ?? batches[0]?.id ?? null;
     const membership = memberships.find((m) => m.batch_id === resolvedBatchId) ?? null;
     const approved = membership?.status === "approved";
     return {
@@ -107,7 +116,6 @@ export function BatchProvider({ children }: { children: React.ReactNode }) {
       loading: isLoading,
     };
   }, [batches, batchId, memberships, isAdmin, isLoading]);
-
 
   return <BatchContext.Provider value={value}>{children}</BatchContext.Provider>;
 }

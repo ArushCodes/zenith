@@ -2,508 +2,123 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 
-const ALLOWED_DOMAIN = "learner.manipal.edu";
-
-export const requestSignupVerification = createServerFn({ method: "POST" })
-  .validator((input: unknown) =>
-    z
-      .object({
-        fullName: z.string().trim().min(2, "Please enter your full name"),
-        email: z
-          .string()
-          .trim()
-          .toLowerCase()
-          .refine(
-            (val) => val.endsWith(`@${ALLOWED_DOMAIN}`),
-            `Sign-ups are limited to @${ALLOWED_DOMAIN} email addresses.`,
-          ),
-        password: z.string().min(6, "Password must be at least 6 characters"),
-        batchId: z.string().uuid("Please select your batch"),
-        rollNo: z.string().trim().optional(),
-      })
-      .parse(input),
-  )
-  .handler(async ({ data }) => {
-    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const { sendOtpEmail } = await import("./mailer.server");
-    const cleanEmail = data.email.trim().toLowerCase();
-    const cleanRoll = data.rollNo ? data.rollNo.trim().toUpperCase() : undefined;
-
-    // Check if user already exists in profiles
-    const { data: existingProfile } = await supabaseAdmin
-      .from("profiles")
-      .select("id, email")
-      .eq("email", cleanEmail)
-      .maybeSingle();
-
-    if (existingProfile) {
-      throw new Error(
-        "An account with this email already exists. Please switch to 'Sign In' and enter your password.",
-      );
-    }
-
-    // Check if user already exists in auth
-    const { data: usersData } = await supabaseAdmin.auth.admin.listUsers({ page: 1, perPage: 1000 });
-    const existingAuthUser = usersData?.users?.find(
-      (u) => u.email?.toLowerCase() === cleanEmail,
-    );
-    if (existingAuthUser) {
-      throw new Error(
-        "An account with this email already exists. Please switch to 'Sign In' and enter your password.",
-      );
-    }
-
-    // Check if roll number is already claimed by another student profile
-    if (cleanRoll) {
-      const { data: rollProfile } = await supabaseAdmin
-        .from("profiles")
-        .select("id, email")
-        .eq("registration_no", cleanRoll)
-        .maybeSingle();
-
-      if (rollProfile && rollProfile.email?.toLowerCase() !== cleanEmail) {
-        throw new Error(
-          `Student roll number '${cleanRoll}' has already been registered with another account. Please sign in with your registered email.`,
-        );
-      }
-    }
-
-    // Generate link & email_otp with admin API (doesn't send Supabase's rate-limited/spam-filtered email)
-    const { data: linkData, error: linkError } = await supabaseAdmin.auth.admin.generateLink({
-      type: "signup",
-      email: cleanEmail,
-      password: data.password,
-      options: {
-        data: {
-          full_name: data.fullName,
-          batch_id: data.batchId,
-          roll_no: cleanRoll,
-        },
-      },
-    });
-
-    if (linkError) {
-      const msg = linkError.message.toLowerCase();
-      if (msg.includes("already registered") || msg.includes("already exists")) {
-        throw new Error(
-          "An account with this email already exists. Please switch to 'Sign In' and enter your password.",
-        );
-      }
-      throw new Error(linkError.message);
-    }
-
-    const otp = linkData?.properties?.email_otp;
-    if (!otp) {
-      throw new Error("Unable to generate verification code. Please try again.");
-    }
-
-    // Send email with the OTP using anti-spam formatting (No tracking links, clear text)
-    const mailResult = await sendOtpEmail({
-      to: cleanEmail,
-      otp,
-      fullName: data.fullName,
-    });
-
-    return {
-      ok: true,
-      email: cleanEmail,
-      provider: mailResult.provider,
-    };
-  });
-
-export const requestPasswordReset = createServerFn({ method: "POST" })
-  .validator((input: unknown) =>
-    z
-      .object({
-        email: z
-          .string()
-          .trim()
-          .toLowerCase()
-          .refine(
-            (val) => val.endsWith(`@${ALLOWED_DOMAIN}`),
-            `Password resets are restricted to @${ALLOWED_DOMAIN} email addresses.`,
-          ),
-      })
-      .parse(input),
-  )
-  .handler(async ({ data }) => {
-    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const { sendOtpEmail } = await import("./mailer.server");
-    const cleanEmail = data.email.trim().toLowerCase();
-
-    // Check if user exists in profiles or auth
-    const { data: profile } = await supabaseAdmin
-      .from("profiles")
-      .select("id, full_name")
-      .eq("email", cleanEmail)
-      .maybeSingle();
-
-    if (!profile) {
-      throw new Error(
-        "No Zenith account found with this email address. Please make sure you entered your registered @learner.manipal.edu address.",
-      );
-    }
-
-    const { data: linkData, error: linkError } = await supabaseAdmin.auth.admin.generateLink({
-      type: "recovery",
-      email: cleanEmail,
-    });
-
-    if (linkError) {
-      throw new Error(linkError.message || "Failed to generate recovery code.");
-    }
-
-    const otp = linkData?.properties?.email_otp;
-    if (!otp) {
-      throw new Error("Unable to generate verification code. Please try again.");
-    }
-
-    const mailResult = await sendOtpEmail({
-      to: cleanEmail,
-      otp,
-      fullName: profile.full_name || "Student",
-      purpose: "reset",
-    });
-
-    return {
-      ok: true,
-      email: cleanEmail,
-      provider: mailResult.provider,
-    };
-  });
-
-export const resolveLoginIdentifier = createServerFn({ method: "POST" })
-  .validator((input: unknown) =>
-    z
-      .object({
-        identifier: z.string().trim().min(1, "Please enter your email, roll number, or MAHE ID"),
-      })
-      .parse(input),
-  )
-  .handler(async ({ data }) => {
-    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const { findStudentInRosterByRoll, toTitleCase } = await import("./roster.data");
-    const raw = data.identifier.trim();
-
-    // 1. Direct email provided
-    if (raw.includes("@")) {
-      const cleanEmail = raw.toLowerCase();
-      return {
-        email: cleanEmail,
-        isRollNo: false,
-        found: true,
-      };
-    }
-
-    const cleanRaw = raw.toUpperCase();
-
-    // 2. Try looking up in profiles by registration_no
-    const { data: profileByRoll } = await supabaseAdmin
-      .from("profiles")
-      .select("email, full_name, registration_no")
-      .ilike("registration_no", cleanRaw)
-      .maybeSingle();
-
-    if (profileByRoll?.email) {
-      return {
-        email: profileByRoll.email.toLowerCase(),
-        fullName: profileByRoll.full_name || undefined,
-        rollNo: profileByRoll.registration_no || cleanRaw,
-        isRollNo: true,
-        found: true,
-      };
-    }
-
-    // 3. Try checking official IPM roster (e.g. student typed 26U36 or 261600130146)
-    const rosterStudent = findStudentInRosterByRoll(raw);
-    if (rosterStudent) {
-      // Check if roster student is already registered in profiles
-      const { data: profileFromRoster } = await supabaseAdmin
-        .from("profiles")
-        .select("email, full_name, registration_no")
-        .ilike("registration_no", rosterStudent.rollNo)
-        .maybeSingle();
-
-      if (profileFromRoster?.email) {
-        return {
-          email: profileFromRoster.email.toLowerCase(),
-          fullName: profileFromRoster.full_name || toTitleCase(rosterStudent.name),
-          rollNo: rosterStudent.rollNo,
-          isRollNo: true,
-          found: true,
-        };
-      }
-
-      // Found in roster, but account hasn't been created yet!
-      return {
-        email: `${rosterStudent.name.toLowerCase().replace(/[^a-z]/g, "")}@${ALLOWED_DOMAIN}`,
-        fullName: toTitleCase(rosterStudent.name),
-        rollNo: rosterStudent.rollNo,
-        maheId: rosterStudent.maheId,
-        isRollNo: true,
-        found: false,
-        needsRegistration: true,
-        message: `Welcome ${toTitleCase(rosterStudent.name)}! Your student record was found, but you haven't created your Zenith account yet. Please switch to "Register" to activate your portal.`,
-      };
-    }
-
-    // 4. Check if raw string is an email prefix (e.g. "milan.tapmimpl2026")
-    const candidateEmail = `${raw.toLowerCase()}@${ALLOWED_DOMAIN}`;
-    const { data: profileByPrefix } = await supabaseAdmin
-      .from("profiles")
-      .select("email, full_name")
-      .eq("email", candidateEmail)
-      .maybeSingle();
-
-    if (profileByPrefix?.email) {
-      return {
-        email: profileByPrefix.email.toLowerCase(),
-        fullName: profileByPrefix.full_name || undefined,
-        isRollNo: false,
-        found: true,
-      };
-    }
-
-    // 5. Default fallback: treat as email with @learner.manipal.edu
-    return {
-      email: candidateEmail,
-      isRollNo: false,
-      found: true,
-    };
-  });
-
-
-export const finalizeSignup = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
-  .validator((input: unknown) =>
-    z
-      .object({
-        userId: z.string().uuid(),
-        email: z.string().trim().toLowerCase(),
-        fullName: z.string().trim().min(2),
-        batchId: z.string().uuid(),
-        rollNo: z.string().trim().optional(),
-      })
-      .parse(input),
-  )
-  .handler(async ({ data, context }) => {
-    // 1. Enforce caller authorization matches payload
-    if (context.userId !== data.userId) {
-      throw new Error("Forbidden: Account identity mismatch.");
-    }
-    const cleanEmail = data.email.trim().toLowerCase();
-    if (context.claims.email && context.claims.email.toLowerCase() !== cleanEmail) {
-      throw new Error("Forbidden: Email identity mismatch.");
-    }
-
-    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const cleanRoll = data.rollNo ? data.rollNo.trim().toUpperCase() : undefined;
-
-    // 2. Prevent roll number hijacking
-    if (cleanRoll) {
-      const { data: existingRoll } = await supabaseAdmin
-        .from("profiles")
-        .select("id")
-        .eq("registration_no", cleanRoll)
-        .neq("id", data.userId)
-        .maybeSingle();
-
-      if (existingRoll) {
-        throw new Error(
-          `Student roll number '${cleanRoll}' has already been registered with another account.`,
-        );
-      }
-    }
-
-    // 3. Upsert profile
-    await supabaseAdmin.from("profiles").upsert(
-      {
-        id: data.userId,
-        full_name: data.fullName,
-        email: cleanEmail,
-        ...(cleanRoll ? { registration_no: cleanRoll } : {}),
-      },
-      { onConflict: "id" },
-    );
-
-    // 4. Upsert approved batch membership
-    await supabaseAdmin.from("batch_memberships").upsert(
-      {
-        user_id: data.userId,
-        batch_id: data.batchId,
-        role: "student",
-        status: "approved",
-      },
-      { onConflict: "user_id,batch_id" },
-    );
-
-    return { ok: true };
-  });
-
-export const previewRosterStudent = createServerFn({ method: "POST" })
-  .validator((input: unknown) =>
-    z
-      .object({
-        regNo: z.string().trim(),
-        dob: z.string().trim(),
-      })
-      .parse(input),
-  )
-  .handler(async ({ data }) => {
-    const { findStudentInRoster, toTitleCase, INSTITUTION_INFO } = await import("./roster.data");
-    const cleanReg = data.regNo.replace(/\D/g, "");
-    if (cleanReg.length !== 12) {
-      return { found: false as const };
-    }
-    const student = findStudentInRoster(cleanReg, data.dob);
-    if (!student) {
-      return { found: false as const };
-    }
-    return {
-      found: true as const,
-      name: toTitleCase(student.name),
-      rollNo: student.rollNo,
-      maheId: student.maheId,
-      university: INSTITUTION_INFO.university,
-      college: INSTITUTION_INFO.college,
-      course: INSTITUTION_INFO.course,
-      batchName: INSTITUTION_INFO.defaultBatch,
-    };
-  });
+const learnerEmail = z
+  .string()
+  .trim()
+  .toLowerCase()
+  .email()
+  .refine(
+    (email) => email.endsWith("@learner.manipal.edu"),
+    "Use your learner.manipal.edu address.",
+  );
 
 export const registerWithRoster = createServerFn({ method: "POST" })
   .validator((input: unknown) =>
     z
       .object({
-        email: z
-          .string()
-          .trim()
-          .toLowerCase()
-          .refine(
-            (val) => val.endsWith(`@${ALLOWED_DOMAIN}`),
-            `Sign-ups are limited to @${ALLOWED_DOMAIN} email addresses.`,
-          ),
-        password: z.string().min(6, "Password must be at least 6 characters"),
-        regNo: z
-          .string()
-          .trim()
-          .refine((val) => val.replace(/\D/g, "").length === 12, {
-            message: "Please enter your complete 12-digit MAHE Roll No. (e.g. 261612340020)",
-          }),
-        dob: z.string().trim().min(4, "Please enter your date of birth"),
+        email: learnerEmail,
+        password: z.string().min(8),
+        regNo: z.string().regex(/^\d{12}$/),
+        dob: z.string().min(8),
       })
       .parse(input),
   )
   .handler(async ({ data }) => {
-    const { findStudentInRoster, toTitleCase, INSTITUTION_INFO, getBatchInfo } = await import("./roster.data");
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-
-    const cleanEmail = data.email.trim().toLowerCase();
-    const cleanReg = data.regNo.replace(/\D/g, "");
-    const student = findStudentInRoster(cleanReg, data.dob);
-    if (!student) {
+    const { limitAuthAttempt } = await import("./auth-limits.server");
+    await limitAuthAttempt("register", data.regNo);
+    const { findStudentInRoster } = await import("./roster.server");
+    const { toTitleCase, getBatchInfo, INSTITUTION_INFO } = await import("./roster.data");
+    const student = findStudentInRoster(data.regNo, data.dob);
+    if (!student)
       throw new Error(
-        "Verification failed. The Date of Birth and MAHE Roll No. do not match official university records. Please double-check both fields.",
+        "MAHE ID and date of birth do not match the available roster. IPM 2/3 registration opens when their rosters are added.",
       );
-    }
-
+    const { data: claimed, error: checkError } = await supabaseAdmin
+      .from("profiles")
+      .select("id")
+      .eq("registration_no", student.rollNo)
+      .maybeSingle();
+    if (checkError) throw new Error("Unable to check student registration.");
+    if (claimed)
+      throw new Error("This student is already registered. Sign in or use password recovery.");
     const fullName = toTitleCase(student.name);
-    const rollNo = student.rollNo;
-    const batchId = student.batchId;
-    const batchInfo = getBatchInfo(batchId);
-
-    // 1. Prevent duplicate signups: Check if email already exists in profiles
-    const { data: profileByEmail } = await supabaseAdmin
-      .from("profiles")
-      .select("id, email")
-      .eq("email", cleanEmail)
-      .maybeSingle();
-
-    if (profileByEmail) {
-      throw new Error(
-        "An account with this email address already exists. Please switch to 'Sign In' and enter your password.",
-      );
-    }
-
-    // 2. Prevent duplicate signups: Check if email already exists in auth
-    const { data: usersData } = await supabaseAdmin.auth.admin.listUsers({ page: 1, perPage: 1000 });
-    const existingAuthUser = usersData?.users?.find(
-      (u) => u.email?.toLowerCase() === cleanEmail,
-    );
-    if (existingAuthUser) {
-      throw new Error(
-        "An account with this email address already exists. Please switch to 'Sign In' and enter your password.",
-      );
-    }
-
-    // 3. Prevent duplicate identity hijacking: Check if student roll number is already registered by another profile
-    const { data: profileByRoll } = await supabaseAdmin
-      .from("profiles")
-      .select("id, email")
-      .eq("registration_no", rollNo)
-      .maybeSingle();
-
-    if (profileByRoll && profileByRoll.email?.toLowerCase() !== cleanEmail) {
-      throw new Error(
-        `Student roll number (${rollNo}) has already been registered with another email account. Please sign in with your registered email or contact an administrator.`,
-      );
-    }
-
-    // 4. Secure account creation (Never overwrite existing user's password)
-    const { data: created, error: createErr } = await supabaseAdmin.auth.admin.createUser({
-      email: cleanEmail,
+    // The database trigger creates identity, role and membership in the auth transaction.
+    const { data: created, error } = await supabaseAdmin.auth.admin.createUser({
+      email: data.email,
       password: data.password,
       email_confirm: true,
+      app_metadata: { zenith_roster_verified: true },
       user_metadata: {
         full_name: fullName,
-        roll_no: rollNo,
-        batch_id: batchId,
+        roll_no: student.rollNo,
+        mahe_id: student.maheId,
+        batch_id: student.batchId,
       },
     });
-    if (createErr) {
-      throw new Error(createErr.message);
-    }
-    const userId = created.user.id;
-
-    // Upsert profile with full name, email, and verified roll number
-    const { error: profileErr } = await supabaseAdmin.from("profiles").upsert(
-      {
-        id: userId,
-        full_name: fullName,
-        email: cleanEmail,
-        registration_no: rollNo,
-      },
-      { onConflict: "id" },
-    );
-    if (profileErr) {
-      console.warn("Profile upsert warning:", profileErr.message);
-    }
-
-    // Upsert approved batch membership
-    const { error: batchErr } = await supabaseAdmin.from("batch_memberships").upsert(
-      {
-        user_id: userId,
-        batch_id: batchId,
-        role: "student",
-        status: "approved",
-      },
-      { onConflict: "user_id,batch_id" },
-    );
-    if (batchErr) {
-      console.warn("Batch membership upsert warning:", batchErr.message);
-    }
-
+    if (error) throw new Error(error.message);
+    if (!created.user) throw new Error("Account could not be created.");
     return {
       ok: true,
       fullName,
-      rollNo,
+      rollNo: student.rollNo,
       maheId: student.maheId,
-      batchName: batchInfo.batchName,
+      batchName: getBatchInfo(student.batchId).batchName,
+      email: data.email,
       university: INSTITUTION_INFO.university,
       college: INSTITUTION_INFO.college,
       course: INSTITUTION_INFO.course,
-      email: cleanEmail,
     };
+  });
+
+export const resolveLoginIdentifier = createServerFn({ method: "POST" })
+  .validator((input: unknown) =>
+    z.object({ identifier: z.string().trim().min(1).max(100) }).parse(input),
+  )
+  .handler(async ({ data }) => {
+    const { limitAuthAttempt } = await import("./auth-limits.server");
+    await limitAuthAttempt("login-lookup", data.identifier);
+    const raw = data.identifier.toLowerCase();
+    if (raw.includes("@")) return { email: learnerEmail.parse(raw) };
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { findStudentInRosterByRoll } = await import("./roster.server");
+    const roll = findStudentInRosterByRoll(raw)?.rollNo ?? raw.toUpperCase();
+    const { data: profile, error } = await supabaseAdmin
+      .from("profiles")
+      .select("email")
+      .eq("registration_no", roll)
+      .maybeSingle();
+    if (error) throw new Error("Sign-in lookup is temporarily unavailable.");
+    return { email: profile?.email ?? `${raw}@learner.manipal.edu` };
+  });
+
+export const requestPasswordReset = createServerFn({ method: "POST" })
+  .validator((input: unknown) => z.object({ email: learnerEmail }).parse(input))
+  .handler(async ({ data }) => {
+    const { limitAuthAttempt } = await import("./auth-limits.server");
+    await limitAuthAttempt("recovery", data.email);
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data: profile, error } = await supabaseAdmin
+      .from("profiles")
+      .select("full_name")
+      .eq("email", data.email)
+      .maybeSingle();
+    if (error) throw new Error("Recovery is temporarily unavailable.");
+    if (!profile) return { ok: true };
+    const { data: link, error: linkError } = await supabaseAdmin.auth.admin.generateLink({
+      type: "recovery",
+      email: data.email,
+    });
+    if (linkError || !link.properties?.email_otp)
+      throw new Error("Recovery is temporarily unavailable.");
+    const { sendOtpEmail } = await import("./mailer.server");
+    await sendOtpEmail({
+      to: data.email,
+      otp: link.properties.email_otp,
+      fullName: profile.full_name || "Student",
+      purpose: "reset",
+    });
+    return { ok: true };
   });
 
 export const adminResetUserPassword = createServerFn({ method: "POST" })
@@ -511,318 +126,69 @@ export const adminResetUserPassword = createServerFn({ method: "POST" })
   .validator((input: unknown) =>
     z
       .object({
-        targetUserId: z.string().uuid("Invalid target user ID").optional(),
-        targetEmail: z.string().trim().toLowerCase().optional(),
-        targetRollNo: z.string().trim().optional(),
-        newPassword: z.string().min(6, "Password must be at least 6 characters"),
+        targetUserId: z.string().uuid().optional(),
+        targetEmail: learnerEmail.optional(),
+        targetRollNo: z.string().trim().max(30).optional(),
+        newPassword: z.string().min(8),
       })
       .refine(
-        (data) => !!data.targetUserId || !!data.targetEmail || !!data.targetRollNo,
-        {
-          message: "Please provide a target student ID, email address, or roll number.",
-        },
+        (value) => value.targetUserId || value.targetEmail || value.targetRollNo,
+        "Choose a student.",
       )
       .parse(input),
   )
   .handler(async ({ data, context }) => {
+    const { requireGlobalAdmin } = await import("./admin-auth.server");
+    await requireGlobalAdmin(context.userId);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-
-    // 1. Enforce caller authorization: must be admin or Arush
-    const callerId = context.userId;
-    const callerEmail = (context.claims.email as string | undefined)?.toLowerCase() ?? "";
-
-    // Check user_roles table for 'admin'
-    const { data: roleRow } = await supabaseAdmin
-      .from("user_roles")
-      .select("role")
-      .eq("user_id", callerId)
-      .eq("role", "admin")
-      .maybeSingle();
-
-    // Check batch_memberships for 'admin' role
-    const { data: adminMembership } = await supabaseAdmin
-      .from("batch_memberships")
-      .select("role")
-      .eq("user_id", callerId)
-      .eq("role", "admin")
-      .maybeSingle();
-
-    // Check caller profile
-    const { data: callerProfile } = await supabaseAdmin
-      .from("profiles")
-      .select("email, full_name, registration_no")
-      .eq("id", callerId)
-      .maybeSingle();
-
-    const profileEmail = (callerProfile?.email || "").toLowerCase();
-    const profileReg = (callerProfile?.registration_no || "").toUpperCase();
-    const profileName = (callerProfile?.full_name || "").toUpperCase();
-
-    // Arush Vipul Gaur override
-    const isArush =
-      callerEmail.includes("arush") ||
-      profileEmail.includes("arush") ||
-      profileName.includes("ARUSH") ||
-      profileReg === "26U17";
-
-    const isAuthorizedAdmin = !!roleRow || !!adminMembership || isArush;
-
-    if (!isAuthorizedAdmin) {
-      throw new Error("Forbidden: Only administrators can change student passwords.");
+    let targetId = data.targetUserId;
+    if (!targetId) {
+      const query = supabaseAdmin.from("profiles").select("id");
+      const { data: profile, error } = await (
+        data.targetEmail
+          ? query.eq("email", data.targetEmail)
+          : query.eq("registration_no", data.targetRollNo!.toUpperCase())
+      ).maybeSingle();
+      if (error) throw error;
+      targetId = profile?.id;
     }
-
-    // 2. Resolve target user ID
-    let finalTargetUserId = data.targetUserId;
-    let targetIdentifier = data.targetEmail || data.targetRollNo || data.targetUserId;
-
-    if (!finalTargetUserId && data.targetEmail) {
-      const cleanEmail = data.targetEmail.trim().toLowerCase();
-      const { data: prof } = await supabaseAdmin
-        .from("profiles")
-        .select("id, email")
-        .eq("email", cleanEmail)
-        .maybeSingle();
-
-      if (prof?.id) {
-        finalTargetUserId = prof.id;
-        targetIdentifier = prof.email || cleanEmail;
-      } else {
-        const { data: usersData } = await supabaseAdmin.auth.admin.listUsers({ page: 1, perPage: 1000 });
-        const found = usersData?.users?.find((u) => u.email?.toLowerCase() === cleanEmail);
-        if (found?.id) {
-          finalTargetUserId = found.id;
-          targetIdentifier = found.email || cleanEmail;
-        }
-      }
-    }
-
-    if (!finalTargetUserId && data.targetRollNo) {
-      const cleanRoll = data.targetRollNo.trim().toUpperCase();
-      const { data: prof } = await supabaseAdmin
-        .from("profiles")
-        .select("id, email, registration_no")
-        .eq("registration_no", cleanRoll)
-        .maybeSingle();
-
-      if (prof?.id) {
-        finalTargetUserId = prof.id;
-        targetIdentifier = prof.email || prof.registration_no || cleanRoll;
-      }
-    }
-
-    if (!finalTargetUserId) {
-      throw new Error("No student account found matching the provided identifier.");
-    }
-
-    // 3. Update password via Supabase Auth Admin
-    const { data: updateData, error: updateError } = await supabaseAdmin.auth.admin.updateUserById(
-      finalTargetUserId,
-      { password: data.newPassword },
-    );
-
-    if (updateError) {
-      throw new Error(updateError.message || "Failed to update user password.");
-    }
-
-    const finalEmail = updateData?.user?.email || targetIdentifier || "student";
-
-    // 4. Log the action for audit trail in user_activity_logs
-    try {
-      await supabaseAdmin.from("user_activity_logs" as any).insert({
-        user_id: callerId,
-        user_name: callerProfile?.full_name || "Admin",
-        user_email: callerEmail || profileEmail,
-        user_roll: profileReg,
-        action: "admin_password_change",
-        title: `Changed password for ${finalEmail}`,
-        details: {
-          targetUserId: finalTargetUserId,
-          targetEmail: finalEmail,
-          updatedAt: new Date().toISOString(),
-          changedBy: callerEmail || profileEmail,
-        },
-      });
-    } catch {
-      // Non-blocking telemetry
-    }
-
-    return {
-      ok: true,
-      userId: finalTargetUserId,
-      email: finalEmail,
-      message: `Password successfully updated for ${finalEmail}.`,
-    };
+    if (!targetId) throw new Error("Student account not found.");
+    const { data: updated, error } = await supabaseAdmin.auth.admin.updateUserById(targetId, {
+      password: data.newPassword,
+    });
+    if (error) throw error;
+    return { ok: true, userId: targetId, email: updated.user.email, message: "Password updated." };
   });
 
-/**
- * Admin server function to inspect users who have never logged in.
- */
 export const getNeverLoggedInUsersCount = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
-    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-
-    // 1. Authorize caller
-    const callerId = context.userId;
-    const callerEmail = (context.claims.email as string | undefined)?.toLowerCase() ?? "";
-
-    const { data: roleRow } = await supabaseAdmin
-      .from("user_roles" as any)
-      .select("role")
-      .eq("user_id", callerId)
-      .eq("role", "admin")
-      .maybeSingle();
-
-    const { data: adminMembership } = await supabaseAdmin
-      .from("batch_memberships")
-      .select("role")
-      .eq("user_id", callerId)
-      .eq("role", "admin")
-      .maybeSingle();
-
-    const { data: callerProfile } = await supabaseAdmin
-      .from("profiles")
-      .select("email, full_name, registration_no")
-      .eq("id", callerId)
-      .maybeSingle();
-
-    const profileEmail = (callerProfile?.email || "").toLowerCase();
-    const profileReg = (callerProfile?.registration_no || "").toUpperCase();
-    const profileName = (callerProfile?.full_name || "").toUpperCase();
-
-    const isArush =
-      callerEmail.includes("arush") ||
-      profileEmail.includes("arush") ||
-      profileName.includes("ARUSH") ||
-      profileReg === "26U17";
-
-    if (!roleRow && !adminMembership && !isArush) {
-      throw new Error("Forbidden: Only administrators can view inactive accounts.");
-    }
-
-    // 2. Fetch users from auth.admin
-    const { data, error } = await supabaseAdmin.auth.admin.listUsers({ page: 1, perPage: 1000 });
-    if (error) throw new Error(error.message || "Failed to list users");
-
-    const neverLoggedIn = (data?.users || []).filter((u) => !u.last_sign_in_at);
+    const { requireGlobalAdmin, listAllAuthUsers } = await import("./admin-auth.server");
+    await requireGlobalAdmin(context.userId);
+    const users = await listAllAuthUsers();
+    const inactive = users.filter((user) => !user.last_sign_in_at);
     return {
-      totalUsers: data?.users?.length || 0,
-      neverLoggedInCount: neverLoggedIn.length,
-      users: neverLoggedIn.map((u) => ({
-        id: u.id,
-        email: u.email || "",
-        createdAt: u.created_at,
-        confirmed: !!u.email_confirmed_at,
+      totalUsers: users.length,
+      neverLoggedInCount: inactive.length,
+      users: inactive.map((user) => ({
+        id: user.id,
+        email: user.email || "",
+        createdAt: user.created_at,
+        confirmed: !!user.email_confirmed_at,
       })),
     };
   });
 
-/**
- * Admin server function to safely purge users who have never logged in.
- */
 export const purgeNeverLoggedInUsers = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .handler(async ({ context }) => {
-    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-
-    // 1. Authorize caller
-    const callerId = context.userId;
-    const callerEmail = (context.claims.email as string | undefined)?.toLowerCase() ?? "";
-
-    const { data: roleRow } = await supabaseAdmin
-      .from("user_roles" as any)
-      .select("role")
-      .eq("user_id", callerId)
-      .eq("role", "admin")
-      .maybeSingle();
-
-    const { data: adminMembership } = await supabaseAdmin
-      .from("batch_memberships")
-      .select("role")
-      .eq("user_id", callerId)
-      .eq("role", "admin")
-      .maybeSingle();
-
-    const { data: callerProfile } = await supabaseAdmin
-      .from("profiles")
-      .select("email, full_name, registration_no")
-      .eq("id", callerId)
-      .maybeSingle();
-
-    const profileEmail = (callerProfile?.email || "").toLowerCase();
-    const profileReg = (callerProfile?.registration_no || "").toUpperCase();
-    const profileName = (callerProfile?.full_name || "").toUpperCase();
-
-    const isArush =
-      callerEmail.includes("arush") ||
-      profileEmail.includes("arush") ||
-      profileName.includes("ARUSH") ||
-      profileReg === "26U17";
-
-    if (!roleRow && !adminMembership && !isArush) {
-      throw new Error("Forbidden: Only administrators can purge inactive accounts.");
-    }
-
-    // 2. Fetch all users from auth.admin
-    const { data, error } = await supabaseAdmin.auth.admin.listUsers({ page: 1, perPage: 1000 });
-    if (error) throw new Error(error.message || "Failed to list users");
-
-    const candidates = (data?.users || []).filter((u) => {
-      // Must have NEVER logged in
-      if (u.last_sign_in_at) return false;
-      // Protect administrator and Arush accounts under all circumstances
-      const em = (u.email || "").toLowerCase();
-      if (em === "arush.tapmimpl2026@learner.manipal.edu" || em.includes("admin@")) return false;
-      if (u.id === callerId) return false;
-      return true;
-    });
-
-    const candidateIds = candidates.map((u) => u.id);
-    const purgedEmails: string[] = [];
-
-    if (candidateIds.length > 0) {
-      // 3. Remove dependent records from batch_memberships & profiles
-      await supabaseAdmin.from("batch_memberships").delete().in("user_id", candidateIds);
-      await supabaseAdmin.from("profiles").delete().in("id", candidateIds);
-
-      // 4. Delete each user from Supabase Auth
-      for (const u of candidates) {
-        try {
-          const { error: delErr } = await supabaseAdmin.auth.admin.deleteUser(u.id);
-          if (!delErr) {
-            purgedEmails.push(u.email || u.id);
-          }
-        } catch {
-          // Continue with next
-        }
-      }
-
-      // 5. Log audit trail
-      try {
-        await supabaseAdmin.from("user_activity_logs" as any).insert({
-          user_id: callerId,
-          user_name: callerProfile?.full_name || "Admin",
-          user_email: callerEmail || profileEmail,
-          user_roll: profileReg,
-          action: "admin_purge_inactive_users",
-          title: `Purged ${purgedEmails.length} users who never logged in`,
-          details: {
-            purgedCount: purgedEmails.length,
-            purgedEmails,
-            executedBy: callerEmail || profileEmail,
-            timestamp: new Date().toISOString(),
-          },
-        });
-      } catch {
-        // Non-blocking telemetry
-      }
-    }
-
-    return {
-      ok: true,
-      purgedCount: purgedEmails.length,
-      purgedEmails,
-      message: `Successfully purged ${purgedEmails.length} inactive user accounts.`,
-    };
-  });
-
+  .handler(
+    async ({
+      context,
+    }): Promise<{ ok: boolean; purgedCount: number; purgedEmails: string[]; message: string }> => {
+      const { requireGlobalAdmin } = await import("./admin-auth.server");
+      await requireGlobalAdmin(context.userId);
+      throw new Error(
+        "Automatic account deletion is disabled. Review inactive accounts individually.",
+      );
+    },
+  );

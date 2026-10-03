@@ -30,7 +30,10 @@ export function Landing({ onPreview }: LandingProps = {}) {
   return (
     <div className="relative min-h-screen overflow-x-hidden bg-ground font-body text-ink selection:bg-cyan/30 selection:text-white pb-24 sm:pb-12">
       {/* Dynamic Aurora Ambient Background (Hardware Accelerated, 0 Main-Thread JS) */}
-      <div className="pointer-events-none fixed inset-0 z-0 overflow-hidden transform-gpu" aria-hidden="true">
+      <div
+        className="pointer-events-none fixed inset-0 z-0 overflow-hidden transform-gpu"
+        aria-hidden="true"
+      >
         <div className="aurora-a absolute -left-20 -top-32 h-[520px] w-[520px] sm:w-[680px] rounded-full bg-cyan/20 blur-[130px]" />
         <div className="aurora-b absolute -right-24 top-[240px] h-[480px] w-[480px] sm:w-[620px] rounded-full bg-violet-600/15 blur-[140px]" />
         <div className="absolute inset-0 bg-[radial-gradient(ellipse_80%_80%_at_50%_-20%,rgba(120,119,198,0.1),rgba(255,255,255,0))]" />
@@ -118,7 +121,8 @@ export function Landing({ onPreview }: LandingProps = {}) {
 
               {/* Subtitle */}
               <p className="mt-5 max-w-xl text-base sm:text-lg leading-relaxed text-dim text-balance">
-                The private dashboard for your batch. Quizzes, assignments, exams, live timetable, and your attendance percentages — maintained live by your class representatives.
+                The private dashboard for your batch. Quizzes, assignments, exams, live timetable,
+                and your attendance percentages — maintained live by your class representatives.
               </p>
 
               {/* HERO DUAL CALL-TO-ACTION (Sign Up & Log In) */}
@@ -281,7 +285,8 @@ export function Landing({ onPreview }: LandingProps = {}) {
               Built specifically for how TAPMI runs.
             </h2>
             <p className="mt-2 text-sm text-dim">
-              No WhatsApp chaos, no missed email chains. Everything synchronized directly to your batch.
+              No WhatsApp chaos, no missed email chains. Everything synchronized directly to your
+              batch.
             </p>
           </div>
 
@@ -300,7 +305,7 @@ export function Landing({ onPreview }: LandingProps = {}) {
               {
                 icon: UserCheck,
                 title: "Smart Attendance",
-                desc: "Never risk falling below 75%. Know your exact allowed absentee buffer per course.",
+                desc: "Track classes missed and the allowance for your course credits. IPM 1 rules come from the handbook.",
               },
               {
                 icon: ShieldCheck,
@@ -338,7 +343,8 @@ export function Landing({ onPreview }: LandingProps = {}) {
                 Strict 4-level institutional hierarchy.
               </h2>
               <p className="mt-2 text-sm text-dim">
-                Sign up with your official ID, choose your batch, and your board is instantly customized to your classes.
+                Sign up with your official ID, choose your batch, and your board is instantly
+                customized to your classes.
               </p>
             </div>
 
@@ -370,7 +376,8 @@ export function Landing({ onPreview }: LandingProps = {}) {
               Ready to take control of your semester?
             </h2>
             <p className="mt-3 text-sm sm:text-base text-dim">
-              Join your fellow TAPMI batchmates. Sign up in under 60 seconds with your learner email.
+              Join your fellow TAPMI batchmates. Sign up in under 60 seconds with your learner
+              email.
             </p>
 
             <div className="mt-8 flex flex-col sm:flex-row items-center justify-center gap-3">

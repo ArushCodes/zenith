@@ -3,13 +3,7 @@
 /** Error whose message is safe to show to end users. */
 export class FeedError extends Error {}
 
-const BLOCKED_HOST_SUFFIXES = [
-  "localhost",
-  ".localhost",
-  ".local",
-  ".internal",
-  ".home.arpa",
-];
+const BLOCKED_HOST_SUFFIXES = ["localhost", ".localhost", ".local", ".internal", ".home.arpa"];
 
 const BLOCKED_HOSTNAMES = new Set([
   "localhost",
@@ -18,7 +12,7 @@ const BLOCKED_HOSTNAMES = new Set([
   "instance-data",
 ]);
 
-function isPrivateIpv4(host: string): boolean {
+export function isPrivateIpv4(host: string): boolean {
   const m = host.match(/^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/);
   if (!m) return false;
   const [a, b] = [Number(m[1]), Number(m[2])];
@@ -75,19 +69,6 @@ export function assertSafeFeedUrl(raw: string): URL {
 
 /** Fetch a feed with manual redirect handling, re-validating every hop. */
 export async function fetchPublicFeed(raw: string, maxRedirects = 3): Promise<Response> {
-  let target = assertSafeFeedUrl(raw).toString();
-  for (let i = 0; i <= maxRedirects; i++) {
-    const res = await fetch(target, {
-      redirect: "manual",
-      headers: { Accept: "text/calendar, text/plain, */*" },
-    });
-    if (res.status >= 300 && res.status < 400) {
-      const loc = res.headers.get("location");
-      if (!loc) throw new FeedError("Calendar link redirected to an invalid location");
-      target = assertSafeFeedUrl(new URL(loc, target).toString()).toString();
-      continue;
-    }
-    return res;
-  }
-  throw new FeedError("Calendar link redirected too many times");
+  const { fetchPinnedFeed } = await import("./feed-fetch.server");
+  return fetchPinnedFeed(raw, maxRedirects);
 }

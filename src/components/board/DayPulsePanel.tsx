@@ -46,7 +46,6 @@ const dayFmt = new Intl.DateTimeFormat("en-GB", {
   month: "short",
 });
 
-
 function pctOf(s: ClassSession, now: number) {
   const a = new Date(s.start_at).getTime();
   const b = new Date(s.end_at).getTime();
@@ -63,7 +62,7 @@ export function DayPulsePanel({ now, compact = false }: { now: number; compact?:
   const [editingSession, setEditingSession] = useState<ClassSession | null>(null);
   const { data: sessions = [] } = useQuery(sessionsQuery(batchId));
   const { data: courses = [] } = useQuery(coursesQuery(batchId));
-  const { data: marks = [] } = useQuery(attendanceQuery(batchId, isMember));
+  const { data: marks = [] } = useQuery(attendanceQuery(batchId, isMember, user?.id, canManage));
   const colorMap = useMemo(() => buildColorMap(courses, sessions), [courses, sessions]);
 
   /** My own self-marks for today's classes, keyed by session. */
@@ -224,230 +223,237 @@ export function DayPulsePanel({ now, compact = false }: { now: number; compact?:
       </div>
 
       <div className="overflow-hidden">
-      <AnimatePresence mode="wait" initial={false} custom={dir}>
-      <motion.div
-        key={offset}
-        custom={dir}
-        drag="x"
-        dragConstraints={{ left: 0, right: 0 }}
-        dragElastic={0.14}
-        onDragEnd={(_, info) => {
-          if (info.offset.x < -60) go(1);
-          else if (info.offset.x > 60) go(-1);
-        }}
-        initial={{ opacity: 0, x: dir * 40 }}
-        animate={{ opacity: 1, x: 0 }}
-        exit={{ opacity: 0, x: dir * -40 }}
-        transition={{ duration: 0.24, ease: [0.22, 1, 0.36, 1] }}
-        className={`touch-pan-y overflow-hidden rounded-2xl ring-1 ${
-          dayOff ? "bg-amber/8 ring-amber/20" : "bg-surface ring-border"
-        }`}
-      >
-        {classes.length === 0 ? (
-          <p className="py-8 text-center font-mono text-[11px] text-faint">
-            {dayOff
-              ? "Sunday off — no classes."
-              : today.some((s) => s.is_holiday)
-                ? "Holiday — no classes."
-                : "No classes scheduled."}
-          </p>
-
-        ) : (
-          <>
-            {/* ── Header strip: donut + status timer ─────────────────── */}
-            <div className="relative flex items-center gap-5 border-b border-border/60 bg-surface2/40 px-5 py-4">
-              <Donut
-                value={stats.pct}
-                color={donutColor}
-                size={compact ? 92 : 108}
-                label={`${stats.pct}%`}
-                sub="day done"
-              />
-              <div className="min-w-0 flex-1">
-                {offset === 0 ? (
-                  <>
-                    <AnimatePresence mode="wait">
-                      <StatusBlock
-                        key={live ? `live-${live.id}` : nextClass ? `next-${nextClass.id}` : "wrapped"}
-                        live={live ?? null}
-                        next={nextClass}
-                        now={now}
-                        colorMap={colorMap}
-                      />
-                    </AnimatePresence>
-                    <div className="mt-3 flex items-center gap-4 font-mono text-[10px] text-faint">
-                      <span className="flex items-center gap-1.5">
-                        <CheckCircle2 className="size-3 text-evt-present" />
-                        {stats.finished}/{classes.length} done
-                      </span>
-                      <span className="flex items-center gap-1.5">
-                        <Clock3 className="size-3" />
-                        {stats.remainingMin > 0 ? `${formatDuration(stats.remainingMin)} left` : "wrapped"}
-                      </span>
-                    </div>
-                  </>
-                ) : (
-                  <>
-                    <p className="font-display text-base font-semibold leading-snug">
-                      {classes.length} class{classes.length === 1 ? "" : "es"}
-                    </p>
-                    <p className="mt-1 font-mono text-sm text-dim">
-                      {formatDuration(stats.totalMin)} of teaching
-                    </p>
-                  </>
-                )}
-              </div>
-            </div>
-
-            {/* ── Class timeline ─────────────────────────────────────── */}
-            <ol className="relative space-y-0 px-5 py-3">
-
-              {classes.map((s, i) => {
-                const p = pctOf(s, clockAt);
-                const c = sessionColor(s, colorMap) ?? FALLBACK_COURSE_COLOR;
-                const isLive = live?.id === s.id;
-                const isDone = p === 100;
-                const absent = myMarks.get(s.id) === "absent";
-                const meta = sessionMeta(s);
-                const gap = breaks.get(s.id);
-                const gapLive = gap ? clockAt >= gap.start && clockAt < gap.end : false;
-                return (
-                  <Fragment key={s.id}>
-                  {gap && (
-                    <li
-                      key={`break-${s.id}`}
-                      className="relative flex gap-4 pb-3"
-                      aria-label="Break time"
-                    >
-                      <span className="absolute left-[7px] top-0 h-full w-px bg-border/70" />
-                      <span className="relative z-10 mt-3 size-[15px] shrink-0 rounded-full bg-surface2 ring-4 ring-surface" />
-                      <div
-                        className={`min-w-0 flex-1 rounded-xl border border-dashed px-3.5 py-2 ${
-                          gapLive ? "border-amber/50 bg-amber/8" : "border-border/70"
-                        }`}
-                      >
-                        <div className="flex items-center justify-between gap-3">
-                          <p
-                            className={`font-mono text-[10px] uppercase tracking-[0.2em] ${
-                              gapLive ? "text-amber" : "text-faint"
-                            }`}
-                          >
-                            {formatBreak(gap.minutes)}
-                          </p>
-                          <span className="font-mono text-xs tabular-nums text-faint">
-                            {clock.format(new Date(gap.start))}–{clock.format(new Date(gap.end))}
+        <AnimatePresence mode="wait" initial={false} custom={dir}>
+          <motion.div
+            key={offset}
+            custom={dir}
+            drag="x"
+            dragConstraints={{ left: 0, right: 0 }}
+            dragElastic={0.14}
+            onDragEnd={(_, info) => {
+              if (info.offset.x < -60) go(1);
+              else if (info.offset.x > 60) go(-1);
+            }}
+            initial={{ opacity: 0, x: dir * 40 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: dir * -40 }}
+            transition={{ duration: 0.24, ease: [0.22, 1, 0.36, 1] }}
+            className={`touch-pan-y overflow-hidden rounded-2xl ring-1 ${
+              dayOff ? "bg-amber/8 ring-amber/20" : "bg-surface ring-border"
+            }`}
+          >
+            {classes.length === 0 ? (
+              <p className="py-8 text-center font-mono text-[11px] text-faint">
+                {dayOff
+                  ? "Sunday off — no classes."
+                  : today.some((s) => s.is_holiday)
+                    ? "Holiday — no classes."
+                    : "No classes scheduled."}
+              </p>
+            ) : (
+              <>
+                {/* ── Header strip: donut + status timer ─────────────────── */}
+                <div className="relative flex items-center gap-5 border-b border-border/60 bg-surface2/40 px-5 py-4">
+                  <Donut
+                    value={stats.pct}
+                    color={donutColor}
+                    size={compact ? 92 : 108}
+                    label={`${stats.pct}%`}
+                    sub="day done"
+                  />
+                  <div className="min-w-0 flex-1">
+                    {offset === 0 ? (
+                      <>
+                        <AnimatePresence mode="wait">
+                          <StatusBlock
+                            key={
+                              live
+                                ? `live-${live.id}`
+                                : nextClass
+                                  ? `next-${nextClass.id}`
+                                  : "wrapped"
+                            }
+                            live={live ?? null}
+                            next={nextClass}
+                            now={now}
+                            colorMap={colorMap}
+                          />
+                        </AnimatePresence>
+                        <div className="mt-3 flex items-center gap-4 font-mono text-[10px] text-faint">
+                          <span className="flex items-center gap-1.5">
+                            <CheckCircle2 className="size-3 text-evt-present" />
+                            {stats.finished}/{classes.length} done
+                          </span>
+                          <span className="flex items-center gap-1.5">
+                            <Clock3 className="size-3" />
+                            {stats.remainingMin > 0
+                              ? `${formatDuration(stats.remainingMin)} left`
+                              : "wrapped"}
                           </span>
                         </div>
-                      </div>
-                    </li>
-                  )}
-                  <motion.li
-                    key={s.id}
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: Math.min(i * 0.06, 0.3) }}
-                    className="relative flex gap-4 pb-3 last:pb-0"
-                  >
-                    {/* timeline spine */}
-                    {i < classes.length - 1 && (
-                      <span className="absolute left-[7px] top-7 h-full w-px bg-border/70" />
-                    )}
-                    <span
-                      className={`relative z-10 mt-3 size-[15px] shrink-0 rounded-full ring-4 ring-surface ${
-                        isLive ? "pulse-dot" : ""
-                      }`}
-                      style={{
-                        backgroundColor: c,
-                        opacity: isDone ? 0.45 : 1,
-                      }}
-                    />
-
-                    <div
-                      className={`min-w-0 flex-1 rounded-xl px-3.5 py-3 ring-1 transition-colors ${
-                        isLive ? "bg-surface2 ring-cyan/40" : "ring-border/70"
-                      } ${isDone && !isLive ? "opacity-70" : ""}`}
-                    >
-                      {/* row 1: name + time + absent */}
-                      <div className="flex flex-col gap-1 sm:flex-row sm:items-start sm:justify-between sm:gap-3">
-                        <p className="min-w-0 font-display text-[13.5px] font-semibold leading-snug">
-                          {sessionFullName(s)}
+                      </>
+                    ) : (
+                      <>
+                        <p className="font-display text-base font-semibold leading-snug">
+                          {classes.length} class{classes.length === 1 ? "" : "es"}
                         </p>
-                        <div className="flex shrink-0 items-center gap-2">
+                        <p className="mt-1 font-mono text-sm text-dim">
+                          {formatDuration(stats.totalMin)} of teaching
+                        </p>
+                      </>
+                    )}
+                  </div>
+                </div>
 
-                          <span className="text-right font-mono text-xs tabular-nums text-faint">
-                            {clock.format(new Date(s.start_at))}–{clock.format(new Date(s.end_at))}
-                          </span>
-                          {canManage && (
-                            <motion.button
-                              whileTap={{ scale: 0.94 }}
-                              onClick={() => setEditingSession(s)}
-                              title="Edit class"
-                              className="flex size-6 items-center justify-center rounded-lg ring-1 ring-amber/30 text-amber hover:bg-amber/15 transition-colors"
-                            >
-                              <Pencil className="size-3" />
-                            </motion.button>
-                          )}
-                          {isMember && user && (
-                            <motion.button
-                              whileTap={{ scale: 0.94 }}
-                              onClick={() => toggleAbsent.mutate(s)}
-                              title={absent ? "Clear absence" : "Mark absent"}
-                              className={`flex size-6 items-center justify-center rounded-lg ring-1 transition-colors ${
-                                absent
-                                  ? "bg-evt-exam/20 text-evt-exam ring-evt-exam/40"
-                                  : "text-dim ring-border hover:text-ink"
+                {/* ── Class timeline ─────────────────────────────────────── */}
+                <ol className="relative space-y-0 px-5 py-3">
+                  {classes.map((s, i) => {
+                    const p = pctOf(s, clockAt);
+                    const c = sessionColor(s, colorMap) ?? FALLBACK_COURSE_COLOR;
+                    const isLive = live?.id === s.id;
+                    const isDone = p === 100;
+                    const absent = myMarks.get(s.id) === "absent";
+                    const meta = sessionMeta(s);
+                    const gap = breaks.get(s.id);
+                    const gapLive = gap ? clockAt >= gap.start && clockAt < gap.end : false;
+                    return (
+                      <Fragment key={s.id}>
+                        {gap && (
+                          <li
+                            key={`break-${s.id}`}
+                            className="relative flex gap-4 pb-3"
+                            aria-label="Break time"
+                          >
+                            <span className="absolute left-[7px] top-0 h-full w-px bg-border/70" />
+                            <span className="relative z-10 mt-3 size-[15px] shrink-0 rounded-full bg-surface2 ring-4 ring-surface" />
+                            <div
+                              className={`min-w-0 flex-1 rounded-xl border border-dashed px-3.5 py-2 ${
+                                gapLive ? "border-amber/50 bg-amber/8" : "border-border/70"
                               }`}
                             >
-                              <CircleSlash className="size-3" />
-                            </motion.button>
+                              <div className="flex items-center justify-between gap-3">
+                                <p
+                                  className={`font-mono text-[10px] uppercase tracking-[0.2em] ${
+                                    gapLive ? "text-amber" : "text-faint"
+                                  }`}
+                                >
+                                  {formatBreak(gap.minutes)}
+                                </p>
+                                <span className="font-mono text-xs tabular-nums text-faint">
+                                  {clock.format(new Date(gap.start))}–
+                                  {clock.format(new Date(gap.end))}
+                                </span>
+                              </div>
+                            </div>
+                          </li>
+                        )}
+                        <motion.li
+                          key={s.id}
+                          initial={{ opacity: 0, y: 10 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          transition={{ delay: Math.min(i * 0.06, 0.3) }}
+                          className="relative flex gap-4 pb-3 last:pb-0"
+                        >
+                          {/* timeline spine */}
+                          {i < classes.length - 1 && (
+                            <span className="absolute left-[7px] top-7 h-full w-px bg-border/70" />
                           )}
-                        </div>
-                      </div>
-
-                      {/* row 2: meta chips */}
-                      {meta.length > 0 && (
-                        <div className="mt-2 flex flex-wrap items-center gap-1">
-                          {meta.map((m) => (
-                            <span
-                              key={m}
-                              className="rounded-md px-1.5 py-0.5 font-mono text-[9px] uppercase tracking-wide"
-                              style={{
-                                color: c,
-                                backgroundColor: `color-mix(in oklab, ${c} 14%, transparent)`,
-                                boxShadow: `inset 0 0 0 1px color-mix(in oklab, ${c} 28%, transparent)`,
-                              }}
-                            >
-                              {m}
-                            </span>
-                          ))}
-                        </div>
-                      )}
-
-                      {/* row 3: progress bar */}
-                      <div className="mt-2.5 flex items-center gap-2">
-                        <div className="h-1 flex-1 overflow-hidden rounded-full bg-surface2">
-                          <motion.div
-                            initial={{ width: 0 }}
-                            animate={{ width: `${p}%` }}
-                            transition={{ type: "spring", stiffness: 90, damping: 20 }}
-                            className="h-full rounded-full"
-                            style={{ backgroundColor: isDone ? "var(--evt-present)" : c }}
+                          <span
+                            className={`relative z-10 mt-3 size-[15px] shrink-0 rounded-full ring-4 ring-surface ${
+                              isLive ? "pulse-dot" : ""
+                            }`}
+                            style={{
+                              backgroundColor: c,
+                              opacity: isDone ? 0.45 : 1,
+                            }}
                           />
-                        </div>
-                        <span className="w-8 text-right font-mono text-[9px] tabular-nums text-faint">
-                          {p}%
-                        </span>
-                      </div>
-                    </div>
-                  </motion.li>
-                  </Fragment>
-                );
-              })}
-            </ol>
-          </>
-        )}
-      </motion.div>
-      </AnimatePresence>
+
+                          <div
+                            className={`min-w-0 flex-1 rounded-xl px-3.5 py-3 ring-1 transition-colors ${
+                              isLive ? "bg-surface2 ring-cyan/40" : "ring-border/70"
+                            } ${isDone && !isLive ? "opacity-70" : ""}`}
+                          >
+                            {/* row 1: name + time + absent */}
+                            <div className="flex flex-col gap-1 sm:flex-row sm:items-start sm:justify-between sm:gap-3">
+                              <p className="min-w-0 font-display text-[13.5px] font-semibold leading-snug">
+                                {sessionFullName(s)}
+                              </p>
+                              <div className="flex shrink-0 items-center gap-2">
+                                <span className="text-right font-mono text-xs tabular-nums text-faint">
+                                  {clock.format(new Date(s.start_at))}–
+                                  {clock.format(new Date(s.end_at))}
+                                </span>
+                                {canManage && (
+                                  <motion.button
+                                    whileTap={{ scale: 0.94 }}
+                                    onClick={() => setEditingSession(s)}
+                                    title="Edit class"
+                                    className="flex size-6 items-center justify-center rounded-lg ring-1 ring-amber/30 text-amber hover:bg-amber/15 transition-colors"
+                                  >
+                                    <Pencil className="size-3" />
+                                  </motion.button>
+                                )}
+                                {isMember && user && (
+                                  <motion.button
+                                    whileTap={{ scale: 0.94 }}
+                                    onClick={() => toggleAbsent.mutate(s)}
+                                    title={absent ? "Clear absence" : "Mark absent"}
+                                    className={`flex size-6 items-center justify-center rounded-lg ring-1 transition-colors ${
+                                      absent
+                                        ? "bg-evt-exam/20 text-evt-exam ring-evt-exam/40"
+                                        : "text-dim ring-border hover:text-ink"
+                                    }`}
+                                  >
+                                    <CircleSlash className="size-3" />
+                                  </motion.button>
+                                )}
+                              </div>
+                            </div>
+
+                            {/* row 2: meta chips */}
+                            {meta.length > 0 && (
+                              <div className="mt-2 flex flex-wrap items-center gap-1">
+                                {meta.map((m) => (
+                                  <span
+                                    key={m}
+                                    className="rounded-md px-1.5 py-0.5 font-mono text-[9px] uppercase tracking-wide"
+                                    style={{
+                                      color: c,
+                                      backgroundColor: `color-mix(in oklab, ${c} 14%, transparent)`,
+                                      boxShadow: `inset 0 0 0 1px color-mix(in oklab, ${c} 28%, transparent)`,
+                                    }}
+                                  >
+                                    {m}
+                                  </span>
+                                ))}
+                              </div>
+                            )}
+
+                            {/* row 3: progress bar */}
+                            <div className="mt-2.5 flex items-center gap-2">
+                              <div className="h-1 flex-1 overflow-hidden rounded-full bg-surface2">
+                                <motion.div
+                                  initial={{ width: 0 }}
+                                  animate={{ width: `${p}%` }}
+                                  transition={{ type: "spring", stiffness: 90, damping: 20 }}
+                                  className="h-full rounded-full"
+                                  style={{ backgroundColor: isDone ? "var(--evt-present)" : c }}
+                                />
+                              </div>
+                              <span className="w-8 text-right font-mono text-[9px] tabular-nums text-faint">
+                                {p}%
+                              </span>
+                            </div>
+                          </div>
+                        </motion.li>
+                      </Fragment>
+                    );
+                  })}
+                </ol>
+              </>
+            )}
+          </motion.div>
+        </AnimatePresence>
       </div>
 
       {canManage && (
@@ -481,7 +487,7 @@ function StatusBlock({
   colorMap: Map<string, string>;
 }) {
   const target = live ?? next;
-  const c = target ? sessionColor(target, colorMap) ?? FALLBACK_COURSE_COLOR : "var(--cyan)";
+  const c = target ? (sessionColor(target, colorMap) ?? FALLBACK_COURSE_COLOR) : "var(--cyan)";
 
   return (
     <motion.div
@@ -492,7 +498,11 @@ function StatusBlock({
       transition={{ type: "spring", stiffness: 160, damping: 20 }}
       className="min-w-0"
     >
-      {target ? <LiveStatus live={live} target={target} now={now} color={c} /> : <WrappedStatus color={c} />}
+      {target ? (
+        <LiveStatus live={live} target={target} now={now} color={c} />
+      ) : (
+        <WrappedStatus color={c} />
+      )}
       <AccentStrip color={c} />
     </motion.div>
   );

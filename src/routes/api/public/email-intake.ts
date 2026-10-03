@@ -2,12 +2,12 @@ import { createFileRoute } from "@tanstack/react-router";
 import { z } from "zod";
 
 const payloadSchema = z.object({
-  batchSlug: z.string().min(1),
-  messageKey: z.string().min(1),
-  subject: z.string().default(""),
-  sender: z.string().default(""),
-  receivedAt: z.string().optional(),
-  body: z.string().default(""),
+  batchSlug: z.string().min(1).max(100),
+  messageKey: z.string().min(1).max(500),
+  subject: z.string().max(1000).default(""),
+  sender: z.string().max(500).default(""),
+  receivedAt: z.string().datetime({ offset: true }).optional(),
+  body: z.string().max(20000).default(""),
 });
 
 const EXTRACT_SCHEMA = {
@@ -44,7 +44,18 @@ export const Route = createFileRoute("/api/public/email-intake")({
           return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401 });
         }
 
-        const parsed = payloadSchema.safeParse(await request.json());
+        if (Number(request.headers.get("content-length") ?? 0) > 100000)
+          return Response.json({ error: "Payload too large" }, { status: 413 });
+        let payload: unknown;
+        try {
+          const body = await request.text();
+          if (body.length > 100000)
+            return Response.json({ error: "Payload too large" }, { status: 413 });
+          payload = JSON.parse(body);
+        } catch {
+          return Response.json({ error: "Invalid JSON" }, { status: 400 });
+        }
+        const parsed = payloadSchema.safeParse(payload);
         if (!parsed.success) {
           return Response.json({ error: parsed.error.message }, { status: 400 });
         }
@@ -75,11 +86,15 @@ export const Route = createFileRoute("/api/public/email-intake")({
             process.env["AI_GATEWAY_API_KEY"] ??
             process.env["GEMINI_API_KEY"] ??
             process.env["LOVABLE_API_KEY"];
-          if (!apiKey) throw new Error("AI Gateway API key missing (set AI_GATEWAY_API_KEY or GEMINI_API_KEY)");
+          if (!apiKey)
+            throw new Error(
+              "AI Gateway API key missing (set AI_GATEWAY_API_KEY or GEMINI_API_KEY)",
+            );
           const gatewayUrl =
             process.env["AI_GATEWAY_URL"] ?? "https://ai.gateway.lovable.dev/v1/chat/completions";
           const res = await fetch(gatewayUrl, {
             method: "POST",
+            signal: AbortSignal.timeout(20000),
             headers: {
               Authorization: `Bearer ${apiKey}`,
               "Content-Type": "application/json",
@@ -116,10 +131,43 @@ export const Route = createFileRoute("/api/public/email-intake")({
             choices?: { message?: { tool_calls?: { function?: { arguments?: string } }[] } }[];
           };
           const args = json.choices?.[0]?.message?.tool_calls?.[0]?.function?.arguments;
-          extracted = args ? (JSON.parse(args) as Record<string, unknown>) : null;
-          confidence = typeof extracted?.["confidence"] === "number"
-            ? (extracted["confidence"] as number)
-            : null;
+          const candidate = z
+            .object({
+              is_event: z.boolean(),
+              confidence: z.number().min(0).max(1),
+              title: z.string().max(500).optional(),
+              subject: z.string().max(500).optional(),
+              subject_code: z.string().max(100).optional(),
+              type: z
+                .enum([
+                  "quiz",
+                  "assignment",
+                  "presentation",
+                  "midterm",
+                  "endterm",
+                  "guest_lecture",
+                  "other",
+                ])
+                .optional(),
+              due_at: z.string().datetime({ offset: true }).optional(),
+              work_mode: z.enum(["individual", "group"]).optional(),
+              submission_link: z
+                .string()
+                .url()
+                .refine((v) => /^https?:/.test(v))
+                .optional(),
+              location: z.string().max(1000).optional(),
+              notes: z.string().max(10000).optional(),
+            })
+            .refine(
+              (v) => !v.is_event || !!(v.title && v.due_at && v.type),
+              "Events need a title, date and type",
+            );
+          extracted = args ? candidate.parse(JSON.parse(args)) : null;
+          confidence =
+            typeof extracted?.["confidence"] === "number"
+              ? (extracted["confidence"] as number)
+              : null;
         } catch (err) {
           error = err instanceof Error ? err.message : String(err);
         }
@@ -136,6 +184,7 @@ export const Route = createFileRoute("/api/public/email-intake")({
           error,
           status: "pending",
         });
+        if (insertError?.code === "23505") return Response.json({ ok: true, deduped: true });
         if (insertError) return Response.json({ error: insertError.message }, { status: 500 });
 
         return Response.json({ ok: true, extracted: !!extracted, aiError: error });

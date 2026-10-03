@@ -5,8 +5,16 @@ import { Landing } from "@/components/landing/Landing";
 
 // Lazy load the full student dashboard so guests, audits & crawlers get a feather-light landing page bundle
 const StudentBoard = lazy(() => import("@/components/board/StudentBoard"));
+const DemoBoard = lazy(() => import("@/components/board/DemoBoard"));
 
 export const Route = createFileRoute("/")({
+  validateSearch: (search: Record<string, unknown>): { preview?: boolean } => ({
+    preview:
+      search["preview"] === true ||
+      search["preview"] === "true" ||
+      search["preview"] === 1 ||
+      search["preview"] === "1",
+  }),
   head: () => ({
     meta: [
       { title: "Zenith — Deadlines, Timetable & Attendance" },
@@ -43,7 +51,8 @@ export const Route = createFileRoute("/")({
 
 function IndexPage() {
   const { user, loading } = useAuth();
-  const [guestPreview, setGuestPreview] = useState(false);
+  const search = Route.useSearch();
+  const [guestPreview, setGuestPreview] = useState(!!search.preview);
 
   // If loading and we don't have a cached session or guest preview, render Landing immediately.
   // This ensures server-side rendering (SSR) paints the complete Landing page instantaneously,
@@ -67,7 +76,7 @@ function IndexPage() {
         </div>
       }
     >
-      <StudentBoard guestPreview={guestPreview} />
+      {guestPreview ? <DemoBoard /> : <StudentBoard />}
     </Suspense>
   );
 }

@@ -1,1258 +1,389 @@
-import { useEffect, useRef, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
-import { createFileRoute, useNavigate, Link } from "@tanstack/react-router";
+import { useState, type FormEvent, type ReactNode } from "react";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import {
+  ArrowLeft,
+  ArrowUpRight,
+  CheckCircle2,
+  Fingerprint,
+  Loader2,
+  LockKeyhole,
+  Mail,
+  Moon,
+  Sun,
+} from "lucide-react";
 import { toast } from "sonner";
-import { Lock, Mail, User, ArrowLeft, CheckCircle2, KeyRound, RotateCw, Edit3, ShieldCheck, Fingerprint, Calendar, Sparkles, AlertCircle, Sun, Moon } from "lucide-react";
-import { db as supabase, backendConfigured } from "@/lib/backend";
-import { batchTreeQuery } from "@/lib/batches";
-import { HierarchyBatchSelector } from "@/components/auth/HierarchyBatchSelector";
-import { requestSignupVerification, finalizeSignup, registerWithRoster, requestPasswordReset, resolveLoginIdentifier } from "@/lib/auth.functions";
+import { db } from "@/lib/backend";
 import {
-  findStudentInRoster,
-  toTitleCase,
-  IPM_BATCHES,
-  IPM1_BATCH_ID,
-  IPM2_BATCH_ID,
-  IPM3_BATCH_ID,
-  getBatchInfo,
-} from "@/lib/roster.data";
+  registerWithRoster,
+  requestPasswordReset,
+  resolveLoginIdentifier,
+} from "@/lib/auth.functions";
+import { IPM_BATCHES, IPM1_BATCH_ID } from "@/lib/roster.data";
 import { useTheme } from "@/hooks/use-theme";
-import {
-  InputOTP,
-  InputOTPGroup,
-  InputOTPSlot,
-  InputOTPSeparator,
-} from "@/components/ui/input-otp";
 import { VerificationWelcomeScreen } from "@/components/auth/VerificationWelcomeScreen";
 
+type Mode = "signin" | "signup" | "forgot" | "reset" | "welcome";
 export const Route = createFileRoute("/auth")({
-  validateSearch: (search: Record<string, unknown>): { mode?: "signin" | "signup" } => ({
-    mode: search["mode"] === "signup" ? "signup" : "signin",
+  validateSearch: (search: Record<string, unknown>): { mode?: "signin" | "signup" | "forgot" } => ({
+    mode:
+      search["mode"] === "signup" ? "signup" : search["mode"] === "forgot" ? "forgot" : "signin",
   }),
   head: () => ({
-    meta: [
-      { title: "Sign in — Zenith" },
-      {
-        name: "description",
-        content:
-          "Sign in to Zenith, the TAPMI Manipal student board for deadlines, timetable and attendance.",
-      },
-      { property: "og:title", content: "Sign in — Zenith" },
-      {
-        property: "og:description",
-        content: "Access your batch board on Zenith — TAPMI Manipal.",
-      },
-      { property: "og:type", content: "website" },
-      { name: "twitter:card", content: "summary_large_image" },
-    ],
+    meta: [{ title: "Your space awaits — Zenith" }, { name: "robots", content: "noindex" }],
   }),
   component: AuthPage,
 });
 
-const fieldClass =
-  "w-full rounded-xl bg-ground px-3.5 py-2.5 pl-9 text-sm text-ink ring-1 ring-border outline-none transition-all placeholder:text-faint focus:ring-2 focus:ring-cyan/50";
-
-const ALLOWED_DOMAIN = "learner.manipal.edu";
-const isAllowedEmail = (value: string) =>
-  value.trim().toLowerCase().endsWith(`@${ALLOWED_DOMAIN}`);
-
 function AuthPage() {
-  const navigate = useNavigate();
   const search = Route.useSearch();
-  const { theme, toggle: toggleTheme } = useTheme();
-  const [mode, setMode] = useState<"signin" | "signup" | "verify" | "welcome" | "forgot" | "reset">(search.mode || "signin");
-  const isPendingWelcomeRef = useRef(false);
+  const navigate = useNavigate();
+  const { theme, toggle } = useTheme();
+  const [mode, setMode] = useState<Mode>(search.mode ?? "signin");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [newPassword, setNewPassword] = useState("");
-  const [confirmPassword, setConfirmPassword] = useState("");
-  const [fullName, setFullName] = useState("");
-  const [selectedIpmBatch, setSelectedIpmBatch] = useState<string>(IPM1_BATCH_ID);
-  const [showAdvancedHierarchy, setShowAdvancedHierarchy] = useState(false);
-  const [batchId, setBatchId] = useState(IPM1_BATCH_ID);
-  const [otp, setOtp] = useState("");
-  const [resendCooldown, setResendCooldown] = useState(0);
-
-  const [dob, setDob] = useState("");
+  const [confirm, setConfirm] = useState("");
   const [regNo, setRegNo] = useState("");
-  const [useManualBatch, setUseManualBatch] = useState(false);
-  const [welcomeInfo, setWelcomeInfo] = useState<{
-    fullName: string;
-    rollNo: string;
-    maheId?: string | undefined;
-    university?: string | undefined;
-    college?: string | undefined;
-    course?: string | undefined;
-    batchName?: string | undefined;
-  } | null>(null);
-
-  // Live matching against official TAPMI roster (12-digit MAHE Roll No. + DOB)
-  const candidate = findStudentInRoster(regNo, dob);
-
-  const { data: batches = [] } = useQuery({
-    ...batchTreeQuery,
-    enabled: backendConfigured,
-  });
+  const [dob, setDob] = useState("");
+  const [batch, setBatch] = useState(IPM1_BATCH_ID);
+  const [otp, setOtp] = useState("");
   const [busy, setBusy] = useState(false);
+  const [welcome, setWelcome] = useState<Awaited<ReturnType<typeof registerWithRoster>> | null>(
+    null,
+  );
+  const [error, setError] = useState("");
 
-  useEffect(() => {
-    if (!backendConfigured) return;
-    if (isPendingWelcomeRef.current || mode === "welcome") return;
-    void supabase.auth
-      .getSession()
-      .then(({ data }) => {
-        if (data.session && !isPendingWelcomeRef.current) {
-          navigate({ to: "/", replace: true });
-        }
-      })
-      .catch(() => undefined);
-  }, [navigate, mode]);
-
-  useEffect(() => {
-    if (resendCooldown <= 0) return;
-    const timer = setTimeout(() => setResendCooldown((c) => c - 1), 1000);
-    return () => clearTimeout(timer);
-  }, [resendCooldown]);
-
-  async function handleRosterRegister(e: React.FormEvent) {
-    e.preventDefault();
-    if (!backendConfigured) {
-      toast.error("Sign-in is temporarily unavailable. Please try again shortly.");
-      return;
-    }
-    const cleanEmail = email.trim().toLowerCase();
-    if (!isAllowedEmail(cleanEmail)) {
-      toast.error(`Sign-ups are limited to @${ALLOWED_DOMAIN} email addresses.`);
-      return;
-    }
-    const cleanReg = regNo.trim().replace(/\D/g, "");
-    if (cleanReg.length !== 12) {
-      toast.error("Please enter your complete 12-digit MAHE Roll No. (e.g. 261612340020).");
-      return;
-    }
-    if (!dob.trim()) {
-      toast.error("Please provide your Date of Birth.");
-      return;
-    }
-    if (password.length < 6) {
-      toast.error("Password must be at least 6 characters.");
-      return;
-    }
-
+  const changeMode = (next: Mode) => {
+    setMode(next);
+    setError("");
+    setPassword("");
+    setConfirm("");
+    setOtp("");
+  };
+  async function submit(event: FormEvent) {
+    event.preventDefault();
+    setError("");
     setBusy(true);
     try {
-      const res = await registerWithRoster({
-        data: {
-          email: cleanEmail,
-          password,
-          regNo: cleanReg,
-          dob: dob.trim(),
-        },
-      });
-
-      // Prepare welcome screen immediately before auto-signing in
-      isPendingWelcomeRef.current = true;
-      setWelcomeInfo({
-        fullName: res.fullName,
-        rollNo: res.rollNo,
-        maheId: res.maheId || candidate?.maheId,
-        university: res.university || "MAHE Manipal",
-        college: res.college || "TAPMI",
-        course: res.course || "IPM (BBA/MBA)",
-        batchName: res.batchName || "Batch 2026–2031",
-      });
-      setMode("welcome");
-
-      // Auto sign-in with verified credentials
-      const { error: signInErr } = await supabase.auth.signInWithPassword({
-        email: cleanEmail,
-        password,
-      });
-
-      if (signInErr) {
-        console.warn("Background auto-sign-in warning:", signInErr.message);
-      }
-    } catch (error) {
-      isPendingWelcomeRef.current = false;
-      const msg = error instanceof Error ? error.message : "Registration failed";
-      toast.error(msg);
-    } finally {
-      setBusy(false);
-    }
-  }
-
-
-  async function handleSendVerification(e?: React.FormEvent) {
-    if (e) e.preventDefault();
-    if (!backendConfigured) {
-      toast.error("Sign-in is temporarily unavailable. Please try again shortly.");
-      return;
-    }
-    const cleanEmail = email.trim().toLowerCase();
-    if (!isAllowedEmail(cleanEmail)) {
-      toast.error(`Sign-ups are limited to @${ALLOWED_DOMAIN} email addresses.`);
-      return;
-    }
-    const targetBatchId = batchId || selectedIpmBatch;
-    if (!targetBatchId) {
-      toast.error("Please select the batch you belong to.");
-      return;
-    }
-    if (password.length < 6) {
-      toast.error("Password must be at least 6 characters.");
-      return;
-    }
-
-    setBusy(true);
-    try {
-      await requestSignupVerification({
-        data: {
-          fullName: fullName.trim(),
-          email: cleanEmail,
-          password,
-          batchId: targetBatchId,
-          rollNo: regNo.trim() || undefined,
-        },
-      });
-
-      toast.success("Verification code sent! Please check your email.");
-      setMode("verify");
-      setResendCooldown(30);
-    } catch (error) {
-      const msg = error instanceof Error ? error.message : "Failed to send verification code";
-      toast.error(msg);
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function handleVerifyOtp(e?: React.FormEvent) {
-    if (e) e.preventDefault();
-    const cleanOtp = otp.trim().replace(/\D/g, "");
-    if (cleanOtp.length < 6) {
-      toast.error("Please enter the complete verification code.");
-      return;
-    }
-
-    setBusy(true);
-    try {
-      const cleanEmail = email.trim().toLowerCase();
-      const { data: verifyData, error: verifyErr } = await supabase.auth.verifyOtp({
-        email: cleanEmail,
-        token: cleanOtp,
-        type: "signup",
-      });
-
-      if (verifyErr) {
-        throw new Error(verifyErr.message || "Invalid or expired verification code.");
-      }
-
-      const userId = verifyData.user?.id || verifyData.session?.user?.id;
-      const targetBatchId = batchId || selectedIpmBatch;
-      if (verifyData.session) {
-        await supabase.auth.setSession(verifyData.session);
-      }
-      if (userId) {
-        await finalizeSignup({
-          data: {
-            userId,
-            email: cleanEmail,
-            fullName: fullName.trim(),
-            batchId: targetBatchId,
-            rollNo: regNo.trim() || undefined,
-          },
+      if (mode === "signin") {
+        const clean = email.trim().toLowerCase();
+        // Email sign-in needs no privileged lookup. Roll/MAHE sign-in is rate limited.
+        const address = clean.includes("@")
+          ? clean
+          : (await resolveLoginIdentifier({ data: { identifier: clean } })).email;
+        const { error: authError } = await db.auth.signInWithPassword({ email: address, password });
+        if (authError)
+          throw new Error("Sign-in failed. Check your email or roll number and password.");
+        await navigate({ to: "/", replace: true });
+      } else if (mode === "signup") {
+        if (batch !== IPM1_BATCH_ID)
+          throw new Error("Registration will open once your batch roster is available.");
+        if (password !== confirm) throw new Error("Passwords do not match.");
+        const result = await registerWithRoster({
+          data: { email: email.trim(), password, regNo, dob },
         });
-      }
-
-      const batchInfo = getBatchInfo(targetBatchId);
-      setWelcomeInfo({
-        fullName: fullName.trim(),
-        rollNo: regNo.trim() || "Student",
-        university: "MAHE Manipal",
-        college: "TAPMI",
-        course: "IPM (BBA/MBA)",
-        batchName: batchInfo.batchName,
-      });
-      setMode("welcome");
-    } catch (error) {
-      const msg = error instanceof Error ? error.message : "Verification failed";
-      toast.error(msg);
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function handleSignIn(e: React.FormEvent) {
-    e.preventDefault();
-    if (!backendConfigured) {
-      toast.error("Sign-in is temporarily unavailable. Please try again shortly.");
-      return;
-    }
-    const rawIdentifier = email.trim();
-    if (!rawIdentifier) {
-      toast.error("Please enter your learner email or roll number.");
-      return;
-    }
-    if (!password) {
-      toast.error("Please enter your password.");
-      return;
-    }
-
-    setBusy(true);
-    try {
-      // Resolve roll number, MAHE ID, or email to official learner account
-      const resolved = await resolveLoginIdentifier({
-        data: { identifier: rawIdentifier },
-      });
-
-      if (!resolved.found && resolved.needsRegistration) {
-        toast.info(resolved.message || "Student record found. Please complete registration to activate your access.");
-        if (resolved.rollNo) setRegNo(resolved.rollNo);
-        if (resolved.fullName) setFullName(resolved.fullName);
-        setMode("signup");
-        setBusy(false);
-        return;
-      }
-
-      const targetEmail = resolved.email || rawIdentifier.toLowerCase();
-
-      const { error } = await supabase.auth.signInWithPassword({
-        email: targetEmail,
-        password,
-      });
-
-      if (error) {
-        const errMsg = error.message.toLowerCase();
-        if (errMsg.includes("invalid login credentials")) {
-          throw new Error("Invalid password or credentials. If you are a new student, please click Register first.");
+        const { error: signInError } = await db.auth.signInWithPassword({
+          email: result.email,
+          password,
+        });
+        if (signInError) {
+          changeMode("signin");
+          toast.success("Account created. Please sign in.");
+          return;
         }
-        throw error;
+        setWelcome(result);
+        setMode("welcome");
+        setPassword("");
+        setConfirm("");
+      } else if (mode === "forgot") {
+        await requestPasswordReset({ data: { email: email.trim() } });
+        setMode("reset");
+        toast.success("If this account exists, a recovery code has been sent.");
+      } else if (mode === "reset") {
+        if (password !== confirm) throw new Error("Passwords do not match.");
+        const { data: verified, error: verifyError } = await db.auth.verifyOtp({
+          email: email.trim().toLowerCase(),
+          token: otp,
+          type: "recovery",
+        });
+        if (verifyError || !verified.session)
+          throw new Error("Recovery code is invalid or expired.");
+        await db.auth.setSession(verified.session);
+        const { error: updateError } = await db.auth.updateUser({ password });
+        if (updateError) throw updateError;
+        toast.success("Password updated.");
+        await navigate({ to: "/", replace: true });
       }
-
-      toast.success(resolved.fullName ? `Welcome back, ${resolved.fullName}!` : "Welcome back!");
-      navigate({ to: "/", replace: true });
-    } catch (error) {
-      const msg = error instanceof Error ? error.message : "Invalid email, roll number, or password";
-      toast.error(msg);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Please try again.");
     } finally {
       setBusy(false);
     }
   }
 
-
-  async function handleRequestReset(e?: React.FormEvent) {
-    if (e) e.preventDefault();
-    const cleanEmail = email.trim().toLowerCase();
-    if (!isAllowedEmail(cleanEmail)) {
-      toast.error(`Please enter a valid @${ALLOWED_DOMAIN} email address.`);
-      return;
-    }
-    setBusy(true);
-    try {
-      await requestPasswordReset({ data: { email: cleanEmail } });
-      toast.success("Recovery code sent! Please check your email inbox.");
-      setMode("reset");
-      setResendCooldown(30);
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to send recovery code");
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function handleConfirmReset(e?: React.FormEvent) {
-    if (e) e.preventDefault();
-    const cleanOtp = otp.trim().replace(/\D/g, "");
-    if (cleanOtp.length < 6) {
-      toast.error("Please enter the complete recovery code.");
-      return;
-    }
-    if (newPassword.length < 6) {
-      toast.error("Password must be at least 6 characters.");
-      return;
-    }
-    if (newPassword !== confirmPassword) {
-      toast.error("Passwords do not match.");
-      return;
-    }
-
-    setBusy(true);
-    try {
-      const cleanEmail = email.trim().toLowerCase();
-      const { data: verifyData, error: verifyErr } = await supabase.auth.verifyOtp({
-        email: cleanEmail,
-        token: cleanOtp,
-        type: "recovery",
-      });
-
-      if (verifyErr) {
-        throw new Error(verifyErr.message || "Invalid or expired recovery code.");
-      }
-
-      if (verifyData.session) {
-        await supabase.auth.setSession(verifyData.session);
-      }
-
-      const { error: updateErr } = await supabase.auth.updateUser({
-        password: newPassword,
-      });
-
-      if (updateErr) {
-        throw new Error(updateErr.message || "Failed to set new password.");
-      }
-
-      toast.success("Password updated successfully! Welcome back.");
-      navigate({ to: "/", replace: true });
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to reset password.");
-    } finally {
-      setBusy(false);
-    }
-  }
-
+  const titles = {
+    signin: "Welcome back.",
+    signup: "Make it your space.",
+    forgot: "Let's get you back in.",
+    reset: "A fresh start.",
+    welcome: "You're all set.",
+  };
   return (
-    <div className="relative flex min-h-screen items-center justify-center overflow-hidden bg-ground px-4 font-body text-ink py-10">
-      <div className="pointer-events-none absolute inset-0">
-        <div className="aurora-a absolute -left-16 -top-24 h-[420px] w-[560px] rounded-full bg-cyan/15 blur-[140px]" />
-        <div className="aurora-b absolute bottom-[-140px] right-[-40px] h-[460px] w-[560px] rounded-full bg-violet/15 blur-[160px]" />
-      </div>
-
-      <div
-        className={`relative w-full ${
-          mode === "signup" || mode === "welcome" ? "max-w-xl" : "max-w-md"
-        } rounded-2xl bg-surface/90 p-6 sm:p-8 ring-1 ring-border shadow-2xl backdrop-blur-xl transition-all duration-300`}
-      >
-        {mode !== "welcome" && (
-          <Link
-            to="/"
-            className="inline-flex items-center gap-1.5 font-mono text-[11px] uppercase tracking-[0.2em] text-dim transition-colors hover:text-ink"
-          >
-            <ArrowLeft className="size-3" /> Back to board
+    <div className="auth-shell">
+      <aside className="auth-story">
+        <Link to="/" className="zenith-brand">
+          <span className="brand-symbol">z</span> zenith<span className="brand-period">.</span>
+        </Link>
+        <div className="auth-story-copy">
+          <span className="workspace-eyebrow">BUILT FOR YOUR NEXT CHAPTER</span>
+          <h1>
+            A little clarity.
+            <br />A lot of possibility.
+          </h1>
+          <p>
+            Your classes, your goals, your campus life. Give everything a place to come together.
+          </p>
+          <div className="auth-orbit" aria-hidden="true">
+            <span className="orbit-core">z.</span>
+            <span className="orbit-label orbit-label-one">Stay in the know</span>
+            <span className="orbit-label orbit-label-two">Find your rhythm</span>
+            <span className="orbit-label orbit-label-three">Make space</span>
+          </div>
+        </div>
+        <p className="auth-story-footer">
+          TAPMI MANIPAL <span>MAHE · IPM</span>
+        </p>
+      </aside>
+      <main className="auth-main">
+        <div className="auth-topbar">
+          <Link to="/" className="inline-flex items-center gap-2 text-sm text-dim">
+            <ArrowLeft size={15} /> Back home
           </Link>
-        )}
-
-        {mode === "welcome" && welcomeInfo ? (
-          <VerificationWelcomeScreen
-            fullName={welcomeInfo.fullName}
-            rollNo={welcomeInfo.rollNo}
-            maheId={welcomeInfo.maheId}
-            university={welcomeInfo.university}
-            college={welcomeInfo.college}
-            course={welcomeInfo.course}
-            batchName={welcomeInfo.batchName}
-            onContinue={() => {
-              isPendingWelcomeRef.current = false;
-              navigate({ to: "/", replace: true });
-            }}
-          />
-        ) : mode === "forgot" ? (
-          <div>
-            <div className="mt-4 mb-6">
-              <button
-                type="button"
-                onClick={() => setMode("signin")}
-                className="inline-flex items-center gap-1.5 font-mono text-[11px] uppercase tracking-[0.2em] text-dim hover:text-ink mb-3 transition-colors cursor-pointer"
-              >
-                <ArrowLeft className="size-3" /> Back to Sign In
-              </button>
-              <h1 className="font-display text-2xl sm:text-3xl font-bold tracking-tight text-ink">
-                Reset password
-              </h1>
-              <p className="mt-1 font-mono text-xs text-dim">
-                Enter your registered @learner.manipal.edu address to receive a secure recovery code.
+          <button type="button" onClick={toggle} aria-label="Toggle theme" className="icon-button">
+            {theme === "dark" ? <Sun size={18} /> : <Moon size={18} />}
+          </button>
+        </div>
+        <div className="auth-form-wrap">
+          {mode === "welcome" && welcome ? (
+            <VerificationWelcomeScreen
+              fullName={welcome.fullName}
+              rollNo={welcome.rollNo}
+              maheId={welcome.maheId}
+              batchName={welcome.batchName}
+              university={welcome.university}
+              college={welcome.college}
+              course={welcome.course}
+              onContinue={() => void navigate({ to: "/" })}
+            />
+          ) : (
+            <>
+              <span className="workspace-eyebrow">YOUR ZENITH ACCOUNT</span>
+              <h2>{titles[mode]}</h2>
+              <p className="auth-subtitle">
+                {mode === "signin"
+                  ? "Pick up where you left off."
+                  : mode === "signup"
+                    ? "Verify your student record. No signup email code needed."
+                    : mode === "forgot"
+                      ? "We'll send a recovery code to your registered learner email."
+                      : "Enter your recovery code and choose a new password."}
               </p>
-            </div>
-
-            <form onSubmit={handleRequestReset} className="flex flex-col gap-4">
-              <div>
-                <label
-                  htmlFor="reset-email"
-                  className="block mb-1.5 font-mono text-[10px] uppercase tracking-[0.18em] text-dim"
+              {(mode === "signin" || mode === "signup") && (
+                <div className="auth-mode-switch">
+                  <button
+                    type="button"
+                    aria-pressed={mode === "signin"}
+                    onClick={() => changeMode("signin")}
+                  >
+                    Sign in
+                  </button>
+                  <button
+                    type="button"
+                    aria-pressed={mode === "signup"}
+                    onClick={() => changeMode("signup")}
+                  >
+                    Create account
+                  </button>
+                </div>
+              )}
+              <form onSubmit={submit} className="space-y-5">
+                {mode === "signup" && (
+                  <>
+                    <fieldset>
+                      <legend className="auth-label">Your batch</legend>
+                      <div className="auth-batches">
+                        {IPM_BATCHES.map((item) => (
+                          <button
+                            key={item.id}
+                            type="button"
+                            aria-pressed={batch === item.id}
+                            onClick={() => setBatch(item.id)}
+                          >
+                            <strong>{item.code}</strong>
+                            <span>{item.years}</span>
+                          </button>
+                        ))}
+                      </div>
+                    </fieldset>
+                    {batch !== IPM1_BATCH_ID && (
+                      <p className="auth-notice">
+                        Your batch roster is coming soon. Existing accounts can still sign in.
+                      </p>
+                    )}
+                    <Field label="MAHE ID" icon={<Fingerprint size={17} />}>
+                      <input
+                        required
+                        inputMode="numeric"
+                        maxLength={12}
+                        pattern="[0-9]{12}"
+                        value={regNo}
+                        onChange={(event) =>
+                          setRegNo(event.target.value.replace(/\D/g, "").slice(0, 12))
+                        }
+                        placeholder="Your 12-digit university ID"
+                      />
+                    </Field>
+                    <Field label="Date of birth">
+                      <input
+                        required
+                        type="date"
+                        max={new Date().toISOString().slice(0, 10)}
+                        value={dob}
+                        onChange={(event) => setDob(event.target.value)}
+                      />
+                    </Field>
+                  </>
+                )}
+                <Field
+                  label={mode === "signin" ? "Learner email or roll number" : "Learner email"}
+                  icon={<Mail size={17} />}
                 >
-                  Learner Email
-                </label>
-                <div className="relative flex items-center">
-                  <Mail className="absolute left-3 size-4 text-faint pointer-events-none" />
                   <input
-                    id="reset-email"
-                    type="email"
                     required
-                    className={fieldClass}
+                    type={mode === "signin" ? "text" : "email"}
+                    autoComplete="username"
                     value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    placeholder="your.email@learner.manipal.edu"
+                    onChange={(event) => setEmail(event.target.value)}
+                    placeholder={
+                      mode === "signin"
+                        ? "Your email, roll number or MAHE ID"
+                        : "you@learner.manipal.edu"
+                    }
+                    readOnly={mode === "reset"}
                   />
-                </div>
-              </div>
-
-              <button
-                type="submit"
-                disabled={busy}
-                className="mt-2 w-full rounded-xl bg-cyan py-3.5 text-sm font-bold text-ground border-b-2 border-cyan-600 shadow-md shadow-cyan/25 ring-1 ring-cyan/80 hover:bg-cyan/95 active:translate-y-0.5 active:border-b-0 transition-all focus:ring-2 focus:ring-cyan/50 disabled:opacity-60 cursor-pointer"
-              >
-                {busy ? "Sending Code…" : "Send Reset Code →"}
-              </button>
-            </form>
-          </div>
-        ) : mode === "reset" ? (
-          <div>
-            <div className="mt-4 mb-6">
-              <button
-                type="button"
-                onClick={() => setMode("forgot")}
-                className="inline-flex items-center gap-1.5 font-mono text-[11px] uppercase tracking-[0.2em] text-dim hover:text-ink mb-3 transition-colors cursor-pointer"
-              >
-                <ArrowLeft className="size-3" /> Change email
-              </button>
-              <h1 className="font-display text-2xl sm:text-3xl font-bold tracking-tight text-ink">
-                Create new password
-              </h1>
-              <p className="mt-1 font-mono text-xs text-dim">
-                We sent an 8-digit recovery code to <span className="text-cyan font-semibold">{email}</span>.
-              </p>
-            </div>
-
-            <form onSubmit={handleConfirmReset} className="flex flex-col gap-4">
-              <div>
-                <label className="block mb-1.5 font-mono text-[10px] uppercase tracking-[0.18em] text-dim text-center">
-                  8-Digit Recovery Code
-                </label>
-                <div className="flex justify-center my-2">
-                  <InputOTP
-                    maxLength={8}
-                    value={otp}
-                    onChange={(val) => {
-                      setOtp(val);
-                      if (val.replace(/\D/g, "").length === 8) {
-                        const nextInput = document.getElementById("new-password") as HTMLInputElement;
-                        if (nextInput) nextInput.focus();
-                      }
-                    }}
-                  >
-                    <InputOTPGroup>
-                      <InputOTPSlot index={0} />
-                      <InputOTPSlot index={1} />
-                      <InputOTPSlot index={2} />
-                      <InputOTPSlot index={3} />
-                    </InputOTPGroup>
-                    <InputOTPSeparator />
-                    <InputOTPGroup>
-                      <InputOTPSlot index={4} />
-                      <InputOTPSlot index={5} />
-                      <InputOTPSlot index={6} />
-                      <InputOTPSlot index={7} />
-                    </InputOTPGroup>
-                  </InputOTP>
-                </div>
-              </div>
-
-              <div>
-                <label
-                  htmlFor="new-password"
-                  className="block mb-1.5 font-mono text-[10px] uppercase tracking-[0.18em] text-dim"
-                >
-                  New Password
-                </label>
-                <div className="relative flex items-center">
-                  <Lock className="absolute left-3 size-4 text-faint pointer-events-none" />
-                  <input
-                    id="new-password"
-                    type="password"
-                    required
-                    className={fieldClass}
-                    value={newPassword}
-                    onChange={(e) => setNewPassword(e.target.value)}
-                    placeholder="Enter new password (min 6 chars)"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label
-                  htmlFor="confirm-password"
-                  className="block mb-1.5 font-mono text-[10px] uppercase tracking-[0.18em] text-dim"
-                >
-                  Confirm Password
-                </label>
-                <div className="relative flex items-center">
-                  <Lock className="absolute left-3 size-4 text-faint pointer-events-none" />
-                  <input
-                    id="confirm-password"
-                    type="password"
-                    required
-                    className={fieldClass}
-                    value={confirmPassword}
-                    onChange={(e) => setConfirmPassword(e.target.value)}
-                    placeholder="Confirm new password"
-                  />
-                </div>
-              </div>
-
-              <button
-                type="submit"
-                disabled={busy}
-                className="mt-2 w-full rounded-xl bg-cyan py-3.5 text-sm font-bold text-ground border-b-2 border-cyan-600 shadow-md shadow-cyan/25 ring-1 ring-cyan/80 hover:bg-cyan/95 active:translate-y-0.5 active:border-b-0 transition-all focus:ring-2 focus:ring-cyan/50 disabled:opacity-60 cursor-pointer"
-              >
-                {busy ? "Updating Password…" : "Update Password & Enter Zenith →"}
-              </button>
-
-              <div className="text-center mt-2">
-                <button
-                  type="button"
-                  disabled={resendCooldown > 0 || busy}
-                  onClick={handleRequestReset}
-                  className="font-mono text-[11px] text-cyan hover:underline disabled:opacity-50 cursor-pointer"
-                >
-                  {resendCooldown > 0 ? `Resend code in ${resendCooldown}s` : "Didn't receive code? Resend"}
-                </button>
-              </div>
-            </form>
-          </div>
-        ) : mode !== "verify" ? (
-          <>
-            <div className="mt-4 mb-6 flex items-start justify-between gap-3">
-              <div>
-                <h1 className="font-display text-2xl sm:text-3xl font-bold tracking-tight text-ink">
-                  {mode === "signin" ? "Welcome back" : "Create account"}
-                </h1>
-                <p className="mt-1 font-mono text-xs text-dim">
-                  {mode === "signin"
-                    ? "Zenith · Student Board Portal"
-                    : candidate
-                    ? `${candidate.name ? toTitleCase(candidate.name) + " · " : ""}Student Verification`
-                    : "Student Verification & Portal Access"}
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={toggleTheme}
-                aria-label={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
-                title={theme === "dark" ? "Light mode" : "Dark mode"}
-                className="grid size-9 shrink-0 place-items-center rounded-xl border border-border bg-surface text-dim transition-colors hover:border-cyan/40 hover:text-ink cursor-pointer shadow-sm"
-              >
-                {theme === "dark" ? <Sun className="size-4" /> : <Moon className="size-4" />}
-              </button>
-            </div>
-
-            {/* Tab Selector */}
-            <div className="mb-6 grid grid-cols-2 rounded-xl bg-ground/80 p-1 ring-1 ring-border shadow-inner">
-              <button
-                type="button"
-                onClick={() => setMode("signin")}
-                className={`rounded-lg py-2.5 font-mono text-xs font-semibold transition-all cursor-pointer ${
-                  mode === "signin"
-                    ? "bg-surface text-ink shadow-sm ring-1 ring-border border-b-2 border-cyan/50"
-                    : "text-dim hover:text-ink"
-                }`}
-              >
-                Sign In
-              </button>
-              <button
-                type="button"
-                onClick={() => setMode("signup")}
-                className={`rounded-lg py-2.5 font-mono text-xs font-semibold transition-all cursor-pointer ${
-                  mode === "signup"
-                    ? "bg-surface text-ink shadow-sm ring-1 ring-border border-b-2 border-cyan/50"
-                    : "text-dim hover:text-ink"
-                }`}
-              >
-                Register
-              </button>
-            </div>
-
-            {mode === "signin" ? (
-              <form onSubmit={handleSignIn} className="flex flex-col gap-4">
-                <div>
-                  <label
-                    htmlFor="email"
-                    className="block mb-1.5 font-mono text-[10px] uppercase tracking-[0.18em] text-dim"
-                  >
-                    Learner Email or Roll No.
-                  </label>
-                  <div className="relative flex items-center">
-                    <Mail className="absolute left-3 size-4 text-faint pointer-events-none" />
+                </Field>
+                {mode === "reset" && (
+                  <Field label="Email recovery code">
                     <input
-                      id="email"
-                      type="text"
-                      autoComplete="username"
-                      inputMode="text"
-                      autoCapitalize="none"
-                      autoCorrect="off"
-                      spellCheck={false}
                       required
-                      className={fieldClass}
-                      value={email}
-                      onChange={(e) => setEmail(e.target.value)}
-                      placeholder="your.email@learner.manipal.edu, 26U36, or MAHE ID"
+                      inputMode="numeric"
+                      pattern="[0-9]{6,8}"
+                      maxLength={8}
+                      value={otp}
+                      onChange={(event) => setOtp(event.target.value.replace(/\D/g, ""))}
+                      placeholder="Code from your inbox"
+                      autoComplete="one-time-code"
                     />
-                  </div>
-                  <p className="mt-1.5 font-mono text-[10px] text-faint flex items-center gap-1">
-                    <Sparkles className="size-3 text-cyan shrink-0" />
-                    Sign in with email, Roll No. (e.g. 26U36), or 12-digit MAHE Roll No.
-                  </p>
-                </div>
-
-
-                <div>
-                  <div className="flex items-center justify-between mb-1.5">
-                    <label
-                      htmlFor="password"
-                      className="block font-mono text-[10px] uppercase tracking-[0.18em] text-dim"
-                    >
-                      Password
-                    </label>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setMode("forgot");
-                      }}
-                      className="font-mono text-[10px] text-cyan hover:underline transition-all cursor-pointer"
-                    >
-                      Forgot password?
-                    </button>
-                  </div>
-                  <div className="relative flex items-center">
-                    <Lock className="absolute left-3 size-4 text-faint pointer-events-none" />
+                  </Field>
+                )}
+                {mode !== "forgot" && (
+                  <Field
+                    label={mode === "reset" ? "New password" : "Password"}
+                    icon={<LockKeyhole size={17} />}
+                  >
                     <input
-                      id="password"
+                      required
                       type="password"
-                      required
-                      className={fieldClass}
+                      minLength={mode === "signin" ? 1 : 8}
+                      autoComplete={mode === "signin" ? "current-password" : "new-password"}
                       value={password}
-                      onChange={(e) => setPassword(e.target.value)}
-                      placeholder="Enter your account password"
+                      onChange={(event) => setPassword(event.target.value)}
+                      placeholder={
+                        mode === "signin" ? "Enter your password" : "At least 8 characters"
+                      }
                     />
-                  </div>
-                </div>
-
+                  </Field>
+                )}
+                {(mode === "signup" || mode === "reset") && (
+                  <Field label="Confirm password" icon={<LockKeyhole size={17} />}>
+                    <input
+                      required
+                      type="password"
+                      minLength={8}
+                      autoComplete="new-password"
+                      value={confirm}
+                      onChange={(event) => setConfirm(event.target.value)}
+                      placeholder="Enter your password again"
+                    />
+                  </Field>
+                )}
+                {mode === "signin" && (
+                  <button
+                    type="button"
+                    onClick={() => changeMode("forgot")}
+                    className="text-sm text-cyan hover:underline"
+                  >
+                    Forgot your password?
+                  </button>
+                )}
+                {error && (
+                  <p role="alert" className="auth-error">
+                    {error}
+                  </p>
+                )}
                 <button
+                  disabled={busy || (mode === "signup" && batch !== IPM1_BATCH_ID)}
+                  className="primary-button w-full"
                   type="submit"
-                  disabled={busy}
-                  className="mt-2 w-full rounded-xl bg-cyan py-3.5 text-sm font-bold text-ground border-b-2 border-cyan-600 shadow-md shadow-cyan/25 ring-1 ring-cyan/80 hover:bg-cyan/95 active:translate-y-0.5 active:border-b-0 transition-all focus:ring-2 focus:ring-cyan/50 disabled:opacity-60 cursor-pointer"
                 >
-                  {busy ? "Signing In…" : "Sign In"}
+                  {busy ? <Loader2 size={17} className="animate-spin" /> : null}
+                  {busy
+                    ? "Just a moment…"
+                    : mode === "signin"
+                      ? "Enter your dashboard"
+                      : mode === "signup"
+                        ? "Verify & create account"
+                        : mode === "forgot"
+                          ? "Send recovery code"
+                          : "Save new password"}
+                  {!busy && <ArrowUpRight size={17} />}
                 </button>
               </form>
-            ) : (
-              <div className="flex flex-col gap-4">
-                {/* Academic Batch Selection Pills */}
-                <div>
-                  <div className="flex items-center justify-between mb-1.5">
-                    <label className="block font-mono text-[10px] uppercase tracking-[0.18em] text-dim">
-                      Select Academic Batch
-                    </label>
-                    <span className="font-mono text-[10px] text-cyan font-medium">
-                      {selectedIpmBatch === IPM1_BATCH_ID
-                        ? "Class of 2031"
-                        : selectedIpmBatch === IPM2_BATCH_ID
-                        ? "Class of 2030"
-                        : "Class of 2029"}
-                    </span>
-                  </div>
-                  <div className="grid grid-cols-3 gap-2">
-                    {IPM_BATCHES.map((b) => {
-                      const isSelected = selectedIpmBatch === b.id;
-                      return (
-                        <button
-                          key={b.id}
-                          type="button"
-                          onClick={() => {
-                            setSelectedIpmBatch(b.id);
-                            setBatchId(b.id);
-                            if (b.id !== IPM1_BATCH_ID) {
-                              setUseManualBatch(true);
-                            } else {
-                              setUseManualBatch(false);
-                            }
-                          }}
-                          className={`flex flex-col items-center justify-center p-2.5 rounded-xl border text-center transition-all cursor-pointer ${
-                            isSelected
-                              ? "border-cyan/70 bg-cyan/10 text-ink shadow-sm ring-1 ring-cyan/40"
-                              : "border-border bg-ground/60 text-dim hover:border-cyan/30 hover:text-ink"
-                          }`}
-                        >
-                          <span className="font-display font-bold text-xs sm:text-sm tracking-tight">{b.code}</span>
-                          <span className="font-mono text-[10px] text-faint mt-0.5">{b.years}</span>
-                          {b.hasRoster ? (
-                            <span className="mt-1 inline-flex items-center gap-0.5 text-[9px] font-mono font-medium text-cyan bg-cyan/15 px-1.5 py-0.5 rounded-full">
-                              ⚡ Instant
-                            </span>
-                          ) : (
-                            <span className="mt-1 inline-flex items-center gap-0.5 text-[9px] font-mono text-dim bg-surface px-1.5 py-0.5 rounded-full border border-border/60">
-                              ✉️ Email OTP
-                            </span>
-                          )}
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-
-                {useManualBatch ? (
-                  <form onSubmit={handleSendVerification} className="flex flex-col gap-4">
-                    {/* Batch Banner */}
-                    <div className="rounded-xl border border-cyan/30 bg-cyan/5 p-3 flex items-center justify-between">
-                      <div>
-                        <div className="font-display font-bold text-xs sm:text-sm text-ink">
-                          {selectedIpmBatch === IPM2_BATCH_ID
-                            ? "IPM Batch 2 (2025–2030)"
-                            : selectedIpmBatch === IPM3_BATCH_ID
-                            ? "IPM Batch 3 (2024–2029)"
-                            : "IPM Batch 1 (2026–2031)"}
-                        </div>
-                        <p className="font-mono text-[10px] text-dim">
-                          Verification code will be sent to your official learner inbox.
-                        </p>
-                      </div>
-                      <span className="rounded-full bg-cyan/15 px-2 py-0.5 font-mono text-[10px] font-semibold text-cyan">
-                        Verified Access
-                      </span>
-                    </div>
-
-                    <div>
-                      <label
-                        htmlFor="name"
-                        className="block mb-1.5 font-mono text-[10px] uppercase tracking-[0.18em] text-dim"
-                      >
-                        Full Name
-                      </label>
-                      <div className="relative flex items-center">
-                        <User className="absolute left-3 size-4 text-faint pointer-events-none" />
-                        <input
-                          id="name"
-                          type="text"
-                          required
-                          className={fieldClass}
-                          value={fullName}
-                          onChange={(e) => setFullName(e.target.value)}
-                          placeholder="Enter your full name"
-                        />
-                      </div>
-                    </div>
-
-                    <div>
-                      <label
-                        htmlFor="regNoManual"
-                        className="block mb-1.5 font-mono text-[10px] uppercase tracking-[0.18em] text-dim"
-                      >
-                        Roll No. / Student ID <span className="text-faint">(Optional)</span>
-                      </label>
-                      <div className="relative flex items-center">
-                        <Fingerprint className="absolute left-3 size-4 text-faint pointer-events-none" />
-                        <input
-                          id="regNoManual"
-                          type="text"
-                          className={fieldClass}
-                          value={regNo}
-                          onChange={(e) => setRegNo(e.target.value.toUpperCase())}
-                          placeholder={
-                            selectedIpmBatch === IPM2_BATCH_ID
-                              ? "e.g. 25U01"
-                              : selectedIpmBatch === IPM3_BATCH_ID
-                              ? "e.g. 24U01"
-                              : "e.g. 26U01"
-                          }
-                        />
-                      </div>
-                    </div>
-
-                    <div>
-                      <label
-                        htmlFor="email"
-                        className="block mb-1.5 font-mono text-[10px] uppercase tracking-[0.18em] text-dim"
-                      >
-                        Learner Email
-                      </label>
-                      <div className="relative flex items-center">
-                        <Mail className="absolute left-3 size-4 text-faint pointer-events-none" />
-                        <input
-                          id="email"
-                          type="email"
-                          required
-                          className={fieldClass}
-                          value={email}
-                          onChange={(e) => setEmail(e.target.value)}
-                          placeholder="your.email@learner.manipal.edu"
-                        />
-                      </div>
-                      <p className="mt-1.5 flex items-center gap-1 font-mono text-[10px] text-faint">
-                        <CheckCircle2 className="size-3 text-cyan shrink-0" /> Restrict to @learner.manipal.edu inbox
-                      </p>
-                    </div>
-
-                    <div>
-                      <label
-                        htmlFor="password"
-                        className="block mb-1.5 font-mono text-[10px] uppercase tracking-[0.18em] text-dim"
-                      >
-                        Password
-                      </label>
-                      <div className="relative flex items-center">
-                        <Lock className="absolute left-3 size-4 text-faint pointer-events-none" />
-                        <input
-                          id="password"
-                          type="password"
-                          required
-                          className={fieldClass}
-                          value={password}
-                          onChange={(e) => setPassword(e.target.value)}
-                          placeholder="Create a password (min 6 characters)"
-                        />
-                      </div>
-                    </div>
-
-                    {showAdvancedHierarchy && (
-                      <div className="flex flex-col gap-1 rounded-xl border border-border bg-ground/60 p-3">
-                        <label className="block mb-0.5 font-mono text-[10px] uppercase tracking-[0.18em] text-dim">
-                          Custom Batch Hierarchy
-                        </label>
-                        <HierarchyBatchSelector
-                          batches={batches}
-                          selectedBatchId={batchId}
-                          onSelectBatchId={setBatchId}
-                        />
-                      </div>
-                    )}
-
-                    <button
-                      type="submit"
-                      disabled={busy}
-                      className="mt-2 w-full rounded-xl bg-cyan py-3.5 text-sm font-bold text-ground border-b-2 border-cyan-600 shadow-md shadow-cyan/25 ring-1 ring-cyan/80 hover:bg-cyan/95 active:translate-y-0.5 active:border-b-0 transition-all focus:ring-2 focus:ring-cyan/50 disabled:opacity-60 cursor-pointer"
-                    >
-                      {busy ? "Sending Code…" : "Send Verification Code"}
-                    </button>
-
-                    <div className="pt-1 flex flex-col gap-1.5 text-center">
-                      {selectedIpmBatch === IPM1_BATCH_ID && (
-                        <button
-                          type="button"
-                          onClick={() => setUseManualBatch(false)}
-                          className="font-mono text-[11px] text-cyan hover:underline cursor-pointer"
-                        >
-                          ← Back to Instant Verification
-                        </button>
-                      )}
-                      <button
-                        type="button"
-                        onClick={() => setShowAdvancedHierarchy((v) => !v)}
-                        className="font-mono text-[10px] text-faint hover:text-dim transition-colors cursor-pointer"
-                      >
-                        {showAdvancedHierarchy ? "Hide custom batch selector" : "Other program or custom hierarchy?"}
-                      </button>
-                    </div>
-                  </form>
-                ) : (
-                  <form onSubmit={handleRosterRegister} className="flex flex-col gap-4">
-                    <div>
-                      <label
-                        htmlFor="email"
-                        className="block mb-1.5 font-mono text-[10px] uppercase tracking-[0.18em] text-dim"
-                      >
-                        Learner Email
-                      </label>
-                      <div className="relative flex items-center">
-                        <Mail className="absolute left-3 size-4 text-faint pointer-events-none" />
-                        <input
-                          id="email"
-                          type="email"
-                          required
-                          className={fieldClass}
-                          value={email}
-                          onChange={(e) => setEmail(e.target.value)}
-                          placeholder="your.email@learner.manipal.edu"
-                        />
-                      </div>
-                      <p className="mt-1.5 flex items-center gap-1 font-mono text-[10px] text-faint">
-                        <CheckCircle2 className="size-3 text-cyan shrink-0" /> Restrict to @learner.manipal.edu inbox
-                      </p>
-                    </div>
-
-                    <div className="rounded-xl border border-border/80 bg-ground/60 p-3.5 space-y-3">
-                      <div className="flex items-center justify-between">
-                        <span className="inline-flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-[0.18em] text-cyan font-semibold">
-                          <ShieldCheck className="size-3.5 text-cyan" /> Confidential Verification
-                        </span>
-                        <span className="font-mono text-[10px] text-dim">
-                          Academic Verification
-                        </span>
-                      </div>
-
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                        <div>
-                          <label
-                            htmlFor="dob"
-                            className="block mb-1 font-mono text-[10px] uppercase tracking-[0.15em] text-dim"
-                          >
-                            Date of Birth
-                          </label>
-                          <div className="relative flex items-center">
-                            <Calendar className="absolute left-3 size-4 text-faint pointer-events-none" />
-                            <input
-                              id="dob"
-                              type="date"
-                              required
-                              className={fieldClass}
-                              value={dob}
-                              onChange={(e) => setDob(e.target.value)}
-                            />
-                          </div>
-                        </div>
-
-                        <div>
-                          <label
-                            htmlFor="regNo"
-                            className="block mb-1 font-mono text-[10px] uppercase tracking-[0.15em] text-dim"
-                          >
-                            MAHE Roll No.
-                          </label>
-                          <div className="relative flex items-center">
-                            <Fingerprint className="absolute left-3 size-4 text-faint pointer-events-none" />
-                            <input
-                              id="regNo"
-                              type="text"
-                              inputMode="numeric"
-                              maxLength={12}
-                              required
-                              className={`${fieldClass} font-mono tracking-wider font-semibold`}
-                              value={regNo}
-                              onChange={(e) => setRegNo(e.target.value.replace(/\D/g, "").slice(0, 12))}
-                              placeholder="e.g. 261612340020"
-                            />
-                          </div>
-                        </div>
-                      </div>
-
-                      {candidate ? (
-                        <div className="rounded-xl border border-cyan/40 bg-cyan/10 p-3 space-y-2.5 animate-in fade-in slide-in-from-top-1 duration-200">
-                          <div className="flex items-center justify-between border-b border-cyan/20 pb-2">
-                            <div className="flex items-center gap-2">
-                              <div className="size-7 rounded-lg bg-cyan/20 flex items-center justify-center text-cyan shrink-0">
-                                <Sparkles className="size-3.5" />
-                              </div>
-                              <div>
-                                <span className="font-display font-bold text-sm text-ink block">
-                                  {toTitleCase(candidate.name)}
-                                </span>
-                                <span className="font-mono text-[10px] text-cyan">
-                                  Verified Student Profile
-                                </span>
-                              </div>
-                            </div>
-                            <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/20 px-2 py-0.5 font-mono text-[10px] font-semibold text-emerald-400">
-                              <CheckCircle2 className="size-3" /> Confirmed
-                            </span>
-                          </div>
-
-                          {/* Institutional Breakdown Grid */}
-                          <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5 text-left font-mono text-[11px]">
-                            <div className="rounded-lg bg-ground/80 p-2 border border-border/70">
-                              <span className="text-[9px] uppercase tracking-wider text-faint block">University</span>
-                              <span className="font-semibold text-ink truncate block">MAHE Manipal</span>
-                            </div>
-                            <div className="rounded-lg bg-ground/80 p-2 border border-border/70">
-                              <span className="text-[9px] uppercase tracking-wider text-faint block">College</span>
-                              <span className="font-semibold text-ink truncate block">TAPMI</span>
-                            </div>
-                            <div className="rounded-lg bg-ground/80 p-2 border border-border/70">
-                              <span className="text-[9px] uppercase tracking-wider text-faint block">Course</span>
-                              <span className="font-semibold text-ink truncate block">IPM (BBA/MBA)</span>
-                            </div>
-                            <div className="rounded-lg bg-ground/80 p-2 border border-border/70">
-                              <span className="text-[9px] uppercase tracking-wider text-faint block">Batch</span>
-                              <span className="font-semibold text-ink truncate block">2026–2031</span>
-                            </div>
-                            <div className="rounded-lg bg-ground/80 p-2 border border-border/70">
-                              <span className="text-[9px] uppercase tracking-wider text-faint block">MAHE Roll No.</span>
-                              <span className="font-bold text-cyan truncate block">{candidate.maheId}</span>
-                            </div>
-                            <div className="rounded-lg bg-ground/80 p-2 border border-border/70">
-                              <span className="text-[9px] uppercase tracking-wider text-faint block">Section Roll</span>
-                              <span className="font-bold text-ink truncate block">{candidate.rollNo}</span>
-                            </div>
-                          </div>
-                        </div>
-                      ) : regNo.length === 12 && dob ? (
-                        <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-2.5 flex items-center gap-2 text-[11px] font-mono text-amber-300">
-                          <AlertCircle className="size-3.5 shrink-0 text-amber-400" />
-                          <span>No matching student record found for this DOB and 12-digit MAHE Roll No. combination.</span>
-                        </div>
-                      ) : (
-                        <p className="font-mono text-[10px] text-faint">
-                          💡 Enter your complete 12-digit MAHE Roll No. (e.g. 261612340020).
-                        </p>
-                      )}
-                    </div>
-
-                    <div>
-                      <label
-                        htmlFor="password"
-                        className="block mb-1.5 font-mono text-[10px] uppercase tracking-[0.18em] text-dim"
-                      >
-                        Password
-                      </label>
-                      <div className="relative flex items-center">
-                        <Lock className="absolute left-3 size-4 text-faint pointer-events-none" />
-                        <input
-                          id="password"
-                          type="password"
-                          required
-                          className={fieldClass}
-                          value={password}
-                          onChange={(e) => setPassword(e.target.value)}
-                          placeholder="Create your Zenith password (min 6 characters)"
-                        />
-                      </div>
-                    </div>
-
-                    <button
-                      type="submit"
-                      disabled={busy || Boolean(regNo.length === 12 && dob && !candidate)}
-                      className="mt-2 w-full rounded-xl bg-cyan py-3.5 text-sm font-bold text-ground border-b-2 border-cyan-600 shadow-md shadow-cyan/25 ring-1 ring-cyan/80 hover:bg-cyan/95 active:translate-y-0.5 active:border-b-0 transition-all focus:ring-2 focus:ring-cyan/50 disabled:opacity-50 cursor-pointer"
-                    >
-                      {busy
-                        ? "Activating Account…"
-                        : candidate
-                        ? `Activate Account & Enter Zenith →`
-                        : "Verify Identity & Register"}
-                    </button>
-
-                    <div className="pt-1 text-center">
-                      <button
-                        type="button"
-                        onClick={() => setUseManualBatch(true)}
-                        className="font-mono text-[11px] text-faint hover:text-dim transition-colors cursor-pointer"
-                      >
-                        Can't find your record in IPM 1 roster? Switch to email verification
-                      </button>
-                    </div>
-                  </form>
-                )}
-              </div>
-            )}
-          </>
-        ) : (
-          /* OTP Verification Screen */
-          <div className="mt-4 flex flex-col items-center text-center">
-            <div className="size-12 rounded-2xl bg-cyan/10 border border-cyan/30 flex items-center justify-center text-cyan mb-3">
-              <KeyRound className="size-6" />
-            </div>
-
-            <h1 className="font-display text-2xl font-bold tracking-tight">
-              Verify your email
-            </h1>
-            <p className="mt-1 font-mono text-xs text-dim max-w-sm">
-              We sent a verification code to:
-            </p>
-            <div className="mt-1.5 inline-flex items-center gap-2 rounded-lg bg-ground px-3 py-1 font-mono text-xs text-cyan ring-1 ring-border">
-              <span>{email}</span>
-              <button
-                type="button"
-                onClick={() => setMode("signup")}
-                className="text-dim hover:text-ink transition-colors"
-                title="Edit email"
-              >
-                <Edit3 className="size-3.5" />
-              </button>
-            </div>
-
-            <form onSubmit={handleVerifyOtp} className="mt-8 flex flex-col items-center gap-6 w-full">
-              <div className="flex justify-center">
-                <InputOTP
-                  maxLength={8}
-                  value={otp}
-                  onChange={(val) => {
-                    setOtp(val);
-                    if (val.replace(/\D/g, "").length === 8) {
-                      // auto submit when full 8 digits entered
-                      setTimeout(() => {
-                        const form = document.getElementById("otp-form") as HTMLFormElement;
-                        if (form) form.requestSubmit();
-                      }, 150);
-                    }
-                  }}
-                >
-                  <InputOTPGroup>
-                    <InputOTPSlot index={0} />
-                    <InputOTPSlot index={1} />
-                    <InputOTPSlot index={2} />
-                    <InputOTPSlot index={3} />
-                  </InputOTPGroup>
-                  <InputOTPSeparator />
-                  <InputOTPGroup>
-                    <InputOTPSlot index={4} />
-                    <InputOTPSlot index={5} />
-                    <InputOTPSlot index={6} />
-                    <InputOTPSlot index={7} />
-                  </InputOTPGroup>
-                </InputOTP>
-              </div>
-
-              <div className="w-full rounded-xl bg-ground/60 border border-border/80 p-3 text-left">
-                <p className="font-mono text-[11px] text-dim leading-relaxed">
-                  💡 <strong className="text-ink">Anti-Spam Notice:</strong> To ensure university delivery, our email contains <strong>no links</strong>. If you do not see it in your Inbox, please check your Outlook <strong className="text-cyan">Junk Email</strong> folder.
-                </p>
-              </div>
-
-              <button
-                type="submit"
-                id="otp-form"
-                disabled={busy || otp.replace(/\D/g, "").length < 6}
-                className="w-full rounded-xl bg-cyan py-3.5 text-sm font-bold text-ground border-b-2 border-cyan-600 shadow-md shadow-cyan/25 ring-1 ring-cyan/80 hover:bg-cyan/95 active:translate-y-0.5 active:border-b-0 transition-all focus:ring-2 focus:ring-cyan/50 disabled:opacity-50 cursor-pointer"
-              >
-                {busy ? "Verifying…" : "Confirm & Enter Zenith"}
-              </button>
-
-              <div className="flex items-center justify-between w-full text-xs font-mono text-dim pt-2">
+              {(mode === "forgot" || mode === "reset") && (
                 <button
                   type="button"
-                  onClick={() => handleSendVerification()}
-                  disabled={resendCooldown > 0 || busy}
-                  className="inline-flex items-center gap-1.5 text-dim hover:text-ink disabled:opacity-50 transition-colors"
+                  onClick={() => changeMode("signin")}
+                  className="mt-6 text-sm text-dim hover:text-ink"
                 >
-                  <RotateCw className={`size-3.5 ${busy ? "animate-spin" : ""}`} />
-                  {resendCooldown > 0 ? `Resend in ${resendCooldown}s` : "Resend code"}
+                  Back to sign in
                 </button>
-
-                <button
-                  type="button"
-                  onClick={() => setMode("signup")}
-                  className="text-dim hover:text-ink transition-colors"
-                >
-                  Change details
-                </button>
-              </div>
-            </form>
-          </div>
-        )}
-
-        {mode !== "verify" && (
-          <p className="mt-6 text-center font-mono text-[11px] text-faint">
-            {mode === "signin" ? (
-              <>
-                Don't have an account?{" "}
-                <button
-                  type="button"
-                  onClick={() => setMode("signup")}
-                  className="text-cyan hover:underline font-medium"
-                >
-                  Register here
-                </button>
-              </>
-            ) : (
-              <>
-                Already registered?{" "}
-                <button
-                  type="button"
-                  onClick={() => setMode("signin")}
-                  className="text-cyan hover:underline font-medium"
-                >
-                  Sign in
-                </button>
-              </>
-            )}
-          </p>
-        )}
-      </div>
+              )}
+              <p className="auth-assurance">
+                <CheckCircle2 size={14} /> A private space for your batch.
+              </p>
+            </>
+          )}
+        </div>
+      </main>
     </div>
+  );
+}
+
+function Field({
+  label,
+  icon,
+  children,
+}: {
+  label: string;
+  icon?: ReactNode;
+  children: ReactNode;
+}) {
+  return (
+    <label className="auth-field">
+      <span className="auth-label">{label}</span>
+      <span className={icon ? "auth-input has-icon" : "auth-input"}>
+        {icon}
+        {children}
+      </span>
+    </label>
   );
 }

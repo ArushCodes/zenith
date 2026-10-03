@@ -45,50 +45,18 @@ export function EmailInboxPanel() {
       approve: boolean;
       draft?: Extracted | undefined;
     }) => {
-      if (approve) {
-        const d = draft ?? ((item.extracted ?? {}) as Extracted);
-        if (!d.title || !d.due_at) throw new Error("Title and due date are required");
-        const { data: created, error } = await supabase
-          .from("deadlines")
-          .insert({
-            batch_id: item.batch_id,
-            title: d.title,
-            subject: d.subject ?? "General",
-            subject_code: d.subject_code ?? null,
-            type: d.type ?? "assignment",
-            due_at: new Date(d.due_at).toISOString(),
-            work_mode: d.work_mode ?? "individual",
-            submission_link: d.submission_link ?? null,
-            notes: d.notes ?? null,
-            status: "approved",
-            source: "email",
-            is_major: d.type === "midterm" || d.type === "endterm",
-            created_by: user!.id,
-          })
-          .select("id")
-          .single();
-        if (error) throw error;
-        const { error: upErr } = await supabase
-          .from("email_ingest")
-          .update({
-            status: "approved",
-            reviewed_by: user!.id,
-            reviewed_at: new Date().toISOString(),
-            deadline_id: created.id,
-          })
-          .eq("id", item.id);
-        if (upErr) throw upErr;
-      } else {
-        const { error } = await supabase
-          .from("email_ingest")
-          .update({
-            status: "rejected",
-            reviewed_by: user!.id,
-            reviewed_at: new Date().toISOString(),
-          })
-          .eq("id", item.id);
-        if (error) throw error;
-      }
+      const candidate = draft ?? ((item.extracted ?? {}) as Extracted);
+      if (approve && (!candidate.title || !candidate.due_at))
+        throw new Error("Title and due date are required");
+      const { error } = await supabase.rpc(
+        "review_email_candidate" as never,
+        {
+          candidate_id: item.id,
+          approve,
+          draft: candidate,
+        } as never,
+      );
+      if (error) throw error;
     },
     onSuccess: (_r, v) => {
       queryClient.invalidateQueries({ queryKey: ["email-ingest", batchId] });
@@ -210,27 +178,43 @@ function EmailCard({
             className="overflow-hidden border-t border-border px-3 py-3"
           >
             <div className="grid gap-2 sm:grid-cols-2">
-              <Field label="Title" value={draft.title ?? ""} onChange={(v) => setDraft({ ...draft, title: v })} />
-              <Field label="Subject" value={draft.subject ?? ""} onChange={(v) => setDraft({ ...draft, subject: v })} />
+              <Field
+                label="Title"
+                value={draft.title ?? ""}
+                onChange={(v) => setDraft({ ...draft, title: v })}
+              />
+              <Field
+                label="Subject"
+                value={draft.subject ?? ""}
+                onChange={(v) => setDraft({ ...draft, subject: v })}
+              />
               <Field
                 label="Subject code"
                 value={draft.subject_code ?? ""}
                 onChange={(v) => setDraft({ ...draft, subject_code: v })}
               />
               <label className="flex flex-col gap-1">
-                <span className="font-mono text-[10px] uppercase tracking-wide text-faint">Type</span>
+                <span className="font-mono text-[10px] uppercase tracking-wide text-faint">
+                  Type
+                </span>
                 <select
                   value={draft.type ?? "assignment"}
                   onChange={(e) => setDraft({ ...draft, type: e.target.value as Deadline["type"] })}
                   className="rounded-lg bg-surface2 px-3 py-2 text-sm ring-1 ring-border outline-none"
                 >
-                  {["quiz", "assignment", "presentation", "midterm", "endterm", "guest_lecture", "other"].map(
-                    (t) => (
-                      <option key={t} value={t}>
-                        {t}
-                      </option>
-                    ),
-                  )}
+                  {[
+                    "quiz",
+                    "assignment",
+                    "presentation",
+                    "midterm",
+                    "endterm",
+                    "guest_lecture",
+                    "other",
+                  ].map((t) => (
+                    <option key={t} value={t}>
+                      {t}
+                    </option>
+                  ))}
                 </select>
               </label>
               <Field

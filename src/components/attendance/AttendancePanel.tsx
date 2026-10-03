@@ -1,7 +1,17 @@
 import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { motion } from "framer-motion";
-import { AlertTriangle, CircleSlash, Download, Palmtree, Search, ShieldAlert, ShieldCheck, Users } from "lucide-react";
+import {
+  AlertTriangle,
+  CircleSlash,
+  Download,
+  Palmtree,
+  Search,
+  ShieldAlert,
+  ShieldCheck,
+  Users,
+} from "lucide-react";
+import { IPM1_BATCH_ID } from "@/lib/roster.data";
 import { BunkSimulatorModal } from "@/components/attendance/BunkSimulatorModal";
 import { toast } from "sonner";
 import { db as supabase } from "@/lib/backend";
@@ -26,7 +36,7 @@ import {
   SAFE_LINE,
   TOTAL_CAP_PCT,
   bandFor,
-  consecutiveNeededFor75,
+  consecutiveNeededFor70,
   courseCredits,
   eligibilityMisses,
   getBunkStatus,
@@ -36,7 +46,7 @@ import {
   meterColor,
   plannedFor,
   resolveMarks,
-  safeMissBufferFor75,
+  safeMissBufferFor70,
   safeMisses,
   sessionSubject,
   shortSubject,
@@ -47,7 +57,6 @@ import {
 import { Donut } from "@/components/ui/donut";
 import { SessionMeta } from "@/components/common/SessionMeta";
 import { isTeachingClass, sessionLabel, autoColor } from "@/lib/courses";
-
 
 const termFmt = new Intl.DateTimeFormat("en-GB", {
   day: "2-digit",
@@ -75,9 +84,8 @@ export function AttendancePanel({ now, compact = false }: { now: number; compact
   const [focus, setFocus] = useState<string | null>(null);
   const [bunkSimOpen, setBunkSimOpen] = useState(false);
 
-
   const { data: sessions = [] } = useQuery(sessionsQuery(batchId));
-  const { data: marks = [] } = useQuery(attendanceQuery(batchId, isMember));
+  const { data: marks = [] } = useQuery(attendanceQuery(batchId, isMember, user?.id, canManage));
   const { data: members = [] } = useQuery(batchMembersQuery(batchId, canManage));
 
   const mark = useMutation({
@@ -121,18 +129,17 @@ export function AttendancePanel({ now, compact = false }: { now: number; compact
     onError: (e: Error) => toast.error(e.message),
   });
 
-
   /** Attendance is only for actual classes — calendar milestones, holidays and
    *  assessments such as quizzes or exams never appear as subjects. The rule
    *  lives in lib/courses so every batch and every page agrees. */
   const classes = useMemo(() => sessions.filter(isTeachingClass), [sessions]);
-
 
   /** Any class from the timetable, newest first, searchable. */
   const browsable = useMemo(() => {
     const needle = q.trim().toLowerCase();
 
     return classes
+      .filter((s) => new Date(s.end_at).getTime() <= now)
       .filter((s) =>
         !needle
           ? true
@@ -141,11 +148,12 @@ export function AttendancePanel({ now, compact = false }: { now: number; compact
               .some((v) => String(v).toLowerCase().includes(needle)),
       )
       .sort((a, b) => new Date(b.start_at).getTime() - new Date(a.start_at).getTime());
-  }, [classes, q]);
+  }, [classes, q, now]);
 
   const myMarks = useMemo(() => {
     const map = new Map<string, AttendanceMark>();
-    for (const m of marks) if (m.user_id === user?.id) map.set(`${m.session_id}-${m.mark_source}`, m);
+    for (const m of marks)
+      if (m.user_id === user?.id) map.set(`${m.session_id}-${m.mark_source}`, m);
     return map;
   }, [marks, user?.id]);
 
@@ -179,7 +187,7 @@ export function AttendancePanel({ now, compact = false }: { now: number; compact
     }
     for (const [sessionId, m] of resolvedMine) {
       const s = sessionById.get(sessionId);
-      if (!s) continue;
+      if (!s || new Date(s.end_at).getTime() > now) continue;
       const row = rows.get(sessionSubject(s));
       if (!row) continue;
       if (m.status !== "absent") {
@@ -202,8 +210,8 @@ export function AttendancePanel({ now, compact = false }: { now: number; compact
         const held = v.held;
         const attendedHeld = Math.max(0, held - absent);
         const heldPct = held > 0 ? Math.round((attendedHeld / held) * 100) : 100;
-        const recoveryNeeded = consecutiveNeededFor75(held, attendedHeld);
-        const safeBuffer = safeMissBufferFor75(held, attendedHeld);
+        const recoveryNeeded = consecutiveNeededFor70(held, attendedHeld);
+        const safeBuffer = safeMissBufferFor70(held, attendedHeld);
         return {
           course,
           credits,
@@ -275,13 +283,13 @@ export function AttendancePanel({ now, compact = false }: { now: number; compact
     };
   }, [stats, focus]);
 
-
   const conflicts = useMemo(() => {
     const bySession = new Map<string, AttendanceMark[]>();
-    for (const m of marks) bySession.set(`${m.session_id}|${m.user_id}`, [
-      ...(bySession.get(`${m.session_id}|${m.user_id}`) ?? []),
-      m,
-    ]);
+    for (const m of marks)
+      bySession.set(`${m.session_id}|${m.user_id}`, [
+        ...(bySession.get(`${m.session_id}|${m.user_id}`) ?? []),
+        m,
+      ]);
     return [...bySession.values()].filter(
       (list) => list.length > 1 && new Set(list.map((m) => m.status)).size > 1,
     );
@@ -343,6 +351,30 @@ export function AttendancePanel({ now, compact = false }: { now: number; compact
       </p>
     );
 
+  if (batchId !== IPM1_BATCH_ID)
+    return (
+      <section className="premium-panel mt-5">
+        <h2>Attendance records</h2>
+        <p className="mt-2 text-sm text-dim">
+          Your batch handbook has not been added yet. IPM 1 leave budgets and eligibility rules are
+          not applied to this batch.
+        </p>
+        <div className="mt-5 space-y-3">
+          {stats.map((row) => (
+            <div
+              key={row.course}
+              className="flex justify-between border-b border-border pb-3 text-sm"
+            >
+              <strong>{row.course}</strong>
+              <span className="text-dim">
+                {row.held} classes held · {row.absent} recorded absences
+              </span>
+            </div>
+          ))}
+        </div>
+      </section>
+    );
+
   return (
     <section className={compact ? "" : "mt-4"}>
       {!compact && (
@@ -373,8 +405,8 @@ export function AttendancePanel({ now, compact = false }: { now: number; compact
       <div className="flex flex-col gap-4">
         {conflicts.length > 0 && canManage && (
           <p className="flex items-center gap-2 rounded-lg bg-evt-quiz/10 px-3 py-2 font-mono text-[11px] text-evt-quiz ring-1 ring-evt-quiz/30">
-            <AlertTriangle className="size-3.5" /> {conflicts.length} record(s) where a self-mark and
-            a rep mark disagree.
+            <AlertTriangle className="size-3.5" /> {conflicts.length} record(s) where a self-mark
+            and a rep mark disagree.
           </p>
         )}
 
@@ -384,7 +416,7 @@ export function AttendancePanel({ now, compact = false }: { now: number; compact
           </p>
         ) : (
           <>
-            {/* ---------------- 75% Debarment Risk Radar ---------------- */}
+            {/* ---------------- 70% Debarment Risk Radar ---------------- */}
             {criticalDebarment.length > 0 ? (
               <div className="relative overflow-hidden rounded-2xl border border-rose/40 bg-gradient-to-br from-rose/15 via-rose/5 to-surface p-4 sm:p-5 shadow-lg shadow-rose/10 ring-1 ring-rose/30">
                 <div className="flex flex-wrap items-center justify-between gap-3">
@@ -394,13 +426,15 @@ export function AttendancePanel({ now, compact = false }: { now: number; compact
                     </div>
                     <div>
                       <h4 className="font-display text-sm sm:text-base font-bold text-rose flex items-center gap-2">
-                        <span>75% Debarment Risk Alert</span>
+                        <span>70% Debarment Risk Alert</span>
                         <span className="rounded-full bg-rose/20 px-2 py-0.5 font-mono text-[10px] font-extrabold text-rose">
-                          {criticalDebarment.length} Subject{criticalDebarment.length > 1 ? "s" : ""} Below 75%
+                          {criticalDebarment.length} Subject
+                          {criticalDebarment.length > 1 ? "s" : ""} Below 70%
                         </span>
                       </h4>
                       <p className="font-sans text-xs text-dim">
-                        TAPMI regulations mandate &ge;75% attendance for end-term exam eligibility.
+                        The IPM 1 handbook specifies &ge;70% attendance for end-term exam
+                        eligibility.
                       </p>
                     </div>
                   </div>
@@ -436,7 +470,8 @@ export function AttendancePanel({ now, compact = false }: { now: number; compact
                             Recovery Required
                           </span>
                           <span className="font-display text-xs font-extrabold text-rose">
-                            Attend next {s.recoveryNeeded} consecutive class{s.recoveryNeeded === 1 ? "" : "es"}
+                            Attend next {s.recoveryNeeded} consecutive class
+                            {s.recoveryNeeded === 1 ? "" : "es"}
                           </span>
                         </div>
                       </div>
@@ -455,11 +490,13 @@ export function AttendancePanel({ now, compact = false }: { now: number; compact
                       <h4 className="font-display text-sm font-bold text-ink flex items-center gap-2">
                         <span>Borderline Debarment Watch</span>
                         <span className="rounded-full bg-amber-500/15 px-2 py-0.5 font-mono text-[10px] font-bold text-amber-500">
-                          {borderlineDebarment.length} Course{borderlineDebarment.length > 1 ? "s" : ""} Borderline
+                          {borderlineDebarment.length} Course
+                          {borderlineDebarment.length > 1 ? "s" : ""} Borderline
                         </span>
                       </h4>
                       <p className="font-sans text-xs text-dim">
-                        Attendance is between 75% and 79%. Missing additional classes may trigger debarment.
+                        Attendance is between 70% and 79%. Missing additional classes may trigger
+                        debarment.
                       </p>
                     </div>
                   </div>
@@ -489,18 +526,21 @@ export function AttendancePanel({ now, compact = false }: { now: number; compact
                 <div className="flex items-center gap-2">
                   <ShieldCheck className="size-4 text-emerald-500 shrink-0" />
                   <span className="font-sans text-xs font-semibold text-ink">
-                    75% Debarment Radar: All courses meet or exceed minimum eligibility requirements.
+                    70% Debarment Radar: All courses meet or exceed minimum eligibility
+                    requirements.
                   </span>
                 </div>
                 <span className="hidden sm:inline font-mono text-[10px] font-bold text-emerald-600 dark:text-emerald-400">
-                  &ge; 75% SAFE
+                  &ge; 70% SAFE
                 </span>
               </div>
             )}
 
             {/* ---------------- Hero ---------------- */}
             <div className="rounded-2xl bg-surface p-4 sm:p-5 ring-1 ring-border">
-              <div className={`flex flex-col items-center ${compact ? "gap-4" : "gap-6 sm:flex-row sm:items-center"}`}>
+              <div
+                className={`flex flex-col items-center ${compact ? "gap-4" : "gap-6 sm:flex-row sm:items-center"}`}
+              >
                 <div className="shrink-0">
                   <Donut
                     value={overall.pct}
@@ -552,14 +592,16 @@ export function AttendancePanel({ now, compact = false }: { now: number; compact
                   </p>
 
                   <div className="mt-4 grid grid-cols-3 gap-2">
-                    <StatTile label="Attended" value={overall.planned - overall.absent} />
+                    <StatTile label="Projected attended" value={overall.planned - overall.absent} />
                     <StatTile label="Missed" value={overall.absent} />
-                    <StatTile label="Scheduled" value={overall.planned} />
+                    <StatTile label="Planned total" value={overall.planned} />
                   </div>
 
                   <Rail pct={overall.pct} labels />
 
-                  <div className={`mt-5 grid gap-x-6 gap-y-3 ${compact ? "grid-cols-1" : "sm:grid-cols-2"}`}>
+                  <div
+                    className={`mt-5 grid gap-x-6 gap-y-3 ${compact ? "grid-cols-1" : "sm:grid-cols-2"}`}
+                  >
                     <LeaveBar type="personal" used={overall.pl} cap={overall.caps.personal} />
                     <LeaveBar
                       type="institutional"
@@ -581,8 +623,8 @@ export function AttendancePanel({ now, compact = false }: { now: number; compact
                       <span className="min-w-0 flex-1">
                         {longestRun.days} continuous days absent (
                         {termFmt.format(new Date(longestRun.from))} –{" "}
-                        {termFmt.format(new Date(longestRun.to))}). Over {CONTINUOUS_ABSENCE_DAYS} days
-                        without the Director's approval means withdrawal.
+                        {termFmt.format(new Date(longestRun.to))}). Over {CONTINUOUS_ABSENCE_DAYS}{" "}
+                        days without the Director's approval means withdrawal.
                       </span>
                     </p>
                   )}
@@ -645,7 +687,13 @@ export function AttendancePanel({ now, compact = false }: { now: number; compact
                     marks={marks}
                     meId={user!.id}
                     onMark={(status, userId, source, leave) =>
-                      mark.mutate({ session: s, userId, status, source, leave: leave ?? "personal" })
+                      mark.mutate({
+                        session: s,
+                        userId,
+                        status,
+                        source,
+                        leave: leave ?? "personal",
+                      })
                     }
                   />
                 ))}
@@ -673,7 +721,9 @@ function StatTile({ label, value }: { label: string; value: number }) {
   return (
     <div className="min-w-0 rounded-xl bg-surface2/60 px-2 sm:px-3 py-2 ring-1 ring-border">
       <p className="font-display text-lg font-semibold leading-none">{value}</p>
-      <p className="mt-1 truncate font-mono text-[9px] uppercase tracking-wider text-faint">{label}</p>
+      <p className="mt-1 truncate font-mono text-[9px] uppercase tracking-wider text-faint">
+        {label}
+      </p>
     </div>
   );
 }
@@ -706,30 +756,48 @@ function LeaveBar({ type, used, cap }: { type: LeaveType; used: number; cap: num
   );
 }
 
-
 /** The handbook rules, spelled out so nobody has to open the PDF. */
 function PolicyCard() {
   return (
     <div className="rounded-2xl bg-surface p-4 font-mono text-[11px] leading-relaxed text-dim ring-1 border border-border">
       <div className="flex flex-wrap items-center gap-2 mb-2">
-        <p className="font-display text-sm font-semibold text-ink">TAPMI IPM Attendance & GPA Policy</p>
-        <span className="rounded bg-cyan/15 px-2 py-0.5 font-mono text-[10px] text-cyan">Credit & Bunk Rules</span>
+        <p className="font-display text-sm font-semibold text-ink">TAPMI IPM Attendance Policy</p>
+        <span className="rounded bg-cyan/15 px-2 py-0.5 font-mono text-[10px] text-cyan">
+          Credit & Bunk Rules
+        </span>
       </div>
       <ul className="mt-2 flex flex-col gap-2">
         <li>
-          <strong className="text-ink">Credit-to-Session Ratio:</strong> Total course sessions are strictly fixed by credits: <span className="text-ink font-semibold">1 Credit = 8 Sessions</span>, <span className="text-ink font-semibold">2 Credits = 16 Sessions</span>, and <span className="text-ink font-semibold">3 Credits = 24 Sessions</span> (never from Registro counts).
+          <strong className="text-ink">Credit-to-Session Ratio:</strong> Total course sessions are
+          strictly fixed by credits:{" "}
+          <span className="text-ink font-semibold">1 Credit = 8 Sessions</span>,{" "}
+          <span className="text-ink font-semibold">2 Credits = 16 Sessions</span>, and{" "}
+          <span className="text-ink font-semibold">3 Credits = 24 Sessions</span> (never from
+          Registro counts).
         </li>
         <li>
-          <strong className="text-ink">1 Miss Per Credit Rule:</strong> You are allowed to miss exactly <span className="text-emerald-500 font-semibold">1 class per credit</span> without penalty (1 bunk for 1-credit, 2 bunks for 2-credit, and 3 bunks for 3-credit courses).
+          <strong className="text-ink">1 Miss Per Credit Rule:</strong> You are allowed to miss
+          exactly <span className="text-emerald-500 font-semibold">1 class per credit</span> without
+          penalty (1 bunk for 1-credit, 2 bunks for 2-credit, and 3 bunks for 3-credit courses).
         </li>
         <li>
-          <strong className="text-ink">0.5 GPA Cut Penalty:</strong> Missing any class beyond your credit allowance incurs an immediate <span className="text-rose font-bold">0.5 GPA deduction for every subsequent class missed</span>.
+          <strong className="text-ink">Course grade-point deduction:</strong> Missing any class
+          beyond your credit allowance incurs an immediate{" "}
+          <span className="text-rose font-bold">
+            0.5 course grade-point deduction for every subsequent class missed
+          </span>
+          .
         </li>
         <li>
-          <strong className="text-ink">75% Debarment Threshold:</strong> In addition to safe bunks, TAPMI regulations mandate <span className="text-amber-500 font-semibold">&ge;75% attendance</span> across sessions held so far to appear for end-term examinations.
+          <strong className="text-ink">70% Debarment Threshold:</strong> In addition to safe bunks,
+          The IPM 1 handbook specifies{" "}
+          <span className="text-amber-500 font-semibold">&ge;70% attendance</span> over the complete
+          course, subject to the separate personal and institutional leave limits. Held-to-date
+          percentages are progress indicators.
         </li>
         <li>
-          <strong className="text-ink">Continuous Absence:</strong> Missing more than 13 straight calendar days without written approval from the Director results in automatic withdrawal.
+          <strong className="text-ink">Continuous Absence:</strong> Missing more than 13 straight
+          calendar days without written approval from the Director results in automatic withdrawal.
         </li>
       </ul>
     </div>
@@ -836,18 +904,18 @@ function SubjectRow({
       : isCut
         ? {
             text: compact
-              ? `🚨 −${row.penalty.toFixed(1)} GPA cut (${row.excessMisses} excess)`
-              : `🚨 −${row.penalty.toFixed(1)} GPA cut · ${row.excessMisses} excess missed beyond ${row.allowedMisses} allowance`,
+              ? `🚨 −${row.penalty.toFixed(1)} course grade points (${row.excessMisses} excess)`
+              : `🚨 −${row.penalty.toFixed(1)} course grade points · ${row.excessMisses} excess missed beyond ${row.allowedMisses} allowance`,
             tone: "text-rose font-bold",
           }
         : isDanger
           ? {
-              text: `⚠️ 1 class left to miss — next miss triggers 0.5 GPA cut!`,
+              text: `⚠️ 1 safe absence left — one more miss uses your final safe class`,
               tone: "text-amber-500 font-bold",
             }
           : isLimit
             ? {
-                text: `🚨 0 bunks left — reached the limit! Next miss cuts 0.5 GPA`,
+                text: `🚨 0 bunks left — reached the limit! Next miss cuts 0.5 course grade points`,
                 tone: "text-amber-500 font-bold",
               }
             : {
@@ -865,12 +933,7 @@ function SubjectRow({
       }`}
     >
       <div className="shrink-0">
-        <Donut
-          value={row.pct}
-          color={color}
-          size={36}
-          thickness={5}
-        />
+        <Donut value={row.pct} color={color} size={36} thickness={5} />
       </div>
 
       <span className="min-w-0 flex-1">
@@ -896,11 +959,13 @@ function SubjectRow({
           )}
           {isCut && (
             <span className="rounded-md bg-rose/15 border border-rose/30 px-1.5 py-0.5 font-mono text-[9px] font-extrabold text-rose shrink-0">
-              -{row.penalty.toFixed(1)} GPA Cut
+              -{row.penalty.toFixed(1)} course grade points
             </span>
           )}
         </span>
-        <span className={`mt-0.5 block truncate font-mono text-[10px] leading-relaxed ${status.tone}`}>
+        <span
+          className={`mt-0.5 block truncate font-mono text-[10px] leading-relaxed ${status.tone}`}
+        >
           {status.text}
         </span>
         {row.held > 0 && (
@@ -911,7 +976,8 @@ function SubjectRow({
               </span>
             ) : row.heldPct < 80 ? (
               <span className="inline-flex items-center gap-1 rounded-md bg-amber-500/15 border border-amber-500/30 px-1.5 py-0.5 font-mono text-[9px] font-semibold text-amber-500">
-                ⚡ {row.heldPct}% held · Buffer: {row.safeBuffer} {row.safeBuffer === 1 ? "miss" : "misses"}
+                ⚡ {row.heldPct}% held · Buffer: {row.safeBuffer}{" "}
+                {row.safeBuffer === 1 ? "miss" : "misses"}
               </span>
             ) : (
               <span className="inline-flex items-center gap-1 font-mono text-[9px] text-faint">
@@ -943,7 +1009,6 @@ function SubjectRow({
   );
 }
 
-
 function SessionCard({
   session,
   tone = "live",
@@ -958,7 +1023,11 @@ function SessionCard({
   tone?: "live" | "upcoming" | "past";
   myMark: AttendanceMark | null;
   canManage: boolean;
-  members: { user_id: string; status: string; profiles: { full_name: string | null; email: string | null } | null }[];
+  members: {
+    user_id: string;
+    status: string;
+    profiles: { full_name: string | null; email: string | null } | null;
+  }[];
   marks: AttendanceMark[];
   onMark: (
     status: AttendanceMark["status"] | null,
@@ -966,7 +1035,6 @@ function SessionCard({
     source: AttendanceMark["mark_source"],
     leave?: LeaveType,
   ) => void;
-
 
   meId: string;
 }) {
@@ -995,10 +1063,11 @@ function SessionCard({
             {timeFmt.format(new Date(session.start_at))}
           </span>
           <SessionMeta session={session} />
-
         </span>
         <LeaveButtons
-          current={myMark?.status === "absent" ? ((myMark.leave_type ?? "personal") as LeaveType) : null}
+          current={
+            myMark?.status === "absent" ? ((myMark.leave_type ?? "personal") as LeaveType) : null
+          }
           onPick={(leave) =>
             onMark(
               myMark?.status === "absent" && (myMark.leave_type ?? "personal") === leave
@@ -1010,8 +1079,6 @@ function SessionCard({
             )
           }
         />
-
-
 
         {canManage && (
           <button
@@ -1049,8 +1116,6 @@ function SessionCard({
                       )
                     }
                   />
-
-
                 </div>
               );
             })}
@@ -1088,7 +1153,11 @@ function LeaveButtons({
 
       <button
         onClick={() => onPick("institutional")}
-        title={isInstitutional ? "Tap again to clear absence mark" : "Mark official/institutional leave (IL)"}
+        title={
+          isInstitutional
+            ? "Tap again to clear absence mark"
+            : "Mark official/institutional leave (IL)"
+        }
         className={`flex items-center gap-1 rounded-lg px-2 py-1.5 font-mono text-[10px] ring-1 transition-all ${
           isInstitutional
             ? "bg-amber/20 text-amber ring-amber/40"

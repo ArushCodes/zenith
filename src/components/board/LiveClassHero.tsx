@@ -22,12 +22,7 @@ import { toast } from "sonner";
 import { db as supabase } from "@/lib/backend";
 import { useAuth } from "@/hooks/use-auth";
 import { useBatch } from "@/hooks/use-batch";
-import {
-  attendanceQuery,
-  coursesQuery,
-  sessionsQuery,
-  type ClassSession,
-} from "@/lib/batches";
+import { attendanceQuery, coursesQuery, sessionsQuery, type ClassSession } from "@/lib/batches";
 import {
   autoColor,
   buildColorMap,
@@ -78,12 +73,9 @@ export function LiveClassHero({
 
   const { data: sessions = [] } = useQuery(sessionsQuery(batchId));
   const { data: courses = [] } = useQuery(coursesQuery(batchId));
-  const { data: marks = [] } = useQuery(attendanceQuery(batchId, isMember));
+  const { data: marks = [] } = useQuery(attendanceQuery(batchId, isMember, user?.id, canManage));
 
-  const colorMap = useMemo(
-    () => buildColorMap(courses, sessions),
-    [courses, sessions],
-  );
+  const colorMap = useMemo(() => buildColorMap(courses, sessions), [courses, sessions]);
 
   // Self attendance marks mapped by session ID
   const myMarks = useMemo(() => {
@@ -122,7 +114,7 @@ export function LiveClassHero({
       queryClient.invalidateQueries({ queryKey: ["batch-attendance"] });
       toast.success(status === "absent" ? "Marked as Absent" : "Marked as Present");
     },
-    onError: (err: any) => {
+    onError: (err: Error) => {
       toast.error(err.message || "Failed to update attendance");
     },
   });
@@ -140,22 +132,13 @@ export function LiveClassHero({
   const daySessions = useMemo(() => {
     return sessions
       .filter((s) => dayKey(new Date(s.start_at)) === targetDayKey)
-      .sort(
-        (a, b) =>
-          new Date(a.start_at).getTime() - new Date(b.start_at).getTime(),
-      );
+      .sort((a, b) => new Date(a.start_at).getTime() - new Date(b.start_at).getTime());
   }, [sessions, targetDayKey]);
 
-  const classes = useMemo(
-    () => daySessions.filter(isTeachingClass),
-    [daySessions],
-  );
+  const classes = useMemo(() => daySessions.filter(isTeachingClass), [daySessions]);
 
   const isWeekendOff = useMemo(() => isDayOff(selectedDate), [selectedDate]);
-  const isHoliday = useMemo(
-    () => daySessions.some(isAcademicEvent),
-    [daySessions],
-  );
+  const isHoliday = useMemo(() => daySessions.some(isAcademicEvent), [daySessions]);
 
   const liveClass = useMemo(() => {
     if (offset !== 0) return null;
@@ -170,19 +153,14 @@ export function LiveClassHero({
 
   const nextClassToday = useMemo(() => {
     if (offset !== 0 || liveClass) return null;
-    return (
-      classes.find((s) => new Date(s.start_at).getTime() > now) || null
-    );
+    return classes.find((s) => new Date(s.start_at).getTime() > now) || null;
   }, [classes, liveClass, now, offset]);
 
   const nextUpcomingAnyDay = useMemo(() => {
     return (
       sessions
         .filter((s) => isTeachingClass(s) && new Date(s.start_at).getTime() > now)
-        .sort(
-          (a, b) =>
-            new Date(a.start_at).getTime() - new Date(b.start_at).getTime(),
-        )[0] || null
+        .sort((a, b) => new Date(a.start_at).getTime() - new Date(b.start_at).getTime())[0] || null
     );
   }, [sessions, now]);
 
@@ -212,10 +190,10 @@ export function LiveClassHero({
   }, [deadlines, now]);
 
   const activeThemeColor = liveClass
-    ? sessionColor(liveClass, colorMap) ?? "#22D3EE"
+    ? (sessionColor(liveClass, colorMap) ?? "#22D3EE")
     : nextClassToday
-    ? sessionColor(nextClassToday, colorMap) ?? "#F59E0B"
-    : "#22D3EE";
+      ? (sessionColor(nextClassToday, colorMap) ?? "#F59E0B")
+      : "#22D3EE";
 
   return (
     <section className="relative mb-5 sm:mb-8 overflow-hidden rounded-2xl sm:rounded-[32px] border border-border/80 bg-surface/95 p-4 sm:p-7 md:p-8 shadow-xl backdrop-blur-2xl transition-all duration-300">
@@ -245,10 +223,10 @@ export function LiveClassHero({
               {offset === 0
                 ? "Today"
                 : offset === 1
-                ? "Tomorrow"
-                : offset === -1
-                ? "Yesterday"
-                : shortDayFmt.format(selectedDate)}
+                  ? "Tomorrow"
+                  : offset === -1
+                    ? "Yesterday"
+                    : shortDayFmt.format(selectedDate)}
             </span>
             {offset !== 0 && (
               <button
@@ -346,13 +324,16 @@ export function LiveClassHero({
                     </span>
                   )}
                   <span className="font-mono text-xs font-bold text-dim bg-surface2 px-2.5 py-1 rounded-lg border border-border">
-                    {clockTimeFmt.format(new Date(liveClass.start_at))} – {clockTimeFmt.format(new Date(liveClass.end_at))}
+                    {clockTimeFmt.format(new Date(liveClass.start_at))} –{" "}
+                    {clockTimeFmt.format(new Date(liveClass.end_at))}
                   </span>
                 </div>
 
                 {/* Massive Headline Title: Full course name, never clipped */}
                 <h2 className="font-display text-xl sm:text-3xl md:text-4xl font-extrabold tracking-tight text-ink break-words leading-tight">
-                  {subjectFullName(liveClass.course_name || liveClass.course_code || liveClass.title) || sessionFullName(liveClass)}
+                  {subjectFullName(
+                    liveClass.course_name || liveClass.course_code || liveClass.title,
+                  ) || sessionFullName(liveClass)}
                 </h2>
 
                 <div className="flex flex-wrap items-center gap-3 sm:gap-4 text-xs sm:text-sm text-dim pt-1">
@@ -430,7 +411,8 @@ export function LiveClassHero({
                 style={{ backgroundColor: activeThemeColor }}
               />
               <span className="font-mono text-xs font-bold text-dim bg-surface2 px-2.5 py-1 rounded-lg border border-border">
-                {clockTimeFmt.format(new Date(nextClassToday.start_at))} – {clockTimeFmt.format(new Date(nextClassToday.end_at))}
+                {clockTimeFmt.format(new Date(nextClassToday.start_at))} –{" "}
+                {clockTimeFmt.format(new Date(nextClassToday.end_at))}
               </span>
               <span className="rounded-xl bg-cyan/15 px-3 py-1 font-mono text-xs font-bold text-cyan border border-cyan/30">
                 Starts in {timeLeft(nextClassToday.start_at, now)}
@@ -444,13 +426,16 @@ export function LiveClassHero({
 
             {/* Huge Headline Title: Full course name, never clipped */}
             <h2 className="font-display text-xl sm:text-3xl md:text-4xl font-extrabold tracking-tight text-ink break-words leading-tight">
-              {subjectFullName(nextClassToday.course_name || nextClassToday.course_code || nextClassToday.title) || sessionFullName(nextClassToday)}
+              {subjectFullName(
+                nextClassToday.course_name || nextClassToday.course_code || nextClassToday.title,
+              ) || sessionFullName(nextClassToday)}
             </h2>
 
             {nextClassToday.faculty_name && (
               <p className="font-sans text-xs sm:text-sm text-dim flex items-center gap-1.5">
                 <User className="size-4 text-dim" />
-                Faculty: <strong className="text-ink font-semibold">{nextClassToday.faculty_name}</strong>
+                Faculty:{" "}
+                <strong className="text-ink font-semibold">{nextClassToday.faculty_name}</strong>
               </p>
             )}
           </motion.div>
@@ -471,7 +456,13 @@ export function LiveClassHero({
             </h2>
             {nextUpcomingAnyDay && (
               <p className="font-sans text-xs sm:text-sm text-dim">
-                Next scheduled class: <strong className="text-ink font-semibold">{subjectFullName(nextUpcomingAnyDay.course_name || nextUpcomingAnyDay.course_code) || sessionFullName(nextUpcomingAnyDay)}</strong> ({shortDayFmt.format(new Date(nextUpcomingAnyDay.start_at))})
+                Next scheduled class:{" "}
+                <strong className="text-ink font-semibold">
+                  {subjectFullName(
+                    nextUpcomingAnyDay.course_name || nextUpcomingAnyDay.course_code,
+                  ) || sessionFullName(nextUpcomingAnyDay)}
+                </strong>{" "}
+                ({shortDayFmt.format(new Date(nextUpcomingAnyDay.start_at))})
               </p>
             )}
           </motion.div>
@@ -502,8 +493,8 @@ export function LiveClassHero({
                     isLive
                       ? "border-cyan/80 bg-cyan/[0.08] shadow-lg shadow-cyan/10 ring-1 ring-cyan/40"
                       : isPast
-                      ? "border-border/60 bg-surface2/30 opacity-75"
-                      : "border-border bg-surface hover:border-border/90 hover:shadow-xs"
+                        ? "border-border/60 bg-surface2/30 opacity-75"
+                        : "border-border bg-surface hover:border-border/90 hover:shadow-xs"
                   }`}
                 >
                   <span
@@ -521,9 +512,7 @@ export function LiveClassHero({
                           Active
                         </span>
                       ) : isPast ? (
-                        <span className="font-mono text-[10px] text-faint">
-                          Done
-                        </span>
+                        <span className="font-mono text-[10px] text-faint">Done</span>
                       ) : null}
                     </div>
 
@@ -544,7 +533,9 @@ export function LiveClassHero({
                     {mark === "absent" ? (
                       <span className="font-mono text-[10px] font-bold text-rose">Absent</span>
                     ) : mark === "present" ? (
-                      <span className="font-mono text-[10px] font-bold text-emerald-500">Present</span>
+                      <span className="font-mono text-[10px] font-bold text-emerald-500">
+                        Present
+                      </span>
                     ) : null}
                   </div>
                 </div>
@@ -647,9 +638,7 @@ export function LiveClassHero({
                             ✓ Verified
                           </span>
                         ) : (
-                          <span className="text-[10px] font-medium text-amber">
-                            Pending
-                          </span>
+                          <span className="text-[10px] font-medium text-amber">Pending</span>
                         )}
                       </div>
                       <p className="font-sans text-xs text-ink/90 line-clamp-2 leading-relaxed">

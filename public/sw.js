@@ -1,82 +1,41 @@
-// Zenith Offline Service Worker
-const CACHE_NAME = "zenith-cache-v1";
-const OFFLINE_URLS = [
-  "/",
-  "/favicon.ico",
-  "/manifest.webmanifest",
-];
-
-self.addEventListener("install", (event) => {
-  event.waitUntil(
-    caches
-      .open(CACHE_NAME)
-      .then((cache) => cache.addAll(OFFLINE_URLS))
-      .then(() => self.skipWaiting())
-  );
-});
-
+// Cache public static assets only; private pages and RPCs stay on the network.
+const CACHE_NAME = "zenith-public-assets-v2";
+self.addEventListener("install", () => self.skipWaiting());
 self.addEventListener("activate", (event) => {
   event.waitUntil(
     caches
       .keys()
-      .then((cacheNames) =>
+      .then((keys) =>
         Promise.all(
-          cacheNames
-            .filter((name) => name !== CACHE_NAME)
-            .map((name) => caches.delete(name))
-        )
+          keys
+            .filter((key) => key.startsWith("zenith-") && key !== CACHE_NAME)
+            .map((key) => caches.delete(key)),
+        ),
       )
-      .then(() => self.clients.claim())
+      .then(() => self.clients.claim()),
   );
 });
-
 self.addEventListener("fetch", (event) => {
-  if (event.request.method !== "GET") return;
-
   const url = new URL(event.request.url);
-
-  // Network-first for dynamic API & Supabase queries; Cache-first for static assets
   if (
-    url.pathname.startsWith("/api/") ||
-    url.hostname.includes("supabase.co")
-  ) {
-    event.respondWith(
-      fetch(event.request).catch(() => caches.match(event.request))
-    );
+    event.request.method !== "GET" ||
+    url.origin !== self.location.origin ||
+    event.request.mode === "navigate"
+  )
     return;
-  }
-
+  if (
+    !url.pathname.startsWith("/assets/") &&
+    !["/favicon.ico", "/manifest.webmanifest"].includes(url.pathname)
+  )
+    return;
   event.respondWith(
-    caches.match(event.request).then((cachedResponse) => {
-      if (cachedResponse) {
-        // Fetch fresh copy in background to revalidate cache
-        fetch(event.request)
-          .then((networkResponse) => {
-            if (networkResponse && networkResponse.status === 200) {
-              caches.open(CACHE_NAME).then((cache) => cache.put(event.request, networkResponse));
-            }
-          })
-          .catch(() => {});
-        return cachedResponse;
-      }
-
-      return fetch(event.request)
-        .then((response) => {
-          if (!response || response.status !== 200 || response.type !== "basic") {
-            return response;
-          }
-          const responseToCache = response.clone();
-          caches.open(CACHE_NAME).then((cache) => {
-            cache.put(event.request, responseToCache);
-          });
-          return response;
-        })
-        .catch(() => {
-          // If offline and requesting an HTML page, fallback to cached root
-          if (event.request.headers.get("accept")?.includes("text/html")) {
-            return caches.match("/");
-          }
-        });
-    })
+    caches.open(CACHE_NAME).then(async (cache) => {
+      const cached = await cache.match(event.request);
+      if (cached) return cached;
+      const response = await fetch(event.request);
+      if (response.ok && response.type === "basic")
+        await cache.put(event.request, response.clone());
+      return response;
+    }),
   );
 });

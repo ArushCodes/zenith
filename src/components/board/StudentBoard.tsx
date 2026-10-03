@@ -32,18 +32,14 @@ import {
   X,
 } from "lucide-react";
 import { GradingPanel } from "@/components/grading/GradingPanel";
+import { DashboardSidebar } from "@/components/board/DashboardSidebar";
 import { ExamsPanel } from "@/components/exams/ExamsPanel";
 import { toast } from "sonner";
 import { db as supabase } from "@/lib/backend";
 import { useAuth } from "@/hooks/use-auth";
 import { useBatch } from "@/hooks/use-batch";
 import { useMe } from "@/hooks/use-me";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { BoardHeader } from "@/components/board/BoardHeader";
 import { DeadlineRow } from "@/components/board/DeadlineRow";
 import { ExamMarks } from "@/components/board/ExamMarks";
@@ -80,8 +76,8 @@ import {
   type FilterKey,
 } from "@/lib/deadlines";
 
-
-type TabKey = "feed" | "calendar" | "timetable" | "quizzes" | "exams" | "grading" | "attendance" | "admin";
+type TabKey =
+  "feed" | "calendar" | "timetable" | "quizzes" | "exams" | "grading" | "attendance" | "admin";
 
 const QUIZ_TYPES = ["quiz"] as const;
 const MIDTERM_TYPES = ["midterm"] as const;
@@ -99,24 +95,21 @@ const PANEL_TITLES: Record<PanelKey, string> = {
   inbox: "Email inbox",
 };
 
-
 export default function StudentBoard({ guestPreview }: { guestPreview?: boolean } = {}) {
   const { isModerator, isAdmin, isArush } = useAuth();
   const me = useMe();
   const { batchId, batch, canManage, loading: batchLoading } = useBatch();
-  const isMod = canManage || isModerator || isAdmin || isArush;
+  const isMod = canManage;
   const queryClient = useQueryClient();
   const { data: deadlines = [], isLoading } = useQuery(deadlinesQueryFor(batchId));
   const { data: sessions = [] } = useQuery(sessionsQuery(batchId));
   const { data: courses = [] } = useQuery(coursesQuery(batchId));
   const isFeedLoading = isLoading || (!batchId && batchLoading);
 
-
-
   const [tab, setTab] = useState<TabKey>("feed");
   const [examSubTab, setExamSubTab] = useState<"midterm" | "endterm">("midterm");
   const [filter, setFilter] = useState<FilterKey>("all");
-    const { doneMap, isDone, toggleDone } = usePersonalChecklist(batchId);
+  const { doneMap, isDone, toggleDone } = usePersonalChecklist(batchId);
   const [feedDensity, setFeedDensity] = useState<"comfortable" | "compact">(() => {
     if (typeof window !== "undefined") {
       const saved = window.localStorage.getItem("zenith.feed_density");
@@ -130,7 +123,9 @@ export default function StudentBoard({ guestPreview }: { guestPreview?: boolean 
     setFeedDensity(density);
     try {
       window.localStorage.setItem("zenith.feed_density", density);
-    } catch {}
+    } catch {
+      /* Storage may be unavailable in private browsing. */
+    }
   };
 
   const [feedCategory, setFeedCategory] = useState<
@@ -158,7 +153,7 @@ export default function StudentBoard({ guestPreview }: { guestPreview?: boolean 
   const [panel, setPanel] = useState<PanelKey | null>(null);
 
   useEffect(() => {
-    const id = setInterval(() => setNow(Date.now()), 1000);
+    const id = setInterval(() => setNow(Date.now()), 15_000);
     return () => clearInterval(id);
   }, []);
 
@@ -255,10 +250,7 @@ export default function StudentBoard({ guestPreview }: { guestPreview?: boolean 
     [approved, now],
   );
 
-  const filtered = useMemo(
-    () => filterByKey(approved, filter, ""),
-    [approved, filter],
-  );
+  const filtered = useMemo(() => filterByKey(approved, filter, ""), [approved, filter]);
 
   /** Quizzes, exams and coursework each get their own tab and feed section. */
   const quizzes = useMemo(
@@ -277,11 +269,22 @@ export default function StudentBoard({ guestPreview }: { guestPreview?: boolean 
     () => approved.filter((d) => (WORK_TYPES as readonly string[]).includes(d.type)),
     [approved],
   );
-  const upcomingOf = (list: Deadline[]) => list.filter((d) => phaseOf(d, now) !== "completed");
-  const nextQuizzes = useMemo(() => upcomingOf(quizzes), [quizzes, now]);
-  const nextMidterms = useMemo(() => upcomingOf(midterms), [midterms, now]);
-  const nextEndterms = useMemo(() => upcomingOf(endterms), [endterms, now]);
-  const nextProjects = useMemo(() => upcomingOf(projects), [projects, now]);
+  const nextQuizzes = useMemo(
+    () => quizzes.filter((d) => phaseOf(d, now) !== "completed"),
+    [quizzes, now],
+  );
+  const nextMidterms = useMemo(
+    () => midterms.filter((d) => phaseOf(d, now) !== "completed"),
+    [midterms, now],
+  );
+  const nextEndterms = useMemo(
+    () => endterms.filter((d) => phaseOf(d, now) !== "completed"),
+    [endterms, now],
+  );
+  const nextProjects = useMemo(
+    () => projects.filter((d) => phaseOf(d, now) !== "completed"),
+    [projects, now],
+  );
 
   // ALL upcoming deadlines across ANY event type, strictly sorted by recency (nearest due_at first)
   const allUpcoming = useMemo(() => {
@@ -362,14 +365,20 @@ export default function StudentBoard({ guestPreview }: { guestPreview?: boolean 
     return { critical, thisWeek, later };
   }, [filteredUpcoming, now]);
 
-    const totalUpcomingCount = allUpcoming.length;
+  const totalUpcomingCount = allUpcoming.length;
   const completedUpcomingCount = useMemo(() => {
     return allUpcoming.filter((d) => doneMap[d.id]).length;
   }, [allUpcoming, doneMap]);
-  const progressPercent = totalUpcomingCount > 0 ? Math.round((completedUpcomingCount / totalUpcomingCount) * 100) : 0;
+  const progressPercent =
+    totalUpcomingCount > 0 ? Math.round((completedUpcomingCount / totalUpcomingCount) * 100) : 0;
 
   const FEED_CATEGORIES = [
-    { key: "all" as const, label: "All Upcoming", count: allUpcoming.length, icon: <Layers className="size-3.5" /> },
+    {
+      key: "all" as const,
+      label: "All Upcoming",
+      count: allUpcoming.length,
+      icon: <Layers className="size-3.5" />,
+    },
     {
       key: "quiz" as const,
       label: "Quizzes",
@@ -426,7 +435,14 @@ export default function StudentBoard({ guestPreview }: { guestPreview?: boolean 
     { key: "calendar", label: "Calendar", icon: <CalendarRange className="size-4" /> },
     { key: "timetable", label: "Timetable", icon: <CalendarClock className="size-4" /> },
     ...(quizzes.length > 0
-      ? [{ key: "quizzes" as TabKey, label: "Quizzes", icon: <FileQuestion className="size-4" />, count: quizzes.length }]
+      ? [
+          {
+            key: "quizzes" as TabKey,
+            label: "Quizzes",
+            icon: <FileQuestion className="size-4" />,
+            count: quizzes.length,
+          },
+        ]
       : []),
     {
       key: "exams",
@@ -437,10 +453,15 @@ export default function StudentBoard({ guestPreview }: { guestPreview?: boolean 
     { key: "grading", label: "Grading", icon: <Award className="size-4" /> },
     { key: "attendance", label: "Attendance", icon: <UserCheck className="size-4" /> },
     ...(isAdmin || isArush
-      ? [{ key: "admin" as TabKey, label: "Admin Console", icon: <ShieldCheck className="size-4 text-emerald-400" /> }]
+      ? [
+          {
+            key: "admin" as TabKey,
+            label: "Admin Console",
+            icon: <ShieldCheck className="size-4 text-emerald-400" />,
+          },
+        ]
       : []),
   ];
-
 
   const menuItems = [
     { key: "members", label: "Members", icon: <Users className="size-4" /> },
@@ -459,7 +480,13 @@ export default function StudentBoard({ guestPreview }: { guestPreview?: boolean 
   ];
 
   return (
-    <div className="relative min-h-screen overflow-x-hidden bg-ground font-body text-ink">
+    <div className="zenith-workspace relative min-h-screen overflow-x-hidden bg-ground font-body text-ink">
+      <DashboardSidebar
+        active={tab}
+        onSelect={setTab}
+        batchLabel={batch ? formatBatchLabel(batch).code : "Your batch"}
+        admin={isAdmin}
+      />
       <BoardHeader
         menuItems={menuItems}
         onMenuSelect={(k) => setPanel(k as PanelKey)}
@@ -474,7 +501,17 @@ export default function StudentBoard({ guestPreview }: { guestPreview?: boolean 
         }}
       />
 
-      <main className="relative z-10 mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 pt-4 sm:pt-6 pb-20">
+      <main className="workspace-main relative z-10 mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 pt-4 sm:pt-6 pb-20">
+        <div className="workspace-intro">
+          <div>
+            <span className="workspace-eyebrow">YOUR ACADEMIC SPACE</span>
+            <h2>Make room for what matters.</h2>
+            <p>Classes, coursework and a little breathing room. All in one place.</p>
+          </div>
+          <span className="workspace-status">
+            <span /> Live batch board
+          </span>
+        </div>
         {/* ── Best Practice Workspace Control Deck: Editorial Context + Flat Navigation ── */}
         <div className="mb-4 flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between border-b border-border/70 pb-3">
           <div className="min-w-0">
@@ -482,7 +519,11 @@ export default function StudentBoard({ guestPreview }: { guestPreview?: boolean 
               {batch ? formatBatchLabel(batch).code : "Board"}
             </h1>
             <p className="text-[12px] font-medium text-dim mt-0.5 truncate">
-              {new Intl.DateTimeFormat("en-GB", { weekday: "short", day: "numeric", month: "short" }).format(now)}
+              {new Intl.DateTimeFormat("en-GB", {
+                weekday: "short",
+                day: "numeric",
+                month: "short",
+              }).format(now)}
             </p>
           </div>
 
@@ -490,7 +531,7 @@ export default function StudentBoard({ guestPreview }: { guestPreview?: boolean 
             {/* Flat Tab Bar with Animated Underline Accent */}
             <nav
               aria-label="Board sections"
-              className="flex items-center gap-1 sm:gap-2 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden shrink-0"
+              className="workspace-navigation flex items-center gap-1 sm:gap-2 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden shrink-0"
             >
               {tabs.map((t) => {
                 const active = tab === t.key;
@@ -551,8 +592,6 @@ export default function StudentBoard({ guestPreview }: { guestPreview?: boolean 
           </div>
         </div>
 
-
-
         {tab === "calendar" && (
           <div className="mb-5 rounded-xl bg-surface p-4 ring-1 ring-border">
             <div className="flex w-full flex-wrap items-center gap-3 font-mono text-[10px] uppercase tracking-[0.2em] text-cyan">
@@ -602,7 +641,6 @@ export default function StudentBoard({ guestPreview }: { guestPreview?: boolean 
           </div>
         )}
 
-
         <AnimatePresence mode="wait" initial={false}>
           <motion.div
             key={tab}
@@ -625,8 +663,6 @@ export default function StudentBoard({ guestPreview }: { guestPreview?: boolean 
                   canManage={isMod}
                 />
 
-
-
                 {/* ── Active Filter Bar (shows when any filter is toggled) ── */}
                 {(urgentOnly || pendingOnly || feedCategory !== "all" || feedSearch) && (
                   <div className="flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-cyan/30 bg-cyan/10 px-3.5 py-2 text-xs backdrop-blur-md">
@@ -638,10 +674,10 @@ export default function StudentBoard({ guestPreview }: { guestPreview?: boolean 
                           {urgentOnly
                             ? "Due in 48 Hours"
                             : pendingOnly
-                            ? "Pending Checklist Only"
-                            : feedCategory !== "all"
-                            ? `${feedCategory.charAt(0).toUpperCase() + feedCategory.slice(1)}s`
-                            : `Search "${feedSearch}"`}
+                              ? "Pending Checklist Only"
+                              : feedCategory !== "all"
+                                ? `${feedCategory.charAt(0).toUpperCase() + feedCategory.slice(1)}s`
+                                : `Search "${feedSearch}"`}
                         </span>
                       </span>
                       <AnimatePresence mode="wait">
@@ -653,7 +689,8 @@ export default function StudentBoard({ guestPreview }: { guestPreview?: boolean 
                           transition={{ duration: 0.18 }}
                           className="font-mono text-[11px] text-dim"
                         >
-                          ({filteredUpcoming.length} {filteredUpcoming.length === 1 ? "event" : "events"} shown)
+                          ({filteredUpcoming.length}{" "}
+                          {filteredUpcoming.length === 1 ? "event" : "events"} shown)
                         </motion.span>
                       </AnimatePresence>
                     </div>
@@ -677,7 +714,9 @@ export default function StudentBoard({ guestPreview }: { guestPreview?: boolean 
                   <div className="flex items-center gap-2 rounded-xl border border-rose/30 bg-rose/5 px-3 py-1.5 text-xs backdrop-blur-md overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
                     <div className="flex items-center gap-1.5 shrink-0 text-rose font-bold">
                       <Flame className="size-3.5 animate-pulse" />
-                      <span className="uppercase tracking-wider text-[10px] sm:text-[11px]">Due in 48h ({recencyBuckets.critical.length}):</span>
+                      <span className="uppercase tracking-wider text-[10px] sm:text-[11px]">
+                        Due in 48h ({recencyBuckets.critical.length}):
+                      </span>
                     </div>
                     <div className="flex items-center gap-1.5 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden py-0.5">
                       {recencyBuckets.critical.map((item, i) => {
@@ -689,7 +728,12 @@ export default function StudentBoard({ guestPreview }: { guestPreview?: boolean 
                             type="button"
                             initial={{ opacity: 0, x: -12, scale: 0.9 }}
                             animate={{ opacity: 1, x: 0, scale: 1 }}
-                            transition={{ delay: i * 0.05, type: "spring", stiffness: 400, damping: 25 }}
+                            transition={{
+                              delay: i * 0.05,
+                              type: "spring",
+                              stiffness: 400,
+                              damping: 25,
+                            }}
                             whileHover={{ scale: 1.05, y: -1 }}
                             whileTap={{ scale: 0.96 }}
                             onClick={() => setSelected(item)}
@@ -709,7 +753,9 @@ export default function StudentBoard({ guestPreview }: { guestPreview?: boolean 
                             <span className="text-[10px] text-rose font-mono shrink-0">
                               · {timeLeft(item.due_at, now)}
                             </span>
-                            {isItemDone && <span className="text-[10px] text-emerald-500 font-bold">✓</span>}
+                            {isItemDone && (
+                              <span className="text-[10px] text-emerald-500 font-bold">✓</span>
+                            )}
                           </motion.button>
                         );
                       })}
@@ -748,7 +794,9 @@ export default function StudentBoard({ guestPreview }: { guestPreview?: boolean 
                 {/* ── Main Feed & Sidebar Grid ── */}
                 <div className="grid grid-cols-1 items-start gap-5 lg:grid-cols-[minmax(0,1fr)_360px] xl:grid-cols-[minmax(0,1fr)_400px]">
                   {/* Left Column: Feed Timeline */}
-                  <div className={`min-w-0 flex flex-col gap-3.5 ${mobileTab === "sidebar" ? "hidden lg:flex" : "flex"}`}>
+                  <div
+                    className={`min-w-0 flex flex-col gap-3.5 ${mobileTab === "sidebar" ? "hidden lg:flex" : "flex"}`}
+                  >
                     {/* Modern Feed Command Bar */}
                     <div className="rounded-2xl border border-border/80 bg-surface/90 p-2.5 sm:p-3 backdrop-blur-md shadow-xs space-y-2.5">
                       {/* Search Bar + Quick Actions */}
@@ -829,7 +877,9 @@ export default function StudentBoard({ guestPreview }: { guestPreview?: boolean 
                                 type="button"
                                 whileHover={{ y: -2, scale: 1.03 }}
                                 whileTap={{ scale: 0.95 }}
-                                animate={active ? { scale: [1, 1.12, 0.97, 1.04, 1] } : { scale: 1 }}
+                                animate={
+                                  active ? { scale: [1, 1.12, 0.97, 1.04, 1] } : { scale: 1 }
+                                }
                                 transition={{ type: "spring", stiffness: 500, damping: 22 }}
                                 onClick={() => setFeedCategory(cat.key)}
                                 className={`group relative inline-flex shrink-0 items-center gap-1.5 rounded-xl px-2.5 sm:px-3 py-1 text-xs font-medium transition-colors cursor-pointer ${
@@ -838,7 +888,11 @@ export default function StudentBoard({ guestPreview }: { guestPreview?: boolean 
                                     : "text-muted hover:text-ink hover:bg-surface2/60 border border-transparent"
                                 }`}
                               >
-                                <span className={active ? "text-cyan" : "text-faint group-hover:text-muted"}>
+                                <span
+                                  className={
+                                    active ? "text-cyan" : "text-faint group-hover:text-muted"
+                                  }
+                                >
                                   {cat.icon}
                                 </span>
                                 <span>{cat.label}</span>
@@ -868,14 +922,16 @@ export default function StudentBoard({ guestPreview }: { guestPreview?: boolean 
                                 progressPercent === 100
                                   ? "text-emerald-400 animate-pulse"
                                   : progressPercent > 0
-                                  ? "text-cyan"
-                                  : "text-faint"
+                                    ? "text-cyan"
+                                    : "text-faint"
                               }`}
                             />
                             <span className="font-mono text-[11px] font-medium text-ink">
                               {completedUpcomingCount}/{totalUpcomingCount}
                             </span>
-                            <span className="hidden md:inline text-[11px] text-faint">prepared</span>
+                            <span className="hidden md:inline text-[11px] text-faint">
+                              prepared
+                            </span>
                             <div className="w-12 h-1.5 rounded-full bg-surface overflow-hidden border border-border/40">
                               <motion.div
                                 className="h-full bg-gradient-to-r from-cyan to-emerald-400 rounded-full"
@@ -883,7 +939,9 @@ export default function StudentBoard({ guestPreview }: { guestPreview?: boolean 
                                 transition={{ type: "spring", stiffness: 120, damping: 22 }}
                               />
                             </div>
-                            <span className="font-mono text-[10px] text-cyan font-bold">{progressPercent}%</span>
+                            <span className="font-mono text-[10px] text-cyan font-bold">
+                              {progressPercent}%
+                            </span>
                           </div>
                         )}
                       </div>
@@ -892,7 +950,10 @@ export default function StudentBoard({ guestPreview }: { guestPreview?: boolean 
                     {isFeedLoading ? (
                       <div className="flex flex-col gap-4">
                         {Array.from({ length: 3 }).map((_, i) => (
-                          <div key={i} className="h-32 rounded-2xl shimmer-sweep border border-border/40" />
+                          <div
+                            key={i}
+                            className="h-32 rounded-2xl shimmer-sweep border border-border/40"
+                          />
                         ))}
                       </div>
                     ) : filteredUpcoming.length === 0 ? (
@@ -912,12 +973,12 @@ export default function StudentBoard({ guestPreview }: { guestPreview?: boolean 
                           {feedSearch
                             ? `No deadlines or exams matching "${feedSearch}".`
                             : urgentOnly
-                            ? "No deadlines due in the next 48 hours."
-                            : pendingOnly
-                            ? "All upcoming deadlines are marked as done!"
-                            : feedCategory === "all"
-                            ? "No upcoming deadlines or exams scheduled."
-                            : `No upcoming events in ${feedCategory}.`}
+                              ? "No deadlines due in the next 48 hours."
+                              : pendingOnly
+                                ? "All upcoming deadlines are marked as done!"
+                                : feedCategory === "all"
+                                  ? "No upcoming deadlines or exams scheduled."
+                                  : `No upcoming events in ${feedCategory}.`}
                         </p>
                         {(feedCategory !== "all" || feedSearch || urgentOnly || pendingOnly) && (
                           <button
@@ -946,7 +1007,10 @@ export default function StudentBoard({ guestPreview }: { guestPreview?: boolean 
 
                             <div
                               onClick={() =>
-                                setCollapsedBuckets((prev) => ({ ...prev, critical: !prev.critical }))
+                                setCollapsedBuckets((prev) => ({
+                                  ...prev,
+                                  critical: !prev.critical,
+                                }))
                               }
                               className="mb-3 flex items-center justify-between gap-2 cursor-pointer select-none group"
                             >
@@ -1000,7 +1064,10 @@ export default function StudentBoard({ guestPreview }: { guestPreview?: boolean 
 
                             <div
                               onClick={() =>
-                                setCollapsedBuckets((prev) => ({ ...prev, thisWeek: !prev.thisWeek }))
+                                setCollapsedBuckets((prev) => ({
+                                  ...prev,
+                                  thisWeek: !prev.thisWeek,
+                                }))
                               }
                               className="mb-3 flex items-center justify-between gap-2 cursor-pointer select-none group"
                             >
@@ -1158,7 +1225,9 @@ export default function StudentBoard({ guestPreview }: { guestPreview?: boolean 
                   </div>
 
                   {/* Right Column: Announcements, Attendance, Activity Sidebar */}
-                  <aside className={`min-w-0 flex-col gap-6 lg:sticky lg:top-24 ${mobileTab === "sidebar" ? "flex" : "hidden lg:flex"}`}>
+                  <aside
+                    className={`min-w-0 flex-col gap-6 lg:sticky lg:top-24 ${mobileTab === "sidebar" ? "flex" : "hidden lg:flex"}`}
+                  >
                     <AnnouncementsPanel compact />
                     <div className="block">
                       <FeedSection
@@ -1174,8 +1243,6 @@ export default function StudentBoard({ guestPreview }: { guestPreview?: boolean 
                 </div>
               </div>
             )}
-
-
 
             {tab === "calendar" && (
               <CalendarPanel
@@ -1222,17 +1289,13 @@ export default function StudentBoard({ guestPreview }: { guestPreview?: boolean 
               />
             )}
 
-
-
             {tab === "grading" && <GradingPanel />}
 
             {tab === "attendance" && <AttendancePanel now={now} />}
 
             {tab === "admin" && <AdminConsolePanel />}
-
           </motion.div>
         </AnimatePresence>
-
       </main>
 
       <EventDrawer

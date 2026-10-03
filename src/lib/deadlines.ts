@@ -175,8 +175,6 @@ export function deadlineShortLabel(
   return t ? `${abbrev(t)}-${suffix}` : suffix;
 }
 
-
-
 export type Urgency = "past" | "critical" | "soon" | "later";
 
 export function urgencyOf(dueAt: string, now: number): Urgency {
@@ -200,6 +198,7 @@ export function timeLeft(dueAt: string, now: number) {
 }
 
 const dateFmt = new Intl.DateTimeFormat("en-GB", {
+  timeZone: "Asia/Kolkata",
   weekday: "short",
   day: "2-digit",
   month: "short",
@@ -213,11 +212,13 @@ export function formatDue(dueAt: string) {
 }
 
 const dayOnlyFmt = new Intl.DateTimeFormat("en-GB", {
+  timeZone: "Asia/Kolkata",
   weekday: "short",
   day: "2-digit",
   month: "short",
 });
 const clockFmt = new Intl.DateTimeFormat("en-GB", {
+  timeZone: "Asia/Kolkata",
   hour: "2-digit",
   minute: "2-digit",
   hour12: false,
@@ -237,8 +238,7 @@ export function deadlineEndMs(d: Deadline) {
   if (d.end_at) return new Date(d.end_at).getTime();
   if (d.all_day) {
     const e = new Date(d.due_at);
-    e.setHours(23, 59, 59, 999);
-    return e.getTime();
+    return new Date(`${dayKey(e)}T23:59:59.999+05:30`).getTime();
   }
   return new Date(d.due_at).getTime();
 }
@@ -254,7 +254,6 @@ export function phaseOf(d: Deadline, now: number): Phase {
   return "upcoming";
 }
 
-
 export function weekKey(dueAt: string) {
   const d = new Date(dueAt);
   const day = (d.getDay() + 6) % 7;
@@ -268,14 +267,21 @@ export function formatWeek(iso: string) {
   const start = new Date(iso);
   const end = new Date(start);
   end.setDate(start.getDate() + 6);
-  const f = new Intl.DateTimeFormat("en-GB", { day: "2-digit", month: "short" });
+  const f = new Intl.DateTimeFormat("en-GB", {
+    timeZone: "Asia/Kolkata",
+    day: "2-digit",
+    month: "short",
+  });
   return `${f.format(start)} — ${f.format(end)}`;
 }
 
 export function dayKey(date: Date | string) {
-  const d = typeof date === "string" ? new Date(date) : date;
-  const pad = (n: number) => String(n).padStart(2, "0");
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Kolkata",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(new Date(date));
 }
 
 export function matchesSearch(d: Deadline, query: string) {

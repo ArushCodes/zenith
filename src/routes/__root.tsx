@@ -15,7 +15,6 @@ import { Toaster } from "@/components/ui/sonner";
 import { BatchProvider } from "@/hooks/use-batch";
 import { SessionProvider } from "@/hooks/use-auth";
 
-
 function NotFoundComponent() {
   return (
     <div className="flex min-h-screen items-center justify-center bg-background px-4">
@@ -86,14 +85,12 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { title: "Zenith — TAPMI Manipal student board" },
       {
         name: "description",
-        content:
-          "Zenith: deadlines, timetable and attendance for TAPMI Manipal batches.",
+        content: "Zenith: deadlines, timetable and attendance for TAPMI Manipal batches.",
       },
       { property: "og:title", content: "Zenith — TAPMI Manipal student board" },
       {
         property: "og:description",
-        content:
-          "Zenith: deadlines, timetable and attendance for TAPMI Manipal batches.",
+        content: "Zenith: deadlines, timetable and attendance for TAPMI Manipal batches.",
       },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
@@ -127,7 +124,7 @@ function RootShell({ children }: { children: ReactNode }) {
       <head>
         <script
           dangerouslySetInnerHTML={{
-            __html: `(function(){try{var k='zenith.theme';var s=localStorage.getItem(k);var p=window.matchMedia&&window.matchMedia('(prefers-color-scheme: dark)').matches;var t=s?s:(p?'dark':'light');if(t==='dark'){document.documentElement.classList.add('dark');}else{document.documentElement.classList.remove('dark');}document.documentElement.style.colorScheme=t;}catch(e){}})();`,
+            __html: `(function(){try{var k='zenith.theme';var s=localStorage.getItem(k);var p=window.matchMedia&&window.matchMedia('(prefers-color-scheme: dark)').matches;var t=s==='light'?'light':'dark';if(t==='dark'){document.documentElement.classList.add('dark');}else{document.documentElement.classList.remove('dark');}document.documentElement.style.colorScheme=t;}catch(e){}})();`,
           }}
         />
         <HeadContent />
@@ -161,11 +158,17 @@ function RootComponent() {
 
   // Register Progressive Web App service worker for offline support
   useEffect(() => {
-    if (typeof window !== "undefined" && "serviceWorker" in navigator && import.meta.env.PROD) {
-      window.addEventListener("load", () => {
-        navigator.serviceWorker.register("/sw.js").catch(() => {});
-      });
+    if ("serviceWorker" in navigator && import.meta.env.PROD) {
+      const register = () => {
+        void navigator.serviceWorker.register("/sw.js").catch(() => undefined);
+      };
+      if (document.readyState === "complete") register();
+      else {
+        window.addEventListener("load", register, { once: true });
+        return () => window.removeEventListener("load", register);
+      }
     }
+    return undefined;
   }, []);
 
   return (
@@ -180,4 +183,3 @@ function RootComponent() {
     </QueryClientProvider>
   );
 }
-

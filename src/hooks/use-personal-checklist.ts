@@ -1,8 +1,10 @@
 import { useCallback, useEffect, useState } from "react";
+import { useAuth } from "@/hooks/use-auth";
 import confetti from "canvas-confetti";
 
 export function usePersonalChecklist(batchId: string | null) {
-  const key = `zenith.done_deadlines.${batchId || "global"}`;
+  const { user } = useAuth();
+  const key = `zenith.done_deadlines.${user?.id || "guest"}.${batchId || "global"}`;
 
   const [doneMap, setDoneMap] = useState<Record<string, boolean>>(() => {
     if (typeof window === "undefined") return {};
@@ -25,6 +27,19 @@ export function usePersonalChecklist(batchId: string | null) {
     }
   }, [key]);
 
+  useEffect(() => {
+    const sync = (event: StorageEvent) => {
+      if (event.key !== key) return;
+      try {
+        setDoneMap(event.newValue ? JSON.parse(event.newValue) : {});
+      } catch {
+        setDoneMap({});
+      }
+    };
+    window.addEventListener("storage", sync);
+    return () => window.removeEventListener("storage", sync);
+  }, [key]);
+
   const toggleDone = useCallback(
     (id: string, e?: React.MouseEvent) => {
       e?.stopPropagation();
@@ -34,7 +49,9 @@ export function usePersonalChecklist(batchId: string | null) {
 
         try {
           window.localStorage.setItem(key, JSON.stringify(next));
-        } catch {}
+        } catch {
+          /* Storage may be unavailable in private browsing. */
+        }
 
         if (currentlyDone) {
           try {
@@ -49,13 +66,15 @@ export function usePersonalChecklist(batchId: string | null) {
               colors: ["#06b6d4", "#10b981", "#8b5cf6", "#f59e0b"],
               disableForReducedMotion: true,
             });
-          } catch {}
+          } catch {
+            /* Storage may be unavailable in private browsing. */
+          }
         }
 
         return next;
       });
     },
-    [key]
+    [key],
   );
 
   const isDone = useCallback((id: string) => !!doneMap[id], [doneMap]);

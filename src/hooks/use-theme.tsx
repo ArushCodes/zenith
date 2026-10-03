@@ -12,14 +12,12 @@ function apply(theme: Theme) {
 
 /** Light/dark preference, remembered per browser. */
 export function useTheme() {
-  const [theme, setTheme] = useState<Theme>("light");
+  const [theme, setTheme] = useState<Theme>("dark");
 
   // Read after mount so SSR markup and hydration stay identical.
   useEffect(() => {
     const stored = window.localStorage.getItem(KEY) as Theme | null;
-    const initial =
-      stored ??
-      (window.matchMedia?.("(prefers-color-scheme: dark)").matches ? "dark" : "light");
+    const initial = stored === "light" ? "light" : "dark";
     setTheme(initial);
     apply(initial);
   }, []);
