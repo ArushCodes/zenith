@@ -37,10 +37,11 @@ export function DashboardSidebar({
   preview?: boolean;
 }) {
   const sections: { key: Section; label: string }[] = [
-    { key: "feed", label: "Overview" },
+    { key: "feed", label: "Feed" },
     { key: "calendar", label: "Calendar" },
     { key: "timetable", label: "Timetable" },
-    { key: "exams", label: "Exams & quizzes" },
+    { key: "quizzes", label: "Quizzes" },
+    { key: "exams", label: "Exams" },
     { key: "grading", label: "Grades & goals" },
     { key: "attendance", label: "Attendance" },
     ...(admin ? [{ key: "admin" as const, label: "Admin console" }] : []),
@@ -77,16 +78,6 @@ export function DashboardSidebar({
         })}
       </nav>
       <div className="sidebar-bottom">
-        <div className="sidebar-note">
-          <Sparkles size={19} />
-          <strong>A little more headspace.</strong>
-          <p>One clear view of everything ahead.</p>
-          {preview && (
-            <Link to="/auth" search={{ mode: "signup" }}>
-              Make it yours <ArrowUpRight size={14} />
-            </Link>
-          )}
-        </div>
         <a href="mailto:support@zenithfor.me" className="sidebar-support">
           <LifeBuoy size={17} /> Need a hand?
         </a>

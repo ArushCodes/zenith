@@ -1296,3 +1296,66 @@
     scroll-behavior: auto !important;
   }
 }
+
+/* The signed-in feed starts with useful controls, not introductory copy. */
+.zenith-workspace > .workspace-main.feed-page {
+  padding-top: 16px;
+}
+.feed-page > div:first-child {
+  margin-bottom: 12px;
+  padding-bottom: 10px;
+}
+.feed-page > div:first-child h1 {
+  font-size: 20px;
+}
+.feed-page .feed-today {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 12px;
+  background: var(--surface);
+}
+.feed-today > summary {
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 600;
+}
+.feed-today[open] > summary {
+  margin-bottom: 12px;
+}
+.feed-spotlight {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 180ms ease;
+}
+.feed-event-card:hover .feed-spotlight {
+  opacity: 1;
+}
+.feed-event-card > :not(.feed-spotlight) {
+  position: relative;
+}
+.feed-event-card > span.absolute {
+  position: absolute;
+}
+.feed-event-card:focus-within {
+  outline: 1px solid var(--cyan);
+  outline-offset: 2px;
+}
+@media (min-width: 901px) {
+  .feed-page .workspace-navigation {
+    display: none;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .feed-spotlight {
+    display: none;
+  }
+  .feed-page *,
+  .feed-page *::before,
+  .feed-page *::after {
+    animation: none !important;
+    transition: none !important;
+    scroll-behavior: auto !important;
+  }
+}

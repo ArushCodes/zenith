@@ -193,7 +193,7 @@ export default function DemoBoard() {
                 {renderTasks()}
               </>
             )}
-            {tab === "exams" && (
+            {(tab === "exams" || tab === "quizzes") && (
               <>
                 <section className="premium-panel">
                   <span className="workspace-eyebrow">ASSESSMENTS</span>
