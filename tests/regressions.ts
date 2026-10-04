@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { courseAttendance } from "../src/lib/course-attendance";
+import { courseAttendance, defaultClassDay } from "../src/lib/course-attendance";
 import { sessionSubject } from "../src/lib/attendance";
 import type { ClassSession } from "../src/lib/batches";
 import {
@@ -39,6 +39,10 @@ const completedClass = {
   start_at: "2026-10-05T03:30:00Z",
   end_at: "2026-10-05T04:30:00Z",
 } as ClassSession;
+assert.equal(defaultClassDay([completedClass], Date.parse("2026-10-05T04:29:59Z")), 0);
+assert.equal(defaultClassDay([completedClass], Date.parse("2026-10-05T04:30:00Z")), 1);
+assert.equal(defaultClassDay([], Date.parse("2026-10-05T05:00:00Z")), 0);
+assert.equal(defaultClassDay([completedClass, { ...completedClass, end_at: "2026-10-05T08:00:00Z" }], Date.parse("2026-10-05T05:00:00Z")), 0);
 const courseRows = courseAttendance(
   [
     completedClass,

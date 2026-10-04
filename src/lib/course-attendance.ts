@@ -1,6 +1,14 @@
 import { resolveMarks, sessionSubject } from "./attendance";
 import { isTeachingClass } from "./courses";
 import type { AttendanceMark, ClassSession } from "./batches";
+import { dayKey } from "./deadlines";
+
+export function defaultClassDay(sessions: ClassSession[], now: number) {
+  const today = sessions.filter(
+    (s) => isTeachingClass(s) && dayKey(s.start_at) === dayKey(new Date(now)),
+  );
+  return today.length > 0 && today.every((s) => new Date(s.end_at).getTime() <= now) ? 1 : 0;
+}
 
 /** Only completed teaching sessions count; an unmarked session is not present. */
 export function courseAttendance(

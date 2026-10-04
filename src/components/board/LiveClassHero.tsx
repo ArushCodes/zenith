@@ -44,7 +44,7 @@ import {
 import { cleanExamTitle, dayKey, eventMeta, timeLeft, type Deadline } from "@/lib/deadlines";
 import { TimetableSyncStatus } from "./TimetableSyncStatus";
 import { SyllabusDialog } from "@/components/board/SyllabusDialog";
-import { courseAttendance } from "@/lib/course-attendance";
+import { courseAttendance, defaultClassDay } from "@/lib/course-attendance";
 import { getBunkStatus, sessionSubject } from "@/lib/attendance";
 import { IPM1_BATCH_ID } from "@/lib/roster.data";
 
@@ -139,7 +139,11 @@ export function LiveClassHero({
     },
   });
 
-  const [offset, setOffset] = useState(0);
+  const [manualDay, setManualDay] = useState<{ day: string; offset: number } | null>(null);
+  const todayKey = dayKey(new Date(now));
+  const offset = manualDay?.day === todayKey ? manualDay.offset : defaultClassDay(sessions, now);
+  const setOffset = (value: number | ((current: number) => number)) =>
+    setManualDay({ day: todayKey, offset: typeof value === "function" ? value(offset) : value });
   const [inspectedId, setInspectedId] = useState<string | null>(null);
   const [showCompleted, setShowCompleted] = useState(false);
   const attendanceByCourse = useMemo(
