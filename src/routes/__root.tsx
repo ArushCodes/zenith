@@ -7,6 +7,7 @@ import {
   useRouter,
   HeadContent,
   Scripts,
+  type ErrorComponentProps,
 } from "@tanstack/react-router";
 import { useEffect, type ReactNode } from "react";
 
@@ -38,7 +39,7 @@ function NotFoundComponent() {
   );
 }
 
-function ErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
+function ErrorComponent({ error, reset }: ErrorComponentProps) {
   console.error("Root error boundary caught error:", error);
   const router = useRouter();
 
@@ -51,9 +52,9 @@ function ErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
         <p className="mt-2 text-sm text-muted-foreground">
           Something went wrong on our end. You can try refreshing or head back home.
         </p>
-        {error && (
+        {error != null && (
           <p className="mt-3 rounded-lg bg-destructive/10 p-2 text-xs font-mono text-destructive break-all">
-            {error.message || String(error)}
+            {error instanceof Error ? error.message : String(error)}
           </p>
         )}
         <div className="mt-6 flex flex-wrap justify-center gap-2">
