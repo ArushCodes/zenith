@@ -99,7 +99,7 @@ export async function sendOtpEmail({
       });
 
       return { success: true, provider: "smtp" };
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error("[Mailer SMTP Failed]", err);
     }
   }
@@ -111,6 +111,7 @@ export async function sendOtpEmail({
       const fromEmail = process.env["EMAIL_FROM"] || "Zenith <noreply@zenithfor.me>";
       const res = await fetch("https://api.resend.com/emails", {
         method: "POST",
+        signal: AbortSignal.timeout(15000),
         headers: {
           Authorization: `Bearer ${resendApiKey}`,
           "Content-Type": "application/json",
@@ -130,7 +131,7 @@ export async function sendOtpEmail({
         throw new Error(resData.message || "Failed to send email via Resend");
       }
       return { success: true, provider: "resend" };
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error("[Mailer Resend Failed]", err);
     }
   }
@@ -157,19 +158,12 @@ export async function sendOtpEmail({
       });
 
       return { success: true, provider: "smtp" };
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error("[Mailer Fallback SMTP Failed]", err);
     }
   }
 
-  // 3. Fallback: Log to server console so registration is never blocked while setting up mail credentials
-  console.log("==================================================");
-  console.log(`[ZENITH OTP DISPATCH] To: ${to}`);
-  console.log(`[ZENITH OTP DISPATCH] Code: ${otp}`);
-  console.log("==================================================");
-
-  return {
-    success: true,
-    provider: "console",
-  };
+  throw new Error(
+    "Recovery email could not be delivered. Please try again later or contact support.",
+  );
 }

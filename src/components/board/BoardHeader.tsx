@@ -18,7 +18,6 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 
-
 const spring = { type: "spring" as const, stiffness: 420, damping: 32 };
 
 export type HeaderMenuItem = {
@@ -64,6 +63,7 @@ export function BoardHeader({ menuItems = [], onMenuSelect, onLogoClick }: Props
   async function signOut() {
     await queryClient.cancelQueries();
     queryClient.clear();
+    window.localStorage.removeItem("zenith.telemetry_stream");
     await supabase.auth.signOut();
     navigate({ to: "/auth", replace: true });
   }
@@ -89,9 +89,12 @@ export function BoardHeader({ menuItems = [], onMenuSelect, onLogoClick }: Props
           }}
           onMouseEnter={() => setIsLogoHovered(true)}
           onMouseLeave={() => setIsLogoHovered(false)}
-          className="group relative flex shrink-0 items-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan/60 rounded-xl py-1 px-1 -ml-1 select-none cursor-pointer"
+          className="header-brand group relative flex shrink-0 items-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan/60 rounded-xl py-1 px-1 -ml-1 select-none cursor-pointer"
         >
-          <motion.div whileTap={{ scale: 0.94 }} className="relative flex items-center leading-none">
+          <motion.div
+            whileTap={{ scale: 0.94 }}
+            className="relative flex items-center leading-none"
+          >
             {/* Luminous ambient glow on hover */}
             <motion.div
               animate={{
@@ -151,9 +154,12 @@ export function BoardHeader({ menuItems = [], onMenuSelect, onLogoClick }: Props
           </motion.div>
         </Link>
 
-
-        <div className="flex shrink-0 items-center gap-1 sm:gap-2">
-          {user && <GlobalSearch />}
+        <div className="board-header-actions flex min-w-0 flex-1 items-center justify-end gap-1 sm:gap-2">
+          {user && (
+            <div className="board-header-search min-w-0 mr-auto">
+              <GlobalSearch />
+            </div>
+          )}
           <BatchSelector />
 
           {(isAdmin || isArush) && (
@@ -172,9 +178,12 @@ export function BoardHeader({ menuItems = [], onMenuSelect, onLogoClick }: Props
             title={theme === "dark" ? "Light mode" : "Dark mode"}
             className="grid size-8 sm:size-9 shrink-0 place-items-center rounded-xl border border-border bg-surface text-dim transition-colors hover:border-cyan/40 hover:text-ink cursor-pointer"
           >
-            {theme === "dark" ? <Sun className="size-3.5 sm:size-4" /> : <Moon className="size-3.5 sm:size-4" />}
+            {theme === "dark" ? (
+              <Sun className="size-3.5 sm:size-4" />
+            ) : (
+              <Moon className="size-3.5 sm:size-4" />
+            )}
           </button>
-
 
           {user ? (
             <DropdownMenu>
@@ -187,7 +196,12 @@ export function BoardHeader({ menuItems = [], onMenuSelect, onLogoClick }: Props
                 </span>
                 <ChevronDown className="size-3 sm:size-3.5 text-faint" />
               </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" sideOffset={6} collisionPadding={12} className="w-56 z-50">
+              <DropdownMenuContent
+                align="end"
+                sideOffset={6}
+                collisionPadding={12}
+                className="w-56 z-50"
+              >
                 <DropdownMenuLabel className="font-mono text-[10px] uppercase tracking-[0.18em] text-faint">
                   Account
                 </DropdownMenuLabel>
@@ -196,7 +210,7 @@ export function BoardHeader({ menuItems = [], onMenuSelect, onLogoClick }: Props
                     <UserRound className="size-4 text-dim" /> Profile
                   </Link>
                 </DropdownMenuItem>
-                {(isAdmin || isArush) ? (
+                {isAdmin || isArush ? (
                   <DropdownMenuItem asChild>
                     <Link to="/admin" className="flex items-center gap-2">
                       <ShieldCheck className="size-4 text-emerald-400" /> Admin console
@@ -235,7 +249,10 @@ export function BoardHeader({ menuItems = [], onMenuSelect, onLogoClick }: Props
                 )}
 
                 <DropdownMenuSeparator />
-                <DropdownMenuItem onSelect={() => void signOut()} className="flex items-center gap-2 text-rose">
+                <DropdownMenuItem
+                  onSelect={() => void signOut()}
+                  className="flex items-center gap-2 text-rose"
+                >
                   <LogOut className="size-4" /> Sign out
                 </DropdownMenuItem>
               </DropdownMenuContent>

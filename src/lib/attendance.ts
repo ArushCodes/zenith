@@ -58,7 +58,13 @@ export function courseCredits(subject: string): number {
     if (key.includes(k)) return c;
   }
   if (key.includes("team") || key.includes("workshop") || key.includes("1 credit")) return 1;
-  if (key.includes("spreadsheet") || key.includes("ai") || key.includes("lab") || key.includes("2 credit")) return 2;
+  if (
+    key.includes("spreadsheet") ||
+    key.includes("ai") ||
+    key.includes("lab") ||
+    key.includes("2 credit")
+  )
+    return 2;
   return 3;
 }
 
@@ -89,29 +95,29 @@ export function bandFor(pct: number): Band {
  *  below 70% = automatic Incomplete. */
 export const SAFE_LINE = 85;
 export const HARD_LINE = 70;
-/** TAPMI 75% Minimum Attendance Debarment Line */
-export const DEBARMENT_LINE = 75;
+/** IPM 1 handbook Incomplete threshold. */
+export const DEBARMENT_LINE = HARD_LINE;
 
 /**
- * Calculates consecutive upcoming sessions needed to recover to >= 75% attendance.
- * Formula: (A + X) / (H + X) >= 0.75  =>  4A + 4X >= 3H + 3X  =>  X >= 3H - 4A
+ * Calculates consecutive upcoming sessions needed to recover to >= 70% attendance.
+ * Formula: (A + X) / (H + X) >= 0.70.
  */
-export function consecutiveNeededFor75(held: number, attended: number): number {
+export function consecutiveNeededFor70(held: number, attended: number): number {
   if (held <= 0) return 0;
   const currentPct = (attended / held) * 100;
   if (currentPct >= DEBARMENT_LINE) return 0;
-  return Math.max(0, Math.ceil(3 * held - 4 * attended));
+  return Math.max(0, Math.ceil((0.7 * held - attended) / 0.3 - 1e-9));
 }
 
 /**
- * Calculates safe classes that can be missed before falling below 75% attendance.
- * Formula: A / (H + Y) >= 0.75  =>  4A >= 3H + 3Y  =>  3Y <= 4A - 3H  =>  Y <= floor((4A - 3H) / 3)
+ * Calculates safe classes that can be missed before falling below 70% attendance.
+ * Formula: A / (H + Y) >= 0.70.
  */
-export function safeMissBufferFor75(held: number, attended: number): number {
+export function safeMissBufferFor70(held: number, attended: number): number {
   if (held <= 0) return 0;
   const currentPct = (attended / held) * 100;
   if (currentPct < DEBARMENT_LINE) return 0;
-  return Math.max(0, Math.floor((4 * attended) / 3 - held));
+  return Math.max(0, Math.floor(attended / 0.7 - held + 1e-9));
 }
 
 /** Personal Leave: personal / domestic / medical. Capped at 15% of sessions. */
@@ -149,8 +155,7 @@ export const BAND_COPY: Record<Band, { label: string; detail: string }> = {
   },
   warn: {
     label: "Grade deduction",
-    detail:
-      "70–85% — 0.5 grade points are cut for every session missed below the 85% mark.",
+    detail: "70–85% — 0.5 grade points are cut for every session missed below the 85% mark.",
   },
   risk: {
     label: "Incomplete (I)",
@@ -183,7 +188,7 @@ export function eligibilityMisses(planned: number) {
   return Math.floor((planned * (100 - HARD_LINE)) / 100);
 }
 
-/** Grade points cut: 0.5 GPA cut for every subsequent class missed beyond the allowed 1 miss per credit. */
+/** Grade points cut: 0.5 course grade-point cut for every subsequent class missed beyond the allowed 1 miss per credit. */
 export function gradePenalty(planned: number, absent: number): number {
   const allowed = safeMisses(planned);
   const over = Math.max(0, absent - allowed);
@@ -206,7 +211,8 @@ export type BunkStatus = {
 
 /** Computes real-time bunk safety & GPA penalty status for a course. */
 export function getBunkStatus(courseOrCredits: string | number, absent: number): BunkStatus {
-  const credits = typeof courseOrCredits === "number" ? courseOrCredits : courseCredits(courseOrCredits);
+  const credits =
+    typeof courseOrCredits === "number" ? courseOrCredits : courseCredits(courseOrCredits);
   const planned = credits * 8;
   const allowed = credits * 1;
   const safeLeft = allowed - absent;
@@ -221,9 +227,9 @@ export function getBunkStatus(courseOrCredits: string | number, absent: number):
       safeLeft: 0,
       excess,
       penalty,
-      label: `-${penalty.toFixed(1)} GPA Cut (${excess} excess missed)`,
+      label: `-${penalty.toFixed(1)} course grade-point cut (${excess} excess missed)`,
       tone: "text-rose font-bold",
-      badge: `-${penalty.toFixed(1)} GPA`,
+      badge: `-${penalty.toFixed(1)} grade points`,
       isDanger: true,
       isCut: true,
     };
@@ -237,7 +243,7 @@ export function getBunkStatus(courseOrCredits: string | number, absent: number):
       safeLeft: 0,
       excess: 0,
       penalty: 0,
-      label: "0 bunks left — at the limit! Next miss cuts 0.5 GPA",
+      label: "0 bunks left — at the limit! Next miss cuts 0.5 course grade points",
       tone: "text-amber-500 font-bold",
       badge: "0 Bunks Left",
       isDanger: true,
@@ -253,7 +259,7 @@ export function getBunkStatus(courseOrCredits: string | number, absent: number):
       safeLeft: 1,
       excess: 0,
       penalty: 0,
-      label: "⚠️ 1 class left — danger zone! Next miss triggers GPA cut",
+      label: "⚠️ 1 safe absence left One more miss uses your final safe class",
       tone: "text-amber-500 font-bold",
       badge: "1 Class Left",
       isDanger: true,
@@ -311,8 +317,6 @@ export function longestAbsenceRun(
   return best;
 }
 
-
-
 /** Green above 85 (deeper green the higher), amber 70–85, red below 70. */
 export function meterColor(pct: number) {
   if (pct >= 85) {
@@ -361,8 +365,7 @@ export function trimesterEnd(sessions: ClassSession[], now: number) {
 export function untilReset(endMs: number, now: number) {
   const from = new Date(now);
   const to = new Date(endMs);
-  let months =
-    (to.getFullYear() - from.getFullYear()) * 12 + (to.getMonth() - from.getMonth());
+  let months = (to.getFullYear() - from.getFullYear()) * 12 + (to.getMonth() - from.getMonth());
   const anchor = new Date(from);
   anchor.setMonth(anchor.getMonth() + months);
   if (anchor.getTime() > endMs) {

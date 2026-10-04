@@ -30,7 +30,10 @@ export function Landing({ onPreview }: LandingProps = {}) {
   return (
     <div className="relative min-h-screen overflow-x-hidden bg-ground font-body text-ink selection:bg-cyan/30 selection:text-white pb-24 sm:pb-12">
       {/* Dynamic Aurora Ambient Background (Hardware Accelerated, 0 Main-Thread JS) */}
-      <div className="pointer-events-none fixed inset-0 z-0 overflow-hidden transform-gpu" aria-hidden="true">
+      <div
+        className="pointer-events-none fixed inset-0 z-0 overflow-hidden transform-gpu"
+        aria-hidden="true"
+      >
         <div className="aurora-a absolute -left-20 -top-32 h-[520px] w-[520px] sm:w-[680px] rounded-full bg-cyan/20 blur-[130px]" />
         <div className="aurora-b absolute -right-24 top-[240px] h-[480px] w-[480px] sm:w-[620px] rounded-full bg-violet-600/15 blur-[140px]" />
         <div className="absolute inset-0 bg-[radial-gradient(ellipse_80%_80%_at_50%_-20%,rgba(120,119,198,0.1),rgba(255,255,255,0))]" />
@@ -113,12 +116,13 @@ export function Landing({ onPreview }: LandingProps = {}) {
 
               {/* Punchy Headline (LCP Anchor) */}
               <h1 className="mt-5 font-display text-4xl sm:text-6xl lg:text-[62px] font-extrabold leading-[1.06] tracking-tight text-balance">
-                Never miss a deadline, class or attendance mark.
+                Your classes, deadlines and attendance.
               </h1>
 
               {/* Subtitle */}
               <p className="mt-5 max-w-xl text-base sm:text-lg leading-relaxed text-dim text-balance">
-                The private dashboard for your batch. Quizzes, assignments, exams, live timetable, and your attendance percentages — maintained live by your class representatives.
+                Check today’s classroom and faculty, see your remaining class misses, and keep track
+                of your batch’s quizzes, submissions and exam dates.
               </p>
 
               {/* HERO DUAL CALL-TO-ACTION (Sign Up & Log In) */}
@@ -189,7 +193,7 @@ export function Landing({ onPreview }: LandingProps = {}) {
                   <div className="mt-2 flex items-center justify-between">
                     <div>
                       <h4 className="font-display text-base font-bold text-ink">
-                        Macroeconomics II
+                        Basics of Statistics
                       </h4>
                       <p className="font-mono text-xs text-dim">Prof. S. Ranganathan</p>
                     </div>
@@ -259,14 +263,14 @@ export function Landing({ onPreview }: LandingProps = {}) {
                     </div>
                     <div>
                       <p className="font-mono text-[10px] uppercase tracking-wider text-dim">
-                        Batch Attendance
+                        Statistics · 3 credits
                       </p>
-                      <p className="font-display text-sm font-bold text-ink">92.4% Average</p>
+                      <p className="font-display text-sm font-bold text-ink">2 class misses left</p>
                     </div>
                   </div>
                   <div className="text-right font-mono text-[11px]">
-                    <span className="font-bold text-emerald-400">Safe Margin</span>
-                    <p className="text-faint text-[10px]">7 bunks buffer</p>
+                    <span className="font-bold text-emerald-400">1 of 3 used</span>
+                    <p className="text-faint text-[10px]">Example · IPM 1</p>
                   </div>
                 </div>
               </div>
@@ -278,10 +282,10 @@ export function Landing({ onPreview }: LandingProps = {}) {
         <section className="py-12 border-t border-border/60 [content-visibility:auto] [contain-intrinsic-size:1px_380px]">
           <div className="text-center max-w-2xl mx-auto mb-10">
             <h2 className="font-display text-2xl sm:text-3xl font-bold tracking-tight">
-              Built specifically for how TAPMI runs.
+              One board for your batch.
             </h2>
             <p className="mt-2 text-sm text-dim">
-              No WhatsApp chaos, no missed email chains. Everything synchronized directly to your batch.
+              Timetable feeds and notices maintained by your batch representatives.
             </p>
           </div>
 
@@ -299,13 +303,13 @@ export function Landing({ onPreview }: LandingProps = {}) {
               },
               {
                 icon: UserCheck,
-                title: "Smart Attendance",
-                desc: "Never risk falling below 75%. Know your exact allowed absentee buffer per course.",
+                title: "Attendance planning",
+                desc: "Track classes missed and the allowance for your course credits. IPM 1 rules come from the handbook.",
               },
               {
                 icon: ShieldCheck,
-                title: "CR & Mod Verified",
-                desc: "Accurate information verified by your elected class reps. Zero rumor mill spam.",
+                title: "Batch notices",
+                desc: "Events added by representatives, with reviewed notice imports.",
               },
             ].map((feature, i) => (
               <motion.div
@@ -332,13 +336,14 @@ export function Landing({ onPreview }: LandingProps = {}) {
           <div className="rounded-3xl border border-cyan/30 bg-gradient-to-b from-cyan/10 via-surface/80 to-surface p-6 sm:p-10 backdrop-blur-xl">
             <div className="max-w-xl">
               <span className="font-mono text-[10px] uppercase tracking-[0.2em] text-cyan font-bold">
-                Batch-Private Isolation
+                IPM 1 · IPM 2 · IPM 3 · MBA 1 · MBA 2
               </span>
               <h2 className="mt-2 font-display text-2xl sm:text-3xl font-bold tracking-tight">
-                Strict 4-level institutional hierarchy.
+                Separate boards for each batch.
               </h2>
               <p className="mt-2 text-sm text-dim">
-                Sign up with your official ID, choose your batch, and your board is instantly customized to your classes.
+                Register with your MAHE ID and date of birth. Access follows your verified batch
+                record; representatives maintain notices and deadlines.
               </p>
             </div>
 
@@ -346,7 +351,7 @@ export function Landing({ onPreview }: LandingProps = {}) {
               {[
                 { level: "1. Institute", name: "MAHE Manipal" },
                 { level: "2. School", name: "TAPMI" },
-                { level: "3. Program", name: "IPM" },
+                { level: "3. Program", name: "IPM & MBA" },
                 { level: "4. Batch", name: "All Cohorts" },
               ].map((h) => (
                 <div
@@ -367,10 +372,11 @@ export function Landing({ onPreview }: LandingProps = {}) {
         <section className="mt-8 mb-8 rounded-3xl border border-border bg-gradient-to-b from-surface to-ground p-8 sm:p-12 text-center relative overflow-hidden [content-visibility:auto] [contain-intrinsic-size:1px_300px]">
           <div className="relative z-10 max-w-xl mx-auto">
             <h2 className="font-display text-3xl sm:text-4xl font-extrabold tracking-tight">
-              Ready to take control of your semester?
+              Join your batch.
             </h2>
             <p className="mt-3 text-sm sm:text-base text-dim">
-              Join your fellow TAPMI batchmates. Sign up in under 60 seconds with your learner email.
+              Join your fellow TAPMI batchmates. Sign up in under 60 seconds with your learner
+              email.
             </p>
 
             <div className="mt-8 flex flex-col sm:flex-row items-center justify-center gap-3">

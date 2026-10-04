@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import { motion } from "framer-motion";
+import { motion, useMotionValue, useMotionTemplate, useReducedMotion } from "framer-motion";
 import { toast } from "sonner";
 import {
   Award,
@@ -22,6 +22,7 @@ import {
 } from "lucide-react";
 import {
   cleanExamTitle,
+  eventSourceLabel,
   displayTitle,
   eventMeta,
   phaseOf,
@@ -56,19 +57,21 @@ const dayFormatter = new Intl.DateTimeFormat("en-GB", {
   weekday: "short",
   day: "numeric",
   month: "short",
-  year: "numeric",
+  timeZone: "Asia/Kolkata",
 });
 
 const compactDayFormatter = new Intl.DateTimeFormat("en-GB", {
   weekday: "short",
   day: "numeric",
   month: "short",
+  timeZone: "Asia/Kolkata",
 });
 
 const timeFormatter = new Intl.DateTimeFormat("en-GB", {
   hour: "numeric",
   minute: "2-digit",
   hour12: true,
+  timeZone: "Asia/Kolkata",
 });
 
 export function getTypeIcon(type: DeadlineType, className: string = "size-3.5") {
@@ -105,6 +108,10 @@ export function FeedCard({
   onToggleDone,
   isSelected = false,
 }: FeedCardProps) {
+  const reducedMotion = useReducedMotion();
+  const glowX = useMotionValue(-300);
+  const glowY = useMotionValue(-300);
+  const spotlight = useMotionTemplate`radial-gradient(320px circle at ${glowX}px ${glowY}px, color-mix(in srgb, var(--cyan) 9%, transparent), transparent 75%)`;
   const phase = phaseOf(deadline, now);
   const u = phase === "completed" ? "past" : urgencyOf(deadline.due_at, now);
   const meta = eventMeta(deadline.type);
@@ -130,7 +137,9 @@ export function FeedCard({
   // Time calculations
   const { dateStr, timeStr, durationStr, isCriticalUrgent } = useMemo(() => {
     const start = new Date(deadline.due_at);
-    const end = deadline.end_at ? new Date(deadline.end_at) : new Date(start.getTime() + 60 * 60_000);
+    const end = deadline.end_at
+      ? new Date(deadline.end_at)
+      : new Date(start.getTime() + 60 * 60_000);
     const diffMin = Math.round((end.getTime() - start.getTime()) / 60_000);
 
     const hrs = Math.floor(diffMin / 60);
@@ -144,8 +153,10 @@ export function FeedCard({
 
     return {
       dateStr: dayFormatter.format(start),
-      timeStr: `${timeFormatter.format(start)} – ${timeFormatter.format(end)}`,
-      durationStr: dur,
+      timeStr: deadline.end_at
+        ? `${timeFormatter.format(start)} – ${timeFormatter.format(end)}`
+        : timeFormatter.format(start),
+      durationStr: deadline.end_at ? dur : "",
       isCriticalUrgent: isCritical,
     };
   }, [deadline.due_at, deadline.end_at, now]);
@@ -153,22 +164,29 @@ export function FeedCard({
   return (
     <motion.article
       layout="position"
-      whileHover={{ y: -3, boxShadow: "0 8px 30px oklch(0 0 0 / 8%)" }}
+      onPointerMove={(event) => {
+        if (reducedMotion || event.pointerType !== "mouse") return;
+        const rect = event.currentTarget.getBoundingClientRect();
+        glowX.set(event.clientX - rect.left);
+        glowY.set(event.clientY - rect.top);
+      }}
+      whileHover={reducedMotion ? undefined : { y: -2, boxShadow: "0 8px 30px oklch(0 0 0 / 8%)" }}
       whileTap={{ scale: 0.99, y: 0 }}
       transition={{ type: "spring", stiffness: 500, damping: 30 }}
       onClick={() => onOpen?.(deadline)}
-      className={`group relative overflow-hidden rounded-2xl border bg-surface p-3.5 sm:p-6 transition-all cursor-pointer ${
+      className={`feed-event-card group relative overflow-hidden rounded-xl border bg-surface p-3 sm:p-4 transition-all cursor-pointer ${
         isDone
           ? "border-border/60 bg-surface/50 opacity-75"
           : isSelected
-          ? "border-cyan ring-1 ring-cyan/40 shadow-md shadow-cyan/10"
-          : phase === "ongoing"
-          ? "border-cyan/50 ring-1 ring-cyan/30 shadow-md shadow-cyan/10"
-          : isCriticalUrgent
-          ? "border-rose/40 ring-1 ring-rose/20 shadow-md shadow-rose/10"
-          : "border-border/80 hover:border-border hover:shadow-md hover:shadow-black/5 dark:hover:shadow-black/20"
+            ? "border-cyan ring-1 ring-cyan/40 shadow-md shadow-cyan/10"
+            : phase === "ongoing"
+              ? "border-cyan/50 ring-1 ring-cyan/30 shadow-md shadow-cyan/10"
+              : isCriticalUrgent
+                ? "border-rose/40 ring-1 ring-rose/20 shadow-md shadow-rose/10"
+                : "border-border/80 hover:border-border hover:shadow-md hover:shadow-black/5 dark:hover:shadow-black/20"
       }`}
     >
+      <motion.div aria-hidden="true" className="feed-spotlight" style={{ background: spotlight }} />
       {/* Accent left indicator with canonical subject color */}
       <motion.span
         className="absolute left-0 top-0 bottom-0 rounded-l-2xl"
@@ -179,7 +197,7 @@ export function FeedCard({
       />
 
       {/* Top Meta Line: Checkbox, Course code, Short Subject, Type, Urgency */}
-      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border/50 pb-3">
+      <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex flex-wrap items-center gap-1.5">
           {/* Personal Student Done Toggle Button */}
           {onToggleDone && (
@@ -214,7 +232,9 @@ export function FeedCard({
                   </motion.span>
                 )}
               </span>
-              <span className="font-body text-[11px] font-medium">{isDone ? "Done" : "Mark done"}</span>
+              <span className="font-body text-[11px] font-medium">
+                {isDone ? "Done" : "Mark done"}
+              </span>
             </button>
           )}
 
@@ -227,7 +247,10 @@ export function FeedCard({
               border: `1px solid ${subjectColor}35`,
             }}
           >
-            <span className="size-1.5 rounded-full shrink-0" style={{ backgroundColor: subjectColor }} />
+            <span
+              className="size-1.5 rounded-full shrink-0"
+              style={{ backgroundColor: subjectColor }}
+            />
             <span>
               {deadline.subject_code && shortSubject
                 ? `${deadline.subject_code} · ${shortSubject}`
@@ -270,13 +293,11 @@ export function FeedCard({
                 isCriticalUrgent
                   ? "bg-rose/12 text-rose font-bold ring-1 ring-rose/30 shadow-xs shadow-rose/20"
                   : u === "soon"
-                  ? "bg-cyan/12 text-cyan font-bold ring-1 ring-cyan/30"
-                  : "bg-surface2 text-dim font-medium"
+                    ? "bg-cyan/12 text-cyan font-bold ring-1 ring-cyan/30"
+                    : "bg-surface2 text-dim font-medium"
               }`}
             >
-              {isCriticalUrgent && (
-                <span className="size-1.5 rounded-full bg-rose animate-ping" />
-              )}
+              {isCriticalUrgent && <span className="size-1.5 rounded-full bg-rose animate-ping" />}
               {timeLeft(deadline.due_at, now)}
             </span>
           )}
@@ -286,7 +307,7 @@ export function FeedCard({
       {/* Main Content: Title & Structured Data — Zero Clipping */}
       <div className="mt-3">
         <h3
-          className={`font-display text-lg sm:text-xl font-bold tracking-tight break-words transition-colors ${
+          className={`font-display text-base sm:text-lg font-bold tracking-tight break-words transition-colors ${
             isDone ? "line-through text-dim" : "text-ink group-hover:text-cyan"
           }`}
         >
@@ -303,7 +324,9 @@ export function FeedCard({
           <div className="flex items-center gap-1.5 font-medium text-ink">
             <Clock className="size-3.5 text-cyan shrink-0" />
             <span>{timeStr}</span>
-            <span className="font-mono text-[10px] text-faint ml-0.5">({durationStr})</span>
+            {durationStr && (
+              <span className="font-mono text-[10px] text-faint ml-0.5">({durationStr})</span>
+            )}
           </div>
           {deadline.location && (
             <>
@@ -331,9 +354,7 @@ export function FeedCard({
             <div className="flex items-center gap-1.5 font-body text-[10px] font-bold uppercase tracking-wider text-cyan mb-1">
               <BookOpen className="size-3 shrink-0" />
               <span>
-                {deadline.type === "midterm" || deadline.type === "endterm"
-                  ? "Syllabus"
-                  : "Scope & Details"}
+                {deadline.type === "midterm" || deadline.type === "endterm" ? "Syllabus" : "Scope"}
               </span>
             </div>
             <p className="text-dim font-sans text-xs line-clamp-2">{deadline.notes}</p>
@@ -342,7 +363,7 @@ export function FeedCard({
       </div>
 
       {/* Action Toolbar: Clean, well-spaced, zero clipping */}
-      <div className="mt-4 flex flex-wrap items-center justify-between gap-2.5 border-t border-border/50 pt-3 text-xs">
+      <div className="mt-3 flex flex-wrap items-center justify-between gap-2.5 border-t border-border/50 pt-3 text-xs">
         <div className="flex flex-wrap items-center gap-2">
           <button
             type="button"
@@ -352,7 +373,7 @@ export function FeedCard({
             }}
             className="inline-flex items-center gap-1.5 rounded-xl bg-cyan/12 border border-cyan/30 px-3 py-1.5 font-sans text-xs font-bold text-cyan hover:bg-cyan/20 transition-all cursor-pointer"
           >
-            <span>View Details</span>
+            <span>Details</span>
           </button>
 
           {deadline.submission_link && (
@@ -368,12 +389,11 @@ export function FeedCard({
               <span>Submission</span>
             </a>
           )}
-
         </div>
 
         <div className="flex items-center gap-2">
           <span className="hidden sm:inline-flex items-center gap-1 font-body text-[11px] font-medium text-faint">
-            <ShieldCheck className="size-3 text-cyan" /> Verified
+            {eventSourceLabel(deadline.source)}
           </span>
 
           {canManage && (
@@ -443,7 +463,7 @@ export function FeedCompactRow({
   const shortSubject = subjectShortName(deadline.subject || deadline.subject_code);
 
   const title = isExam
-    ? (cleanExamTitle(deadline.title, deadline.subject) || typeLabel(deadline.type))
+    ? cleanExamTitle(deadline.title, deadline.subject) || typeLabel(deadline.type)
     : displayTitle(deadline.subject, deadline.title);
 
   const { dateStr, isCriticalUrgent } = useMemo(() => {
@@ -466,16 +486,16 @@ export function FeedCompactRow({
         isDone
           ? "border-border/50 bg-surface/40 opacity-70"
           : isSelected
-          ? "border-cyan bg-cyan/5 ring-1 ring-cyan/30"
-          : phase === "ongoing"
-          ? "border-cyan/40 bg-cyan/[0.04]"
-          : isCriticalUrgent
-          ? "border-rose/30 bg-rose/[0.03]"
-          : "border-border/70 bg-surface hover:border-border hover:bg-surface2/50 hover:shadow-xs"
+            ? "border-cyan bg-cyan/5 ring-1 ring-cyan/30"
+            : phase === "ongoing"
+              ? "border-cyan/40 bg-cyan/[0.04]"
+              : isCriticalUrgent
+                ? "border-rose/30 bg-rose/[0.03]"
+                : "border-border/70 bg-surface hover:border-border hover:bg-surface2/50 hover:shadow-xs"
       }`}
     >
       {/* Left side: Checkbox, Short Subject Pill, Type Icon, Title */}
-      <div className="flex items-center gap-2.5 min-w-0 flex-1">
+      <div className="flex items-center gap-2.5 min-w-0 basis-full sm:basis-auto sm:flex-1">
         {/* Personal Done Checkbox */}
         {onToggleDone && (
           <button
@@ -497,7 +517,7 @@ export function FeedCompactRow({
 
         {/* Short Subject Pill */}
         <span
-          className="rounded-md px-2 py-0.5 font-mono text-[11px] font-bold shrink-0"
+          className="rounded-md px-2 py-0.5 font-mono text-[11px] font-bold shrink-0 max-w-[55%] truncate"
           style={{
             backgroundColor: `${subjectColor}18`,
             color: subjectColor,
@@ -510,9 +530,7 @@ export function FeedCompactRow({
         </span>
 
         {/* Type Icon */}
-        <span className={`shrink-0 ${meta.text}`}>
-          {getTypeIcon(deadline.type, "size-4")}
-        </span>
+        <span className={`shrink-0 ${meta.text}`}>{getTypeIcon(deadline.type, "size-4")}</span>
 
         {/* Title — Takes available space, no aggressive clipping */}
         <span
@@ -527,9 +545,7 @@ export function FeedCompactRow({
 
       {/* Right side: Date, Urgency Countdown, Quick Action Icons */}
       <div className="flex items-center gap-2.5 shrink-0 text-xs">
-        <span className="font-mono text-[11px] text-dim hidden md:inline">
-          {dateStr}
-        </span>
+        <span className="font-mono text-[11px] text-dim">{dateStr}</span>
 
         {phase === "ongoing" ? (
           <span className="flex items-center gap-1 rounded-md bg-cyan/15 px-2 py-0.5 font-mono text-[11px] font-bold text-cyan">
@@ -546,8 +562,8 @@ export function FeedCompactRow({
               isCriticalUrgent
                 ? "bg-rose/12 text-rose ring-1 ring-rose/30"
                 : u === "soon"
-                ? "bg-cyan/12 text-cyan ring-1 ring-cyan/30"
-                : "bg-surface2 text-dim"
+                  ? "bg-cyan/12 text-cyan ring-1 ring-cyan/30"
+                  : "bg-surface2 text-dim"
             }`}
           >
             {timeLeft(deadline.due_at, now)}

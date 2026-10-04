@@ -28,13 +28,11 @@ interface Props {
 }
 
 function generateStrongPassword(): string {
-  const words = ["Solar", "Zenith", "Quantum", "Falcon", "Apex", "Orbit", "Pulse", "Cyber", "Nova", "Aero"];
-  const word = words[Math.floor(Math.random() * words.length)];
-  const num = Math.floor(100 + Math.random() * 900);
-  const chars = "!@#$%&*";
-  const char = chars[Math.floor(Math.random() * chars.length)];
-  const suffix = Math.random().toString(36).substring(2, 5);
-  return `${word}#${num}${char}${suffix}`;
+  const bytes = crypto.getRandomValues(new Uint8Array(18));
+  return Array.from(
+    bytes,
+    (value) => "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%&*"[value % 70],
+  ).join("");
 }
 
 export function UserChangePasswordDialog({ open, onOpenChange, userEmail }: Props) {
@@ -71,13 +69,18 @@ export function UserChangePasswordDialog({ open, onOpenChange, userEmail }: Prop
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
+    if (!currentPassword.trim()) {
+      toast.error("Enter your current password, or use email recovery.");
+      return;
+    }
+
     if (!newPassword) {
       toast.error("Please enter a new password.");
       return;
     }
 
-    if (newPassword.length < 6) {
-      toast.error("Password must be at least 6 characters.");
+    if (newPassword.length < 8) {
+      toast.error("Password must be at least 8 characters.");
       return;
     }
 
@@ -89,9 +92,11 @@ export function UserChangePasswordDialog({ open, onOpenChange, userEmail }: Prop
     setBusy(true);
     try {
       // If current password was provided and email is known, verify it first for safety
-      if (currentPassword && userEmail) {
+      const { data: identity, error: identityError } = await supabase.auth.getUser();
+      if (identityError || !identity.user?.email) throw new Error("Please sign in again.");
+      {
         const { error: verifyErr } = await supabase.auth.signInWithPassword({
-          email: userEmail.trim().toLowerCase(),
+          email: identity.user.email,
           password: currentPassword,
         });
 
@@ -170,7 +175,9 @@ export function UserChangePasswordDialog({ open, onOpenChange, userEmail }: Prop
                 type={showCurrent ? "text" : "password"}
                 value={currentPassword}
                 onChange={(e) => setCurrentPassword(e.target.value)}
-                placeholder="Enter current password (if set)"
+                required
+                autoComplete="current-password"
+                placeholder="Enter your current password"
                 className="w-full rounded-xl bg-surface2/60 pl-10 pr-10 py-2.5 text-sm text-ink ring-1 ring-border outline-none transition-all placeholder:text-faint hover:ring-cyan/25 focus:bg-surface2 focus:ring-2 focus:ring-cyan/50"
               />
               <button

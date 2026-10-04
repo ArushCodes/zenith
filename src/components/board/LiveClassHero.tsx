@@ -1,6 +1,12 @@
 import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { AnimatePresence, motion } from "framer-motion";
+import {
+  AnimatePresence,
+  motion,
+  useReducedMotion,
+  useMotionValue,
+  useMotionTemplate,
+} from "framer-motion";
 import {
   ArrowRight,
   BookOpen,
@@ -22,16 +28,10 @@ import { toast } from "sonner";
 import { db as supabase } from "@/lib/backend";
 import { useAuth } from "@/hooks/use-auth";
 import { useBatch } from "@/hooks/use-batch";
-import {
-  attendanceQuery,
-  coursesQuery,
-  sessionsQuery,
-  type ClassSession,
-} from "@/lib/batches";
+import { attendanceQuery, coursesQuery, sessionsQuery, type ClassSession } from "@/lib/batches";
 import {
   autoColor,
   buildColorMap,
-  isAcademicEvent,
   isDayOff,
   isTeachingClass,
   sessionColor,
@@ -41,34 +41,45 @@ import {
   FALLBACK_COURSE_COLOR,
 } from "@/lib/courses";
 import { cleanExamTitle, dayKey, eventMeta, timeLeft, type Deadline } from "@/lib/deadlines";
+import { TimetableSyncStatus } from "./TimetableSyncStatus";
 import { SyllabusDialog } from "@/components/board/SyllabusDialog";
+import { courseAttendance, defaultClassDay } from "@/lib/course-attendance";
+import { getBunkStatus, sessionSubject } from "@/lib/attendance";
+import { IPM1_BATCH_ID } from "@/lib/roster.data";
+import { MissAllowance } from "@/components/attendance/MissAllowance";
 
 type Props = {
   now: number;
   onSeeFullTimetable?: () => void;
+  onSeeAttendance?: () => void;
   onSeeExams?: () => void;
   deadlines?: Deadline[];
   canManage?: boolean;
+  minimal?: boolean;
 };
 
 const clockTimeFmt = new Intl.DateTimeFormat("en-GB", {
   hour: "2-digit",
   minute: "2-digit",
   hour12: true,
+  timeZone: "Asia/Kolkata",
 });
 
 const shortDayFmt = new Intl.DateTimeFormat("en-GB", {
   weekday: "short",
   day: "numeric",
   month: "short",
+  timeZone: "Asia/Kolkata",
 });
 
 export function LiveClassHero({
   now,
   onSeeFullTimetable,
+  onSeeAttendance,
   onSeeExams,
   deadlines = [],
   canManage = false,
+  minimal = false,
 }: Props) {
   const { batchId, batch, isMember } = useBatch();
   const { user } = useAuth();
@@ -78,12 +89,13 @@ export function LiveClassHero({
 
   const { data: sessions = [] } = useQuery(sessionsQuery(batchId));
   const { data: courses = [] } = useQuery(coursesQuery(batchId));
-  const { data: marks = [] } = useQuery(attendanceQuery(batchId, isMember));
+  const {
+    data: marks = [],
+    isPending: attendanceLoading,
+    isError: attendanceError,
+  } = useQuery(attendanceQuery(batchId, isMember || canManage, user?.id, canManage));
 
-  const colorMap = useMemo(
-    () => buildColorMap(courses, sessions),
-    [courses, sessions],
-  );
+  const colorMap = useMemo(() => buildColorMap(courses, sessions), [courses, sessions]);
 
   // Self attendance marks mapped by session ID
   const myMarks = useMemo(() => {
@@ -122,12 +134,26 @@ export function LiveClassHero({
       queryClient.invalidateQueries({ queryKey: ["batch-attendance"] });
       toast.success(status === "absent" ? "Marked as Absent" : "Marked as Present");
     },
-    onError: (err: any) => {
+    onError: (err: Error) => {
       toast.error(err.message || "Failed to update attendance");
     },
   });
 
-  const [offset, setOffset] = useState(0);
+  const [manualDay, setManualDay] = useState<{ day: string; offset: number } | null>(null);
+  const todayKey = dayKey(new Date(now));
+  const offset = manualDay?.day === todayKey ? manualDay.offset : defaultClassDay(sessions, now);
+  const setOffset = (value: number | ((current: number) => number)) =>
+    setManualDay({ day: todayKey, offset: typeof value === "function" ? value(offset) : value });
+  const [inspectedId, setInspectedId] = useState<string | null>(null);
+  const [showCompleted, setShowCompleted] = useState(false);
+  const attendanceByCourse = useMemo(
+    () => courseAttendance(sessions, marks, user?.id, now),
+    [sessions, marks, user?.id, now],
+  );
+  const reducedMotion = useReducedMotion();
+  const pointerX = useMotionValue(50);
+  const pointerY = useMotionValue(50);
+  const spotlight = useMotionTemplate`radial-gradient(500px circle at ${pointerX}% ${pointerY}%, #65d8ac20, transparent 70%)`;
 
   const selectedDate = useMemo(() => {
     const d = new Date(now);
@@ -140,22 +166,13 @@ export function LiveClassHero({
   const daySessions = useMemo(() => {
     return sessions
       .filter((s) => dayKey(new Date(s.start_at)) === targetDayKey)
-      .sort(
-        (a, b) =>
-          new Date(a.start_at).getTime() - new Date(b.start_at).getTime(),
-      );
+      .sort((a, b) => new Date(a.start_at).getTime() - new Date(b.start_at).getTime());
   }, [sessions, targetDayKey]);
 
-  const classes = useMemo(
-    () => daySessions.filter(isTeachingClass),
-    [daySessions],
-  );
+  const classes = useMemo(() => daySessions.filter(isTeachingClass), [daySessions]);
 
   const isWeekendOff = useMemo(() => isDayOff(selectedDate), [selectedDate]);
-  const isHoliday = useMemo(
-    () => daySessions.some(isAcademicEvent),
-    [daySessions],
-  );
+  const isHoliday = useMemo(() => daySessions.some((s) => s.is_holiday), [daySessions]);
 
   const liveClass = useMemo(() => {
     if (offset !== 0) return null;
@@ -170,19 +187,14 @@ export function LiveClassHero({
 
   const nextClassToday = useMemo(() => {
     if (offset !== 0 || liveClass) return null;
-    return (
-      classes.find((s) => new Date(s.start_at).getTime() > now) || null
-    );
+    return classes.find((s) => new Date(s.start_at).getTime() > now) || null;
   }, [classes, liveClass, now, offset]);
 
   const nextUpcomingAnyDay = useMemo(() => {
     return (
       sessions
         .filter((s) => isTeachingClass(s) && new Date(s.start_at).getTime() > now)
-        .sort(
-          (a, b) =>
-            new Date(a.start_at).getTime() - new Date(b.start_at).getTime(),
-        )[0] || null
+        .sort((a, b) => new Date(a.start_at).getTime() - new Date(b.start_at).getTime())[0] || null
     );
   }, [sessions, now]);
 
@@ -212,13 +224,96 @@ export function LiveClassHero({
   }, [deadlines, now]);
 
   const activeThemeColor = liveClass
-    ? sessionColor(liveClass, colorMap) ?? "#22D3EE"
+    ? (sessionColor(liveClass, colorMap) ?? "#22D3EE")
     : nextClassToday
-    ? sessionColor(nextClassToday, colorMap) ?? "#F59E0B"
-    : "#22D3EE";
+      ? (sessionColor(nextClassToday, colorMap) ?? "#F59E0B")
+      : "#22D3EE";
+
+  const inspected = classes.find((s) => s.id === inspectedId);
+  const featured = offset === 0 ? liveClass || nextClassToday || nextUpcomingAnyDay : classes[0];
+  const attendanceClass = inspected || (offset === 0 ? liveClass || nextClassToday : featured);
+  const courseRecord = attendanceClass
+    ? attendanceByCourse.get(sessionSubject(attendanceClass))
+    : null;
+  const allowance =
+    attendanceClass && batchId === IPM1_BATCH_ID
+      ? getBunkStatus(sessionSubject(attendanceClass), courseRecord?.absent ?? 0)
+      : null;
+  const completedCount = classes.filter((s) => new Date(s.end_at).getTime() <= now).length;
+  const visibleClasses =
+    minimal && offset === 0 && !showCompleted
+      ? classes.filter((s) => new Date(s.end_at).getTime() > now)
+      : classes;
+  const dialValue = liveClass ? liveProgress.remainingMin : offset !== 0 ? classes.length : "↗";
 
   return (
-    <section className="relative mb-5 sm:mb-8 overflow-hidden rounded-2xl sm:rounded-[32px] border border-border/80 bg-surface/95 p-4 sm:p-7 md:p-8 shadow-xl backdrop-blur-2xl transition-all duration-300">
+    <motion.section
+      aria-label="Current class tracker"
+      data-state={liveClass ? "live" : nextClassToday ? "next" : "idle"}
+      className={`class-tracker ${minimal ? "class-tracker-minimal" : ""} relative overflow-hidden rounded-2xl border border-border/80 bg-surface/95 p-4 sm:p-5`}
+      onPointerMove={(event) => {
+        if (reducedMotion || event.pointerType !== "mouse") return;
+        const rect = event.currentTarget.getBoundingClientRect();
+        pointerX.set(((event.clientX - rect.left) / rect.width) * 100);
+        pointerY.set(((event.clientY - rect.top) / rect.height) * 100);
+      }}
+    >
+      <motion.div
+        aria-hidden="true"
+        className="absolute inset-0 pointer-events-none"
+        style={{ background: spotlight }}
+      />
+      {minimal && (
+        <div className="class-progress-dial" style={{ color: activeThemeColor }}>
+          <svg viewBox="0 0 112 112" aria-hidden="true">
+            <circle
+              cx="56"
+              cy="56"
+              r="48"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="3"
+              opacity="0.15"
+            />
+            <motion.circle
+              cx="56"
+              cy="56"
+              r="48"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="4"
+              strokeLinecap="round"
+              strokeDasharray="301.6"
+              animate={{ strokeDashoffset: 301.6 * (1 - liveProgress.pct / 100) }}
+              transition={{ duration: reducedMotion ? 0 : 1 }}
+              style={{ rotate: -90, transformOrigin: "56px 56px" }}
+            />
+            {featured && (
+              <motion.circle
+                cx="56"
+                cy="8"
+                r="4"
+                fill="currentColor"
+                animate={reducedMotion ? {} : { rotate: 360 }}
+                transition={{ duration: 12, repeat: Infinity, ease: "linear" }}
+                style={{ transformOrigin: "56px 56px" }}
+              />
+            )}
+          </svg>
+          <div>
+            <strong>{dialValue}</strong>
+            <span>
+              {liveClass
+                ? "min left"
+                : offset !== 0
+                  ? "classes"
+                  : featured
+                    ? "up next"
+                    : "all clear"}
+            </span>
+          </div>
+        </div>
+      )}
       {/* ── Ambient Radial Glows ── */}
       <div
         className="pointer-events-none absolute -right-24 -top-24 h-96 w-96 rounded-full blur-[130px] opacity-25 transition-colors duration-700"
@@ -230,12 +325,15 @@ export function LiveClassHero({
       />
 
       {/* ── Top Bar: Day Selector & Live Clock ── */}
-      <div className="relative z-10 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 border-b border-border/60 pb-4 mb-4">
+      <div className="class-tracker-toolbar relative z-10 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 border-b border-border/60 pb-4 mb-4">
         <div className="flex flex-wrap items-center gap-2.5 sm:gap-3">
           <div className="flex items-center rounded-2xl bg-surface2/80 p-1 border border-border/80 shadow-xs">
             <button
               type="button"
-              onClick={() => setOffset((o) => o - 1)}
+              onClick={() => {
+                setOffset((o) => o - 1);
+                setInspectedId(null);
+              }}
               aria-label="Previous day"
               className="flex size-8 items-center justify-center rounded-xl text-dim transition-colors hover:bg-surface hover:text-ink cursor-pointer"
             >
@@ -245,10 +343,10 @@ export function LiveClassHero({
               {offset === 0
                 ? "Today"
                 : offset === 1
-                ? "Tomorrow"
-                : offset === -1
-                ? "Yesterday"
-                : shortDayFmt.format(selectedDate)}
+                  ? "Tomorrow"
+                  : offset === -1
+                    ? "Yesterday"
+                    : shortDayFmt.format(selectedDate)}
             </span>
             {offset !== 0 && (
               <button
@@ -261,7 +359,10 @@ export function LiveClassHero({
             )}
             <button
               type="button"
-              onClick={() => setOffset((o) => o + 1)}
+              onClick={() => {
+                setOffset((o) => o + 1);
+                setInspectedId(null);
+              }}
               aria-label="Next day"
               className="flex size-8 items-center justify-center rounded-xl text-dim transition-colors hover:bg-surface hover:text-ink cursor-pointer"
             >
@@ -275,7 +376,7 @@ export function LiveClassHero({
                 <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-rose opacity-75" />
                 <span className="relative inline-flex size-2 rounded-full bg-rose" />
               </span>
-              Live Class in Session
+              Live now
             </span>
           ) : nextClassToday ? (
             <span className="inline-flex items-center gap-2 rounded-xl bg-cyan/15 px-3 py-1 text-xs font-bold text-cyan border border-cyan/30">
@@ -309,7 +410,7 @@ export function LiveClassHero({
               className="inline-flex items-center gap-1.5 rounded-xl bg-cyan/12 border border-cyan/30 px-3.5 py-1.5 text-xs font-bold text-cyan hover:bg-cyan/20 transition-all cursor-pointer"
             >
               <CalendarClock className="size-4" />
-              <span className="hidden sm:inline">Full Timetable</span>
+              <span>Timetable</span>
             </button>
           )}
         </div>
@@ -324,7 +425,7 @@ export function LiveClassHero({
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -12 }}
             transition={{ duration: 0.3 }}
-            className="relative z-10 py-4 sm:py-6 space-y-4"
+            className="class-tracker-feature relative z-10 py-4 sm:py-6 space-y-4"
           >
             <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
               <div className="space-y-1.5 min-w-0">
@@ -346,13 +447,16 @@ export function LiveClassHero({
                     </span>
                   )}
                   <span className="font-mono text-xs font-bold text-dim bg-surface2 px-2.5 py-1 rounded-lg border border-border">
-                    {clockTimeFmt.format(new Date(liveClass.start_at))} – {clockTimeFmt.format(new Date(liveClass.end_at))}
+                    {clockTimeFmt.format(new Date(liveClass.start_at))} –{" "}
+                    {clockTimeFmt.format(new Date(liveClass.end_at))}
                   </span>
                 </div>
 
                 {/* Massive Headline Title: Full course name, never clipped */}
                 <h2 className="font-display text-xl sm:text-3xl md:text-4xl font-extrabold tracking-tight text-ink break-words leading-tight">
-                  {subjectFullName(liveClass.course_name || liveClass.course_code || liveClass.title) || sessionFullName(liveClass)}
+                  {subjectFullName(
+                    liveClass.course_name || liveClass.course_code || liveClass.title,
+                  ) || sessionFullName(liveClass)}
                 </h2>
 
                 <div className="flex flex-wrap items-center gap-3 sm:gap-4 text-xs sm:text-sm text-dim pt-1">
@@ -387,11 +491,11 @@ export function LiveClassHero({
                 >
                   {myMarks.get(liveClass.id) === "absent" ? (
                     <>
-                      <X className="size-4 stroke-[3]" /> Marked Absent (Tap to mark present)
+                      <X className="size-4 stroke-[3]" /> Absent · undo
                     </>
                   ) : (
                     <>
-                      <Check className="size-4 stroke-[3]" /> Attending Now (Self-Marked)
+                      <Check className="size-4 stroke-[3]" /> Mark absent
                     </>
                   )}
                 </motion.button>
@@ -401,8 +505,8 @@ export function LiveClassHero({
             {/* Progress Bar & Countdown */}
             <div className="space-y-1.5 pt-2">
               <div className="flex justify-between text-xs font-mono font-bold text-dim">
-                <span>{liveProgress.remainingMin} mins remaining in this period</span>
-                <span>{liveProgress.pct}% completed</span>
+                <span>{liveProgress.remainingMin} min left</span>
+                <span>{liveProgress.pct}%</span>
               </div>
               <div className="h-2.5 w-full overflow-hidden rounded-full bg-surface2 border border-border">
                 <motion.div
@@ -422,7 +526,7 @@ export function LiveClassHero({
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -12 }}
             transition={{ duration: 0.3 }}
-            className="relative z-10 py-4 sm:py-6 space-y-3"
+            className="class-tracker-feature relative z-10 py-4 sm:py-6 space-y-3"
           >
             <div className="flex flex-wrap items-center gap-2.5">
               <span
@@ -430,7 +534,8 @@ export function LiveClassHero({
                 style={{ backgroundColor: activeThemeColor }}
               />
               <span className="font-mono text-xs font-bold text-dim bg-surface2 px-2.5 py-1 rounded-lg border border-border">
-                {clockTimeFmt.format(new Date(nextClassToday.start_at))} – {clockTimeFmt.format(new Date(nextClassToday.end_at))}
+                {clockTimeFmt.format(new Date(nextClassToday.start_at))} –{" "}
+                {clockTimeFmt.format(new Date(nextClassToday.end_at))}
               </span>
               <span className="rounded-xl bg-cyan/15 px-3 py-1 font-mono text-xs font-bold text-cyan border border-cyan/30">
                 Starts in {timeLeft(nextClassToday.start_at, now)}
@@ -444,13 +549,16 @@ export function LiveClassHero({
 
             {/* Huge Headline Title: Full course name, never clipped */}
             <h2 className="font-display text-xl sm:text-3xl md:text-4xl font-extrabold tracking-tight text-ink break-words leading-tight">
-              {subjectFullName(nextClassToday.course_name || nextClassToday.course_code || nextClassToday.title) || sessionFullName(nextClassToday)}
+              {subjectFullName(
+                nextClassToday.course_name || nextClassToday.course_code || nextClassToday.title,
+              ) || sessionFullName(nextClassToday)}
             </h2>
 
             {nextClassToday.faculty_name && (
               <p className="font-sans text-xs sm:text-sm text-dim flex items-center gap-1.5">
                 <User className="size-4 text-dim" />
-                Faculty: <strong className="text-ink font-semibold">{nextClassToday.faculty_name}</strong>
+                Faculty:{" "}
+                <strong className="text-ink font-semibold">{nextClassToday.faculty_name}</strong>
               </p>
             )}
           </motion.div>
@@ -461,49 +569,112 @@ export function LiveClassHero({
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -12 }}
             transition={{ duration: 0.3 }}
-            className="relative z-10 py-6 sm:py-8 text-center space-y-2"
+            className="class-tracker-feature relative z-10 py-6 sm:py-8 text-center space-y-2"
           >
             <div className="mx-auto flex size-14 items-center justify-center rounded-2xl bg-cyan/10 text-cyan mb-2">
               <Sparkles className="size-7" />
             </div>
             <h2 className="font-display text-2xl sm:text-3xl font-extrabold tracking-tight text-ink">
-              {classes.length > 0 ? "All classes wrapped for today" : "No classes scheduled today"}
+              {offset !== 0
+                ? `${classes.length} classes · ${shortDayFmt.format(selectedDate)}`
+                : classes.length > 0
+                  ? "Done for today"
+                  : "No classes today"}
             </h2>
             {nextUpcomingAnyDay && (
               <p className="font-sans text-xs sm:text-sm text-dim">
-                Next scheduled class: <strong className="text-ink font-semibold">{subjectFullName(nextUpcomingAnyDay.course_name || nextUpcomingAnyDay.course_code) || sessionFullName(nextUpcomingAnyDay)}</strong> ({shortDayFmt.format(new Date(nextUpcomingAnyDay.start_at))})
+                Next scheduled class:{" "}
+                <strong className="text-ink font-semibold">
+                  {subjectFullName(
+                    nextUpcomingAnyDay.course_name || nextUpcomingAnyDay.course_code,
+                  ) || sessionFullName(nextUpcomingAnyDay)}
+                </strong>{" "}
+                ({shortDayFmt.format(new Date(nextUpcomingAnyDay.start_at))})
               </p>
             )}
           </motion.div>
         )}
       </AnimatePresence>
 
-      {/* ── Today's Schedule Glance (Roster of Periods) — Zero Clipping ── */}
+      {minimal && (isMember || canManage) && user && attendanceClass && (
+        <button
+          type="button"
+          onClick={onSeeAttendance}
+          className="relative z-10 mt-4 flex w-full flex-wrap items-center justify-between gap-3 rounded-xl border border-border/70 bg-surface2/50 px-4 py-3 text-left transition-colors hover:border-cyan/40"
+          aria-label={`View attendance for ${sessionSubject(attendanceClass)}`}
+        >
+          <div className="min-w-0">
+            <p className="text-[10px] font-semibold uppercase tracking-wider text-dim">
+              Your attendance · {sessionPeriodLabel(attendanceClass)}
+            </p>
+            <p className="mt-1 text-sm font-semibold text-ink">
+              {attendanceError
+                ? "Attendance unavailable"
+                : attendanceLoading
+                  ? "Loading attendance…"
+                  : courseRecord?.held
+                    ? `${courseRecord.present} present · ${courseRecord.absent} missed`
+                    : "No completed classes yet"}
+              {!attendanceLoading && !attendanceError && !!courseRecord?.unmarked && (
+                <span className="ml-2 text-xs font-normal text-dim">
+                  {courseRecord.unmarked} unmarked
+                </span>
+              )}
+            </p>
+          </div>
+          <div className="flex items-center gap-3 text-xs">
+            {allowance && !attendanceLoading && !attendanceError && (
+              <MissAllowance
+                course={sessionSubject(attendanceClass)}
+                missed={courseRecord?.absent ?? 0}
+              />
+            )}
+            <ArrowRight className="size-4 text-dim" />
+          </div>
+        </button>
+      )}
+
+      {/* Today's remaining classes stay visible; completed periods are optional. */}
       {classes.length > 0 && (
-        <div className="relative z-10 border-t border-border/60 pt-5 mt-4">
+        <div className="class-tracker-schedule relative z-10 border-t border-border/60 pt-5 mt-4">
           <div className="mb-3 flex items-center justify-between">
             <span className="font-mono text-xs font-bold uppercase tracking-wider text-dim">
-              Today's Schedule ({classes.length} Period{classes.length === 1 ? "" : "s"})
+              {offset === 0 ? "Today" : shortDayFmt.format(selectedDate)} · {classes.length} classes
             </span>
+            {minimal && offset === 0 && completedCount > 0 && (
+              <button
+                type="button"
+                onClick={() => setShowCompleted((value) => !value)}
+                className="text-xs text-dim hover:text-ink"
+              >
+                {showCompleted ? "Hide completed" : `${completedCount} completed`}
+              </button>
+            )}
           </div>
 
           <div className="flex items-stretch gap-2.5 sm:gap-3 overflow-x-auto pb-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-            {classes.map((s) => {
+            {visibleClasses.map((s) => {
               const color = sessionColor(s, colorMap) ?? FALLBACK_COURSE_COLOR;
               const isLive = liveClass?.id === s.id;
               const isPast = new Date(s.end_at).getTime() <= now;
               const periodSubject = sessionPeriodLabel(s);
               const mark = myMarks.get(s.id);
+              const record = attendanceByCourse.get(sessionSubject(s));
 
               return (
-                <div
+                <motion.button
+                  type="button"
                   key={s.id}
+                  aria-pressed={inspectedId === s.id}
+                  onClick={() => setInspectedId((id) => (id === s.id ? null : s.id))}
+                  whileHover={{ y: -3 }}
+                  whileTap={{ scale: 0.97 }}
                   className={`relative flex flex-col justify-between rounded-xl sm:rounded-2xl p-3 sm:p-4 min-w-[170px] sm:min-w-[220px] shrink-0 border transition-all ${
                     isLive
                       ? "border-cyan/80 bg-cyan/[0.08] shadow-lg shadow-cyan/10 ring-1 ring-cyan/40"
                       : isPast
-                      ? "border-border/60 bg-surface2/30 opacity-75"
-                      : "border-border bg-surface hover:border-border/90 hover:shadow-xs"
+                        ? "border-border/60 bg-surface2/30 opacity-75"
+                        : "border-border bg-surface hover:border-border/90 hover:shadow-xs"
                   }`}
                 >
                   <span
@@ -521,9 +692,7 @@ export function LiveClassHero({
                           Active
                         </span>
                       ) : isPast ? (
-                        <span className="font-mono text-[10px] text-faint">
-                          Done
-                        </span>
+                        <span className="font-mono text-[10px] text-faint">Done</span>
                       ) : null}
                     </div>
 
@@ -539,157 +708,185 @@ export function LiveClassHero({
 
                   <div className="mt-3 pt-2 border-t border-border/50 flex items-center justify-between text-xs">
                     <span className="font-mono text-[10px] text-faint">
-                      {s.course_code || "Class"}
+                      {minimal &&
+                      (isMember || canManage) &&
+                      user &&
+                      !attendanceLoading &&
+                      !attendanceError
+                        ? `${record?.absent ?? 0} missed${record?.unmarked ? ` · ${record.unmarked} unmarked` : ""}`
+                        : s.course_code || "Class"}
                     </span>
                     {mark === "absent" ? (
                       <span className="font-mono text-[10px] font-bold text-rose">Absent</span>
                     ) : mark === "present" ? (
-                      <span className="font-mono text-[10px] font-bold text-emerald-500">Present</span>
+                      <span className="font-mono text-[10px] font-bold text-emerald-500">
+                        Present
+                      </span>
                     ) : null}
                   </div>
-                </div>
+                </motion.button>
               );
             })}
           </div>
         </div>
       )}
 
-      {/* ── Upcoming Examinations & Verified Syllabus Scope Section ── */}
-      <div className="relative z-10 border-t border-border/70 pt-6 mt-6">
-        <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-          <div className="flex items-center gap-2.5">
-            <span className="flex size-7 items-center justify-center rounded-xl bg-cyan/15 text-cyan border border-cyan/30">
-              <GraduationCap className="size-4" />
+      <AnimatePresence>
+        {inspected && (
+          <motion.div
+            className="class-inspected"
+            key={inspected.id}
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: "auto" }}
+            exit={{ opacity: 0, height: 0 }}
+          >
+            <strong>{sessionFullName(inspected)}</strong>
+            <span>
+              {clockTimeFmt.format(new Date(inspected.start_at))} –{" "}
+              {clockTimeFmt.format(new Date(inspected.end_at))}
+              {inspected.classroom && ` · ${inspected.classroom}`}
+              {inspected.faculty_name && ` · ${inspected.faculty_name}`}
             </span>
-            <div>
-              <h3 className="font-display text-sm font-bold text-ink flex items-center gap-2">
-                <span>Upcoming Exams</span>
-                {upcomingExams.length > 0 && (
-                  <span className="rounded-full bg-cyan/15 border border-cyan/30 px-2 py-0.5 text-[10px] font-bold text-cyan">
-                    {upcomingExams.length} Scheduled
-                  </span>
-                )}
-              </h3>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* ── Upcoming Examinations & Verified Syllabus Scope Section ── */}
+      {!minimal && (
+        <div className="relative z-10 border-t border-border/70 pt-6 mt-6">
+          <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+            <div className="flex items-center gap-2.5">
+              <span className="flex size-7 items-center justify-center rounded-xl bg-cyan/15 text-cyan border border-cyan/30">
+                <GraduationCap className="size-4" />
+              </span>
+              <div>
+                <h3 className="font-display text-sm font-bold text-ink flex items-center gap-2">
+                  <span>Upcoming Exams</span>
+                  {upcomingExams.length > 0 && (
+                    <span className="rounded-full bg-cyan/15 border border-cyan/30 px-2 py-0.5 text-[10px] font-bold text-cyan">
+                      {upcomingExams.length} Scheduled
+                    </span>
+                  )}
+                </h3>
+              </div>
             </div>
+
+            {onSeeExams && (
+              <button
+                type="button"
+                onClick={onSeeExams}
+                className="font-sans text-xs font-semibold text-cyan hover:underline flex items-center gap-1 cursor-pointer"
+              >
+                View all exams <ArrowRight className="size-3" />
+              </button>
+            )}
           </div>
 
-          {onSeeExams && (
-            <button
-              type="button"
-              onClick={onSeeExams}
-              className="font-sans text-xs font-semibold text-cyan hover:underline flex items-center gap-1 cursor-pointer"
-            >
-              View all exams <ArrowRight className="size-3" />
-            </button>
-          )}
-        </div>
+          {upcomingExams.length === 0 ? (
+            <div className="rounded-2xl border border-dashed border-border/80 bg-surface2/30 p-5 text-center">
+              <p className="font-sans text-xs text-dim">
+                No upcoming midterms or major exams scheduled at this moment.
+              </p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 gap-3.5 md:grid-cols-2 lg:grid-cols-3">
+              {upcomingExams.slice(0, 3).map((exam) => {
+                const examColor = autoColor(exam.subject || exam.title);
+                const hasSyllabus = Boolean(exam.notes && exam.notes.trim());
 
-        {upcomingExams.length === 0 ? (
-          <div className="rounded-2xl border border-dashed border-border/80 bg-surface2/30 p-5 text-center">
-            <p className="font-sans text-xs text-dim">
-              No upcoming midterms or major exams scheduled at this moment.
-            </p>
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 gap-3.5 md:grid-cols-2 lg:grid-cols-3">
-            {upcomingExams.slice(0, 3).map((exam) => {
-              const examColor = autoColor(exam.subject || exam.title);
-              const hasSyllabus = Boolean(exam.notes && exam.notes.trim());
-
-              return (
-                <div
-                  key={exam.id}
-                  className="flex flex-col justify-between rounded-2xl border border-border/80 bg-surface/90 p-4 shadow-xs hover:border-cyan/40 transition-all space-y-3"
-                >
-                  <div className="space-y-2">
-                    <div className="flex items-center justify-between gap-2">
-                      <span
-                        className="rounded-lg px-2.5 py-0.5 font-mono text-[11px] font-bold"
-                        style={{
-                          color: examColor,
-                          backgroundColor: `${examColor}15`,
-                          border: `1px solid ${examColor}30`,
-                        }}
-                      >
-                        {exam.subject_code || exam.subject}
-                      </span>
-                      <span className="rounded-md bg-surface2 px-2 py-0.5 font-sans text-[11px] font-bold text-cyan border border-border">
-                        {timeLeft(exam.due_at, now)}
-                      </span>
-                    </div>
-
-                    <h4 className="font-display text-sm font-bold text-ink break-words">
-                      {cleanExamTitle(exam.title, exam.subject)}
-                    </h4>
-
-                    <div className="flex flex-wrap items-center gap-3 text-xs text-dim pt-0.5">
-                      <span className="flex items-center gap-1">
-                        <Calendar className="size-3 text-cyan" />
-                        {shortDayFmt.format(new Date(exam.due_at))}
-                      </span>
-                      {exam.location && (
-                        <span className="flex items-center gap-1 text-ink font-medium">
-                          <MapPin className="size-3 text-rose" />
-                          {exam.location}
+                return (
+                  <div
+                    key={exam.id}
+                    className="flex flex-col justify-between rounded-2xl border border-border/80 bg-surface/90 p-4 shadow-xs hover:border-cyan/40 transition-all space-y-3"
+                  >
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between gap-2">
+                        <span
+                          className="rounded-lg px-2.5 py-0.5 font-mono text-[11px] font-bold"
+                          style={{
+                            color: examColor,
+                            backgroundColor: `${examColor}15`,
+                            border: `1px solid ${examColor}30`,
+                          }}
+                        >
+                          {exam.subject_code || exam.subject}
                         </span>
-                      )}
-                    </div>
-
-                    {/* Syllabus Scope Preview */}
-                    <div className="rounded-xl border border-border/70 bg-surface2/40 p-2.5 space-y-1">
-                      <div className="flex items-center justify-between">
-                        <span className="font-display text-[10px] font-bold uppercase tracking-wider text-dim flex items-center gap-1">
-                          <BookOpen className="size-3 text-cyan" />
-                          <span>Syllabus & Scope</span>
+                        <span className="rounded-md bg-surface2 px-2 py-0.5 font-sans text-[11px] font-bold text-cyan border border-border">
+                          {timeLeft(exam.due_at, now)}
                         </span>
-                        {hasSyllabus ? (
-                          <span className="text-[10px] font-semibold text-emerald-500">
-                            ✓ Verified
-                          </span>
-                        ) : (
-                          <span className="text-[10px] font-medium text-amber">
-                            Pending
+                      </div>
+
+                      <h4 className="font-display text-sm font-bold text-ink break-words">
+                        {cleanExamTitle(exam.title, exam.subject)}
+                      </h4>
+
+                      <div className="flex flex-wrap items-center gap-3 text-xs text-dim pt-0.5">
+                        <span className="flex items-center gap-1">
+                          <Calendar className="size-3 text-cyan" />
+                          {shortDayFmt.format(new Date(exam.due_at))}
+                        </span>
+                        {exam.location && (
+                          <span className="flex items-center gap-1 text-ink font-medium">
+                            <MapPin className="size-3 text-rose" />
+                            {exam.location}
                           </span>
                         )}
                       </div>
-                      <p className="font-sans text-xs text-ink/90 line-clamp-2 leading-relaxed">
-                        {hasSyllabus
-                          ? exam.notes
-                          : "No syllabus details posted yet. Course Reps can add syllabus below."}
-                      </p>
+
+                      {/* Syllabus Scope Preview */}
+                      <div className="rounded-xl border border-border/70 bg-surface2/40 p-2.5 space-y-1">
+                        <div className="flex items-center justify-between">
+                          <span className="font-display text-[10px] font-bold uppercase tracking-wider text-dim flex items-center gap-1">
+                            <BookOpen className="size-3 text-cyan" />
+                            <span>Syllabus & Scope</span>
+                          </span>
+                          {hasSyllabus ? (
+                            <span className="text-[10px] font-semibold text-emerald-500">
+                              ✓ Verified
+                            </span>
+                          ) : (
+                            <span className="text-[10px] font-medium text-amber">Pending</span>
+                          )}
+                        </div>
+                        <p className="font-sans text-xs text-ink/90 line-clamp-2 leading-relaxed">
+                          {hasSyllabus
+                            ? exam.notes
+                            : "No syllabus details posted yet. Course Reps can add syllabus below."}
+                        </p>
+                      </div>
                     </div>
-                  </div>
 
-                  <div className="flex items-center justify-between gap-2 pt-1 border-t border-border/50">
-                    <button
-                      type="button"
-                      onClick={() => setSyllabusExam(exam)}
-                      className="inline-flex items-center gap-1.5 font-sans text-xs font-semibold text-cyan hover:underline cursor-pointer"
-                    >
-                      <BookOpen className="size-3.5" />
-                      <span>{hasSyllabus ? "Read Syllabus" : "View Details"}</span>
-                    </button>
-
-                    {canManage && (
+                    <div className="flex items-center justify-between gap-2 pt-1 border-t border-border/50">
                       <button
                         type="button"
                         onClick={() => setSyllabusExam(exam)}
-                        className="inline-flex items-center gap-1 rounded-lg border border-border bg-surface2 px-2 py-1 font-sans text-[11px] font-medium text-dim hover:text-ink hover:border-cyan/40 transition-colors cursor-pointer"
+                        className="inline-flex items-center gap-1.5 font-sans text-xs font-semibold text-cyan hover:underline cursor-pointer"
                       >
-                        <Pencil className="size-3" />
-                        <span>{hasSyllabus ? "Edit Syllabus" : "+ Add Syllabus"}</span>
+                        <BookOpen className="size-3.5" />
+                        <span>{hasSyllabus ? "Read Syllabus" : "View Details"}</span>
                       </button>
-                    )}
+
+                      {canManage && (
+                        <button
+                          type="button"
+                          onClick={() => setSyllabusExam(exam)}
+                          className="inline-flex items-center gap-1 rounded-lg border border-border bg-surface2 px-2 py-1 font-sans text-[11px] font-medium text-dim hover:text-ink hover:border-cyan/40 transition-colors cursor-pointer"
+                        >
+                          <Pencil className="size-3" />
+                          <span>{hasSyllabus ? "Edit Syllabus" : "+ Add Syllabus"}</span>
+                        </button>
+                      )}
+                    </div>
                   </div>
-                </div>
-              );
-            })}
-          </div>
-        )}
-      </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* ── Bottom Timetable Shortcut ── */}
-      {onSeeFullTimetable && (
+      {!minimal && onSeeFullTimetable && (
         <div className="relative z-10 mt-4 flex items-center justify-end border-t border-border/50 pt-3 text-xs">
           <button
             type="button"
@@ -702,6 +899,7 @@ export function LiveClassHero({
         </div>
       )}
 
+      {minimal && <TimetableSyncStatus />}
       {/* ── Syllabus Dialog ── */}
       <SyllabusDialog
         deadline={syllabusExam}
@@ -709,6 +907,6 @@ export function LiveClassHero({
         onClose={() => setSyllabusExam(null)}
         canManage={Boolean(canManage)}
       />
-    </section>
+    </motion.section>
   );
 }

@@ -44,6 +44,7 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { purgeNeverLoggedInUsers } from "@/lib/auth.functions";
+import { StudentEnrolmentPanel } from "./StudentEnrolmentPanel";
 
 type ConsoleTab = "members" | "activity" | "tracker";
 
@@ -77,15 +78,17 @@ export function AdminConsolePanel() {
       queryClient.invalidateQueries({ queryKey: ["directory"] });
       setPurgeDialogOpen(false);
     },
-    onError: (err: any) => {
+    onError: (err: Error) => {
       toast.error(err.message || "Failed to purge inactive accounts.");
     },
   });
 
   // 1. Fetch all members across batches
-  const { data: members = [], isLoading: membersLoading, refetch: refetchMembers } = useQuery(
-    directoryQuery(true)
-  );
+  const {
+    data: members = [],
+    isLoading: membersLoading,
+    refetch: refetchMembers,
+  } = useQuery(directoryQuery(true));
 
   // 2. Fetch server-persisted user activity logs
   const { data: serverLogs = [], refetch: refetchLogs } = useQuery({
@@ -93,12 +96,25 @@ export function AdminConsolePanel() {
     queryFn: async () => {
       try {
         const { data, error } = await supabase
-          .from("user_activity_logs" as any)
+          .from("user_activity_logs" as never)
           .select("*")
           .order("created_at", { ascending: false })
           .limit(100);
         if (error) return [];
-        return (data || []).map((row: any) => ({
+        return (
+          (data || []) as unknown as {
+            id: string;
+            user_id: string;
+            user_name: string | null;
+            user_email: string | null;
+            user_roll: string | null;
+            batch_id: string | null;
+            action: ActivityLogItem["action"];
+            title: string;
+            details: ActivityLogItem["details"];
+            created_at: string;
+          }[]
+        ).map((row) => ({
           id: row.id,
           userId: row.user_id,
           userName: row.user_name || "Student",
@@ -133,7 +149,7 @@ export function AdminConsolePanel() {
     for (const l of localActivityLogs) map.set(l.id, l);
     for (const l of serverLogs) map.set(l.id, l);
     return Array.from(map.values()).sort(
-      (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+      (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
     );
   }, [localActivityLogs, serverLogs]);
 
@@ -142,7 +158,10 @@ export function AdminConsolePanel() {
     mutationFn: async ({ membershipId, newRole }: { membershipId: string; newRole: string }) => {
       const { error } = await supabase
         .from("batch_memberships")
-        .update({ role: newRole as any, decided_at: new Date().toISOString() })
+        .update({
+          role: newRole as "student" | "mod" | "admin",
+          decided_at: new Date().toISOString(),
+        })
         .eq("id", membershipId);
       if (error) throw error;
     },
@@ -163,8 +182,7 @@ export function AdminConsolePanel() {
 
       const matchesSearch =
         !query || name.includes(query) || email.includes(query) || reg.includes(query);
-      const matchesBatch =
-        selectedBatchFilter === "all" || m.batch_id === selectedBatchFilter;
+      const matchesBatch = selectedBatchFilter === "all" || m.batch_id === selectedBatchFilter;
       const matchesRole = roleFilter === "all" || m.role === roleFilter;
 
       return matchesSearch && matchesBatch && matchesRole;
@@ -197,7 +215,8 @@ export function AdminConsolePanel() {
       `"${new Date(m.created_at).toLocaleDateString()}"`,
     ]);
     const csvContent =
-      "data:text/csv;charset=utf-8," + [headers.join(","), ...rows.map((e) => e.join(","))].join("\n");
+      "data:text/csv;charset=utf-8," +
+      [headers.join(","), ...rows.map((e) => e.join(","))].join("\n");
     const encodedUri = encodeURI(csvContent);
     const link = document.createElement("a");
     link.setAttribute("href", encodedUri);
@@ -258,6 +277,7 @@ export function AdminConsolePanel() {
       </div>
 
       {/* ── Sub Navigation Tabs ── */}
+      {isAdmin && <StudentEnrolmentPanel />}
       <div className="flex items-center justify-between gap-3 overflow-x-auto border-b border-border/60 pb-3">
         <div className="flex items-center gap-1.5">
           <button
@@ -303,9 +323,9 @@ export function AdminConsolePanel() {
             {(isAdmin || isArush) && (
               <button
                 type="button"
-                onClick={() => setPurgeDialogOpen(true)}
+                disabled
+                title="Automatic deletion is disabled; review inactive accounts individually."
                 className="flex shrink-0 items-center gap-1.5 rounded-xl border border-rose/40 bg-rose/10 px-3 py-1.5 text-xs font-semibold text-rose hover:bg-rose hover:text-white transition-all shadow-xs cursor-pointer"
-                title="Purge accounts that have never logged in"
               >
                 <Trash2 className="size-3.5" />
                 <span className="hidden sm:inline">Purge Inactive</span>
@@ -392,7 +412,8 @@ export function AdminConsolePanel() {
             ) : (
               <div className="divide-y divide-border/60">
                 {filteredMembers.map((m) => {
-                  const name = m.profiles?.full_name ?? m.profiles?.email?.split("@")[0] ?? "Student";
+                  const name =
+                    m.profiles?.full_name ?? m.profiles?.email?.split("@")[0] ?? "Student";
                   const email = m.profiles?.email ?? "—";
                   const reg = m.profiles?.registration_no ?? "—";
                   const batchName = m.batches?.name ?? "General";
@@ -436,8 +457,8 @@ export function AdminConsolePanel() {
                             isCurrentAdmin
                               ? "bg-emerald-500/15 text-emerald-500 border border-emerald-500/30"
                               : isCurrentMod
-                              ? "bg-amber/15 text-amber border border-amber/30"
-                              : "bg-surface2 text-dim border border-border"
+                                ? "bg-amber/15 text-amber border border-amber/30"
+                                : "bg-surface2 text-dim border border-border"
                           }`}
                         >
                           {ROLE_LABEL[m.role] ?? m.role}
@@ -464,7 +485,9 @@ export function AdminConsolePanel() {
                         </button>
                         {!isCurrentMod && (
                           <button
-                            onClick={() => updateRole.mutate({ membershipId: m.id, newRole: "mod" })}
+                            onClick={() =>
+                              updateRole.mutate({ membershipId: m.id, newRole: "mod" })
+                            }
                             title="Promote to Class Rep / Mod"
                             className="rounded-lg border border-border bg-surface px-2 py-1 text-[11px] font-medium text-dim hover:border-amber/50 hover:text-amber transition-colors"
                           >
@@ -496,7 +519,8 @@ export function AdminConsolePanel() {
       {activeTab === "activity" && (
         <div className="space-y-3">
           <p className="text-xs text-dim">
-            Chronological log of batch admissions, verification registrations, and timetable updates.
+            Chronological log of batch admissions, verification registrations, and timetable
+            updates.
           </p>
 
           <div className="divide-y divide-border/60 rounded-xl border border-border bg-surface shadow-2xs">
@@ -515,9 +539,7 @@ export function AdminConsolePanel() {
                     <div>
                       <p className="font-display font-semibold text-ink">
                         {name}{" "}
-                        {roll && (
-                          <span className="font-mono text-[11px] text-cyan">({roll})</span>
-                        )}{" "}
+                        {roll && <span className="font-mono text-[11px] text-cyan">({roll})</span>}{" "}
                         registered
                       </p>
                       <p className="text-[11px] text-dim">
@@ -550,7 +572,8 @@ export function AdminConsolePanel() {
                 Live Student Action & Telemetry Stream
               </h3>
               <p className="text-xs text-dim">
-                Real-time telemetry of what students are doing: task checklists, attendance marks, simulator usage, and visits.
+                Real-time telemetry of what students are doing: task checklists, attendance marks,
+                simulator usage, and visits.
               </p>
             </div>
             <span className="flex items-center gap-1.5 rounded-full bg-emerald-500/15 px-2.5 py-0.5 font-mono text-[10px] font-bold text-emerald-600 dark:text-emerald-400 border border-emerald-500/30">
@@ -569,7 +592,8 @@ export function AdminConsolePanel() {
 
             {allUserLogs.length === 0 ? (
               <div className="p-8 text-center text-xs text-dim">
-                No telemetry actions recorded yet. As students toggle tasks, simulate bunks, or mark attendance, activities will stream here live.
+                No telemetry actions recorded yet. As students toggle tasks, simulate bunks, or mark
+                attendance, activities will stream here live.
               </div>
             ) : (
               <div className="divide-y divide-border/60">
@@ -601,9 +625,7 @@ export function AdminConsolePanel() {
                           )}
                           : {log.title}
                         </p>
-                        <p className="truncate font-mono text-[10px] text-dim">
-                          {log.userEmail}
-                        </p>
+                        <p className="truncate font-mono text-[10px] text-dim">{log.userEmail}</p>
                       </div>
 
                       <div>
@@ -696,10 +718,12 @@ export function AdminConsolePanel() {
           <div className="space-y-3 py-2 text-xs font-body text-dim leading-relaxed">
             <p>
               This will permanently remove all accounts that were created or seeded but have{" "}
-              <strong className="text-ink">never logged in</strong> (zero sign-in history and zero attendance marks).
+              <strong className="text-ink">never logged in</strong> (zero sign-in history and zero
+              attendance marks).
             </p>
             <div className="rounded-xl border border-rose/30 bg-rose/10 p-3 font-mono text-[11px] text-rose">
-              🛡️ <strong>Safety Protection Active:</strong> All active logged-in students, administrators, and Arush's accounts are strictly protected and will not be touched.
+              🛡️ <strong>Safety Protection Active:</strong> All active logged-in students,
+              administrators, and Arush's accounts are strictly protected and will not be touched.
             </div>
           </div>
 

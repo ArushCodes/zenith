@@ -20,6 +20,7 @@ import {
   urgencyOf,
   type Deadline,
   displayTitle,
+  eventSourceLabel,
 } from "@/lib/deadlines";
 import { autoColor } from "@/lib/courses";
 import { ExamMarks } from "@/components/board/ExamMarks";
@@ -79,7 +80,14 @@ export function EventDrawer({ deadline, now, canManage, onClose, onEdit, onDelet
   );
 }
 
-function Body({ deadline, now, canManage, onClose, onEdit, onDelete }: Props & { deadline: Deadline }) {
+function Body({
+  deadline,
+  now,
+  canManage,
+  onClose,
+  onEdit,
+  onDelete,
+}: Props & { deadline: Deadline }) {
   const m = eventMeta(deadline.type);
   const u = urgencyOf(deadline.due_at, now);
   const pulsing = u === "critical";
@@ -88,8 +96,12 @@ function Body({ deadline, now, canManage, onClose, onEdit, onDelete }: Props & {
     <>
       <div className="flex items-start justify-between gap-4">
         <div className="flex items-center gap-2">
-          <span className={`inline-block size-2 rounded-full ${m.dot} ${pulsing ? "pulse-dot" : ""}`} />
-          <span className={`rounded-md px-2 py-1 font-mono text-[10px] uppercase tracking-wide ${m.chip}`}>
+          <span
+            className={`inline-block size-2 rounded-full ${m.dot} ${pulsing ? "pulse-dot" : ""}`}
+          />
+          <span
+            className={`rounded-md px-2 py-1 font-mono text-[10px] uppercase tracking-wide ${m.chip}`}
+          >
             {m.label}
           </span>
           {deadline.is_major && (
@@ -107,6 +119,7 @@ function Body({ deadline, now, canManage, onClose, onEdit, onDelete }: Props & {
         </button>
       </div>
 
+      <p className="text-xs text-dim">{eventSourceLabel(deadline.source)}</p>
       <div>
         <div className="flex items-center gap-2">
           {deadline.subject_code && (
@@ -149,10 +162,16 @@ function Body({ deadline, now, canManage, onClose, onEdit, onDelete }: Props & {
               : `Individual${deadline.working_group ? ` · ${deadline.working_group}` : ""}`
           }
         />
-        {deadline.location && <Line icon={<MapPin className="size-4 text-rose" />} label={deadline.location} />}
+        {deadline.location && (
+          <Line icon={<MapPin className="size-4 text-rose" />} label={deadline.location} />
+        )}
         <div className="mt-2 flex items-baseline justify-between border-t border-border/50 pt-2">
-          <span className="font-mono text-[10px] uppercase tracking-[0.18em] text-faint">Time left</span>
-          <span className={`font-mono text-base font-bold ${countdownColor[u]} ${pulsing ? "blink" : ""}`}>
+          <span className="font-mono text-[10px] uppercase tracking-[0.18em] text-faint">
+            Time left
+          </span>
+          <span
+            className={`font-mono text-base font-bold ${countdownColor[u]} ${pulsing ? "blink" : ""}`}
+          >
             {timeLeft(deadline.due_at, now)}
           </span>
         </div>
@@ -160,7 +179,9 @@ function Body({ deadline, now, canManage, onClose, onEdit, onDelete }: Props & {
 
       {deadline.notes && (
         <div className="rounded-xl border border-border bg-surface2/40 p-3 text-xs leading-relaxed text-dim">
-          <p className="font-sans text-[11px] font-bold uppercase tracking-wider text-dim mb-1">Notes & Scope</p>
+          <p className="font-sans text-[11px] font-bold uppercase tracking-wider text-dim mb-1">
+            Notes & Scope
+          </p>
           <p className="text-ink font-sans text-xs sm:text-sm">{deadline.notes}</p>
         </div>
       )}

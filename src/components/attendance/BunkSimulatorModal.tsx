@@ -22,11 +22,14 @@ import {
   PENALTY_PER_SESSION,
   courseCredits,
   plannedFor,
+  resolveMarks,
   safeMisses,
   subjectKeyOf,
 } from "@/lib/attendance";
 import type { AttendanceMark, ClassSession } from "@/lib/batches";
 import { isTeachingClass, autoColor } from "@/lib/courses";
+import { useAuth } from "@/hooks/use-auth";
+import { dayKey } from "@/lib/deadlines";
 import { trackActivity } from "@/lib/telemetry";
 
 type Props = {
@@ -48,16 +51,17 @@ export function BunkSimulatorModal({
   batchId,
   onApplyPlannedLeave,
 }: Props) {
+  const { user } = useAuth();
   const [preset, setPreset] = useState<Preset>("tomorrow");
   const [startDate, setStartDate] = useState<string>(() => {
     const d = new Date();
     d.setDate(d.getDate() + 1);
-    return d.toISOString().slice(0, 10);
+    return dayKey(d);
   });
   const [endDate, setEndDate] = useState<string>(() => {
     const d = new Date();
     d.setDate(d.getDate() + 1);
-    return d.toISOString().slice(0, 10);
+    return dayKey(d);
   });
 
   // Handle Preset Selection
@@ -67,7 +71,7 @@ export function BunkSimulatorModal({
     if (p === "tomorrow") {
       const tom = new Date(now);
       tom.setDate(tom.getDate() + 1);
-      const str = tom.toISOString().slice(0, 10);
+      const str = dayKey(tom);
       setStartDate(str);
       setEndDate(str);
     } else if (p === "friday") {
@@ -75,7 +79,7 @@ export function BunkSimulatorModal({
       const day = fri.getDay();
       const diff = (5 - day + 7) % 7 || 7;
       fri.setDate(fri.getDate() + diff);
-      const str = fri.toISOString().slice(0, 10);
+      const str = dayKey(fri);
       setStartDate(str);
       setEndDate(str);
     } else if (p === "weekend") {
@@ -86,15 +90,15 @@ export function BunkSimulatorModal({
       fri.setDate(fri.getDate() + diff);
       const mon = new Date(fri);
       mon.setDate(mon.getDate() + 3);
-      setStartDate(fri.toISOString().slice(0, 10));
-      setEndDate(mon.toISOString().slice(0, 10));
+      setStartDate(dayKey(fri));
+      setEndDate(dayKey(mon));
     }
   };
 
   // Find all teaching sessions falling within the simulated range
   const impactedSessions = useMemo(() => {
-    const start = new Date(`${startDate}T00:00:00Z`).getTime();
-    const end = new Date(`${endDate}T23:59:59Z`).getTime();
+    const start = new Date(`${startDate}T00:00:00+05:30`).getTime();
+    const end = new Date(`${endDate}T23:59:59+05:30`).getTime();
 
     return sessions.filter((s) => {
       if (!isTeachingClass(s)) return false;
@@ -118,7 +122,7 @@ export function BunkSimulatorModal({
 
     // Index all sessions that have occurred so far or are scheduled
     for (const s of sessions) {
-      if (!isTeachingClass(s)) return map;
+      if (!isTeachingClass(s)) continue;
       const subj = s.course_name || s.title || "General";
       const key = subjectKeyOf(subj);
       const existing = map.get(key) || {
@@ -133,9 +137,9 @@ export function BunkSimulatorModal({
     }
 
     // Now count actual attendance marks
-    for (const m of marks) {
+    for (const m of resolveMarks(marks, user?.id).values()) {
       const s = sessions.find((x) => x.id === m.session_id);
-      if (!s) continue;
+      if (!s || new Date(s.end_at).getTime() > Date.now()) continue;
       const subj = s.course_name || s.title || "General";
       const key = subjectKeyOf(subj);
       const item = map.get(key);
@@ -145,7 +149,7 @@ export function BunkSimulatorModal({
     }
 
     return map;
-  }, [sessions, marks]);
+  }, [sessions, marks, user?.id]);
 
   // Calculate course-by-course impact
   const simulationResults = useMemo(() => {
@@ -162,30 +166,28 @@ export function BunkSimulatorModal({
       const planned = credits * 8; // Strictly 8, 16, or 24 sessions
       // Current percentage (if no classes held yet, assume 100%)
       const currentMisses = data.absent;
-      const currentPct = Math.max(
-        0,
-        Math.round(((planned - currentMisses) / planned) * 100)
-      );
+      const currentPct = Math.max(0, Math.round(((planned - currentMisses) / planned) * 100));
 
       // Projected percentage after simulated misses
       const projectedMisses = currentMisses + willMiss;
-      const projectedPct = Math.max(
-        0,
-        Math.round(((planned - projectedMisses) / planned) * 100)
-      );
+      const projectedPct = Math.max(0, Math.round(((planned - projectedMisses) / planned) * 100));
 
       // TAPMI Credit Policy: exactly 1 miss allowed per credit
       const safeMissAllowed = credits * 1;
       const remainingSafeMisses = safeMissAllowed - projectedMisses;
 
-      // Penalty check: 0.5 GPA cut for each subsequent class missed beyond safe limit
+      // Penalty check: 0.5 course grade points for each subsequent class missed beyond safe limit
       const excessMisses = Math.max(0, projectedMisses - safeMissAllowed);
       const gradePenaltyScore = excessMisses * PENALTY_PER_SESSION;
 
       let status: "safe" | "warn" | "danger" = "safe";
       if (excessMisses > 0 || projectedPct < HARD_LINE) {
         status = "danger";
-      } else if (remainingSafeMisses === 1 || remainingSafeMisses === 0 || projectedPct < SAFE_LINE) {
+      } else if (
+        remainingSafeMisses === 1 ||
+        remainingSafeMisses === 0 ||
+        projectedPct < SAFE_LINE
+      ) {
         status = "warn";
       }
 
@@ -261,7 +263,8 @@ export function BunkSimulatorModal({
                 Can I Sleep In? — Bunk & Trip Simulator
               </h3>
               <p className="text-[11px] text-dim">
-                Simulate attendance impact under TAPMI's 1-miss/credit rule & 0.5 GPA cut policy
+                Simulate attendance impact under TAPMI's 1-miss/credit rule & 0.5 course grade
+                points policy
               </p>
             </div>
           </div>
@@ -355,14 +358,13 @@ export function BunkSimulatorModal({
             <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-4 text-emerald-800 dark:text-emerald-300">
               <div className="flex items-center gap-2">
                 <CheckCircle2 className="size-5 text-emerald-500" />
-                <h4 className="font-display text-sm font-bold">
-                  Safe to Sleep In! 🌴
-                </h4>
+                <h4 className="font-display text-sm font-bold">Safe to Sleep In! 🌴</h4>
               </div>
               <p className="mt-1 text-xs text-emerald-700 dark:text-emerald-400">
                 You will miss{" "}
-                <span className="font-bold">{simulationResults.totalMissedClasses} session(s)</span>.
-                All your courses stay safely above the 85% attendance mark with zero grade penalty.
+                <span className="font-bold">{simulationResults.totalMissedClasses} session(s)</span>
+                . All your courses stay safely above the 85% attendance mark with zero grade
+                penalty.
               </p>
             </div>
           )}
@@ -376,8 +378,8 @@ export function BunkSimulatorModal({
                 </h4>
               </div>
               <p className="mt-1 text-xs text-amber-700 dark:text-amber-400">
-                Missing these classes will pull one or more courses into the 70%–85% bracket.
-                TAPMI policy deducts 0.5 grade points per session missed below 85%.
+                Missing these classes will pull one or more courses into the 70%–85% bracket. TAPMI
+                policy deducts 0.5 grade points per session missed below 85%.
               </p>
             </div>
           )}
@@ -386,9 +388,7 @@ export function BunkSimulatorModal({
             <div className="rounded-xl border border-rose/30 bg-rose/10 p-4 text-rose-800 dark:text-rose-300">
               <div className="flex items-center gap-2">
                 <ShieldAlert className="size-5 text-rose" />
-                <h4 className="font-display text-sm font-bold">
-                  High Risk: Do Not Bunk ⛔
-                </h4>
+                <h4 className="font-display text-sm font-bold">High Risk: Do Not Bunk ⛔</h4>
               </div>
               <p className="mt-1 text-xs text-rose-700 dark:text-rose-400">
                 {simulationResults.continuousAbsenceBreached
@@ -416,7 +416,10 @@ export function BunkSimulatorModal({
                 return (
                   <div key={c.subject} className="flex items-center justify-between p-3 text-xs">
                     <div className="flex items-center gap-2.5">
-                      <span className="size-2 rounded-full shrink-0" style={{ backgroundColor: color }} />
+                      <span
+                        className="size-2 rounded-full shrink-0"
+                        style={{ backgroundColor: color }}
+                      />
                       <div>
                         <div className="flex items-center gap-2">
                           <p className="font-display font-semibold text-ink">{c.subject}</p>
@@ -425,7 +428,9 @@ export function BunkSimulatorModal({
                           </span>
                         </div>
                         <p className="text-[10px] text-dim">
-                          {c.willMiss > 0 ? `Missing ${c.willMiss} session(s)` : "No sessions missed"}
+                          {c.willMiss > 0
+                            ? `Missing ${c.willMiss} session(s)`
+                            : "No sessions missed"}
                           {" · "}
                           {c.remainingSafeMisses === 1 ? (
                             <span className="font-semibold text-amber-500">⚠️ 1 bunk left</span>
@@ -451,8 +456,8 @@ export function BunkSimulatorModal({
                               c.status === "danger"
                                 ? "text-rose"
                                 : c.status === "warn"
-                                ? "text-amber-500"
-                                : "text-emerald-500"
+                                  ? "text-amber-500"
+                                  : "text-emerald-500"
                             }
                           >
                             {c.projectedPct}%
@@ -460,7 +465,7 @@ export function BunkSimulatorModal({
                         </span>
                         {c.gradePenaltyScore > 0 && (
                           <p className="font-mono text-[10px] font-bold text-rose">
-                            -{c.gradePenaltyScore.toFixed(1)} GPA cut
+                            -{c.gradePenaltyScore.toFixed(1)} course grade points
                           </p>
                         )}
                       </div>

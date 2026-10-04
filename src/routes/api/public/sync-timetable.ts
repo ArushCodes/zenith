@@ -5,26 +5,20 @@ export const Route = createFileRoute("/api/public/sync-timetable")({
   server: {
     handlers: {
       POST: async ({ request }) => {
-        const secret = process.env["CRON_SECRET"] ?? process.env["LOVABLE_CRON_SECRET"];
-        const provided =
-          request.headers.get("x-cron-secret") ??
-          request.headers.get("authorization")?.replace("Bearer ", "");
-        if (!secret || provided !== secret) {
-          return new Response(JSON.stringify({ error: "Unauthorized" }), {
-            status: 401,
-            headers: { "Content-Type": "application/json" },
-          });
-        }
+        const { authenticateCronRequest } = await import("@/integrations/supabase/cron-auth");
+        const denied = await authenticateCronRequest(request);
+        if (denied) return denied;
 
         const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
         const { syncBatch } = await import("@/lib/ics-sync.server");
 
-        const { data: feeds } = await supabaseAdmin
+        const { data: feeds, error: feedsError } = await supabaseAdmin
           .from("batches")
           .select("id")
           .not("ics_url", "is", null)
           .limit(50);
 
+        if (feedsError) return Response.json({ error: "Unable to load batches" }, { status: 500 });
         const results: { batch_id: string; result: string }[] = [];
         for (const row of feeds ?? []) {
           try {

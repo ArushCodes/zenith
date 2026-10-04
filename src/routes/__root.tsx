@@ -1,3 +1,4 @@
+import { MotionConfig } from "framer-motion";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import {
   Outlet,
@@ -6,6 +7,7 @@ import {
   useRouter,
   HeadContent,
   Scripts,
+  type ErrorComponentProps,
 } from "@tanstack/react-router";
 import { useEffect, type ReactNode } from "react";
 
@@ -14,7 +16,6 @@ import { db as supabase, backendConfigured } from "@/lib/backend";
 import { Toaster } from "@/components/ui/sonner";
 import { BatchProvider } from "@/hooks/use-batch";
 import { SessionProvider } from "@/hooks/use-auth";
-
 
 function NotFoundComponent() {
   return (
@@ -38,7 +39,7 @@ function NotFoundComponent() {
   );
 }
 
-function ErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
+function ErrorComponent({ error, reset }: ErrorComponentProps) {
   console.error("Root error boundary caught error:", error);
   const router = useRouter();
 
@@ -51,9 +52,9 @@ function ErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
         <p className="mt-2 text-sm text-muted-foreground">
           Something went wrong on our end. You can try refreshing or head back home.
         </p>
-        {error && (
+        {error != null && (
           <p className="mt-3 rounded-lg bg-destructive/10 p-2 text-xs font-mono text-destructive break-all">
-            {error.message || String(error)}
+            {error instanceof Error ? error.message : String(error)}
           </p>
         )}
         <div className="mt-6 flex flex-wrap justify-center gap-2">
@@ -86,14 +87,12 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { title: "Zenith — TAPMI Manipal student board" },
       {
         name: "description",
-        content:
-          "Zenith: deadlines, timetable and attendance for TAPMI Manipal batches.",
+        content: "Zenith: deadlines, timetable and attendance for TAPMI Manipal batches.",
       },
       { property: "og:title", content: "Zenith — TAPMI Manipal student board" },
       {
         property: "og:description",
-        content:
-          "Zenith: deadlines, timetable and attendance for TAPMI Manipal batches.",
+        content: "Zenith: deadlines, timetable and attendance for TAPMI Manipal batches.",
       },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
@@ -127,7 +126,7 @@ function RootShell({ children }: { children: ReactNode }) {
       <head>
         <script
           dangerouslySetInnerHTML={{
-            __html: `(function(){try{var k='zenith.theme';var s=localStorage.getItem(k);var p=window.matchMedia&&window.matchMedia('(prefers-color-scheme: dark)').matches;var t=s?s:(p?'dark':'light');if(t==='dark'){document.documentElement.classList.add('dark');}else{document.documentElement.classList.remove('dark');}document.documentElement.style.colorScheme=t;}catch(e){}})();`,
+            __html: `(function(){try{var k='zenith.theme';var s=localStorage.getItem(k);var p=window.matchMedia&&window.matchMedia('(prefers-color-scheme: dark)').matches;var t=s==='light'?'light':'dark';if(t==='dark'){document.documentElement.classList.add('dark');}else{document.documentElement.classList.remove('dark');}document.documentElement.style.colorScheme=t;}catch(e){}})();`,
           }}
         />
         <HeadContent />
@@ -161,11 +160,17 @@ function RootComponent() {
 
   // Register Progressive Web App service worker for offline support
   useEffect(() => {
-    if (typeof window !== "undefined" && "serviceWorker" in navigator && import.meta.env.PROD) {
-      window.addEventListener("load", () => {
-        navigator.serviceWorker.register("/sw.js").catch(() => {});
-      });
+    if ("serviceWorker" in navigator && import.meta.env.PROD) {
+      const register = () => {
+        void navigator.serviceWorker.register("/sw.js").catch(() => undefined);
+      };
+      if (document.readyState === "complete") register();
+      else {
+        window.addEventListener("load", register, { once: true });
+        return () => window.removeEventListener("load", register);
+      }
     }
+    return undefined;
   }, []);
 
   return (
@@ -173,11 +178,12 @@ function RootComponent() {
       <SessionProvider>
         <BatchProvider>
           {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
-          <Outlet />
+          <MotionConfig reducedMotion="user">
+            <Outlet />
+          </MotionConfig>
         </BatchProvider>
       </SessionProvider>
       <Toaster position="bottom-right" duration={2000} visibleToasts={1} />
     </QueryClientProvider>
   );
 }
-

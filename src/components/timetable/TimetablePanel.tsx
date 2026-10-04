@@ -51,6 +51,7 @@ import {
   type Deadline,
   displayTitle,
 } from "@/lib/deadlines";
+import { TimetableSyncStatus } from "@/components/board/TimetableSyncStatus";
 import { saveIcsUrl, syncTimetableNow } from "@/lib/timetable.functions";
 import { SessionMeta } from "@/components/common/SessionMeta";
 
@@ -82,7 +83,7 @@ export function TimetablePanel() {
   const { data: sessions = [], isLoading } = useQuery(sessionsQuery(batchId));
   const { data: courses = [] } = useQuery(coursesQuery(batchId));
   const { data: syncState } = useQuery(syncStateQuery(batchId, canManage));
-  const { data: marks = [] } = useQuery(attendanceQuery(batchId, isMember));
+  const { data: marks = [] } = useQuery(attendanceQuery(batchId, isMember, user?.id, canManage));
   const { data: deadlines = [] } = useQuery(deadlinesQueryFor(batchId));
 
   /** Sessions this user has already self-marked absent. */
@@ -90,7 +91,9 @@ export function TimetablePanel() {
     () =>
       new Set(
         marks
-          .filter((m) => m.user_id === user?.id && m.mark_source === "self" && m.status === "absent")
+          .filter(
+            (m) => m.user_id === user?.id && m.mark_source === "self" && m.status === "absent",
+          )
           .map((m) => m.session_id),
       ),
     [marks, user?.id],
@@ -197,7 +200,8 @@ export function TimetablePanel() {
     };
 
     const hasSubj = Boolean(selectedSubject);
-    const showClasses = viewFilter === "all" || viewFilter === "classes" || viewFilter === "holidays";
+    const showClasses =
+      viewFilter === "all" || viewFilter === "classes" || viewFilter === "holidays";
     const showEvents = viewFilter === "all" || viewFilter === "events";
 
     if (showClasses) {
@@ -297,6 +301,7 @@ export function TimetablePanel() {
         </div>
       </div>
 
+      <TimetableSyncStatus />
       {canManage && syncState && (
         <p className="mb-3 font-mono text-[10px] text-faint">
           {syncState.paused
@@ -370,9 +375,7 @@ export function TimetablePanel() {
                   type="button"
                   onClick={() => setSelectedSubject(isSelected ? null : s.key)}
                   className={`flex shrink-0 items-center gap-1.5 rounded-lg px-2.5 py-1 font-mono text-[10px] ring-1 transition-all ${
-                    isSelected
-                      ? "ring-1 font-semibold"
-                      : "ring-border/60 text-dim hover:text-ink"
+                    isSelected ? "ring-1 font-semibold" : "ring-border/60 text-dim hover:text-ink"
                   }`}
                   style={{
                     backgroundColor: isSelected ? `${s.color}20` : "transparent",
@@ -381,11 +384,12 @@ export function TimetablePanel() {
                   }}
                   title={s.fullName}
                 >
-                  <span className="size-2 shrink-0 rounded-full" style={{ backgroundColor: s.color }} />
+                  <span
+                    className="size-2 shrink-0 rounded-full"
+                    style={{ backgroundColor: s.color }}
+                  />
                   <span className="whitespace-nowrap">{s.label}</span>
-                  {count > 0 && (
-                    <span className="opacity-60 text-[9px]">({count})</span>
-                  )}
+                  {count > 0 && <span className="opacity-60 text-[9px]">({count})</span>}
                 </button>
               );
             })}
@@ -393,7 +397,9 @@ export function TimetablePanel() {
 
           {/* Quick view mode: All | Classes | Events | Holidays */}
           <div className="mt-3 pt-2.5 border-t border-border/40 flex items-center gap-1.5 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-            <span className="shrink-0 font-mono text-[9px] uppercase tracking-wider text-faint mr-1">Show:</span>
+            <span className="shrink-0 font-mono text-[9px] uppercase tracking-wider text-faint mr-1">
+              Show:
+            </span>
             {(
               [
                 { key: "all", label: "Everything" },
@@ -422,7 +428,8 @@ export function TimetablePanel() {
         <p className="mt-6 text-center font-mono text-xs text-faint">Loading timetable…</p>
       ) : grouped.length === 0 ? (
         <p className="mt-8 text-center font-mono text-xs text-faint">
-          No entries found {selectedSubject ? "for this subject" : "this month"}. {canManage ? "Paste a calendar link and sync, or add a custom class." : ""}
+          No entries found {selectedSubject ? "for this subject" : "this month"}.{" "}
+          {canManage ? "Paste a calendar link and sync, or add a custom class." : ""}
         </p>
       ) : (
         <div className="flex flex-col gap-5">
@@ -445,173 +452,176 @@ export function TimetablePanel() {
             .map(([day, list]) => {
               const total = list.sessions.length + list.events.length;
               return (
-              <motion.div
-                key={day}
-                layout
-                className={
-                  isDayOff(day)
-                    ? "rounded-2xl bg-amber/8 p-3.5 ring-1 ring-amber/20"
-                    : "rounded-2xl bg-surface/40 p-3.5 ring-1 ring-border/50"
-                }
-              >
-                <div className="mb-2.5 flex items-center justify-between gap-3">
-                  <button
-                    onClick={() => setDayFocus((d) => (d === day ? null : day))}
-                    className={`flex items-center gap-2 font-mono text-xs uppercase tracking-[0.18em] transition-colors hover:text-ink ${
-                      isDayOff(day) ? "text-amber" : "text-cyan"
-                    }`}
-                  >
-                    <span className="font-semibold">{dayFmt.format(new Date(day))}</span>
-                    {isDayOff(day) && (
-                      <span className="rounded-md bg-amber/15 px-2 py-0.5 text-[10px] normal-case tracking-normal text-amber font-mono font-medium">
-                        Sunday
+                <motion.div
+                  key={day}
+                  layout
+                  className={
+                    isDayOff(day)
+                      ? "rounded-2xl bg-amber/8 p-3.5 ring-1 ring-amber/20"
+                      : "rounded-2xl bg-surface/40 p-3.5 ring-1 ring-border/50"
+                  }
+                >
+                  <div className="mb-2.5 flex items-center justify-between gap-3">
+                    <button
+                      onClick={() => setDayFocus((d) => (d === day ? null : day))}
+                      className={`flex items-center gap-2 font-mono text-xs uppercase tracking-[0.18em] transition-colors hover:text-ink ${
+                        isDayOff(day) ? "text-amber" : "text-cyan"
+                      }`}
+                    >
+                      <span className="font-semibold">{dayFmt.format(new Date(day))}</span>
+                      {isDayOff(day) && (
+                        <span className="rounded-md bg-amber/15 px-2 py-0.5 text-[10px] normal-case tracking-normal text-amber font-mono font-medium">
+                          Sunday
+                        </span>
+                      )}
+                      <span className="normal-case tracking-normal text-faint">
+                        {dayFocus === day
+                          ? "· viewing day"
+                          : `· ${total} entr${total === 1 ? "y" : "ies"}`}
                       </span>
-                    )}
-                    <span className="normal-case tracking-normal text-faint">
-                      {dayFocus === day ? "· viewing day" : `· ${total} entr${total === 1 ? "y" : "ies"}`}
-                    </span>
-                  </button>
-                </div>
-                <div className="flex flex-col gap-2">
-                  {list.sessions.map((s) => {
-                    const color = s.is_holiday ? HOLIDAY_COLOR : colorOf(s);
-                    return (
-                      <Fragment key={s.id}>
-                      <motion.div
-                        layout
-                        whileHover={{ scale: 1.005, y: -1 }}
-                        style={{ borderLeftColor: color ?? "transparent" }}
-                        className={`flex flex-wrap items-center gap-x-3 gap-y-2 rounded-xl border-l-[3px] bg-surface px-3.5 py-3 ring-1 transition-shadow hover:shadow-lg hover:shadow-black/20 ${
-                          s.is_holiday
-                            ? "ring-evt-present/30 bg-evt-present/5"
-                            : "ring-border"
-                        }`}
-                      >
-                        <Marker
-                          shape={s.is_holiday ? "bar" : "circle"}
-                          color={color ?? FALLBACK_COURSE_COLOR}
-                          size={9}
-                        />
-                        <span className="font-mono text-[11px] text-dim shrink-0">
-                          {s.is_holiday
-                            ? "All day"
-                            : `${timeFmt.format(new Date(s.start_at))} – ${timeFmt.format(new Date(s.end_at))}`}
-                        </span>
-                        <span className="min-w-0 flex-1 basis-full sm:basis-auto">
-                          <span className="block truncate font-display text-sm font-semibold">
-                            {sessionFullName(s)}
-                          </span>
-                          <SessionMeta session={s} />
-                        </span>
-                        {s.course_code && (
-                          <span
-                            className="shrink-0 rounded-md px-2 py-0.5 font-mono text-[10px] font-medium"
-                            style={{
-                              color: color ?? undefined,
-                              backgroundColor: color ? `${color}18` : undefined,
-                              border: color ? `1px solid ${color}35` : undefined,
-                            }}
-                          >
-                            {s.course_code}
-                          </span>
-                        )}
-                        {canManage && (
-                          <motion.button
-                            whileTap={{ scale: 0.94 }}
-                            type="button"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setEditingSession(s);
-                            }}
-                            title="Edit class"
-                            className="flex shrink-0 items-center gap-1 rounded-lg px-2.5 py-1 font-mono text-[10px] font-semibold text-amber ring-1 ring-amber/30 transition-colors hover:bg-amber/15 hover:ring-amber/50"
-                          >
-                            <Pencil className="size-3" />
-                            <span>Edit</span>
-                          </motion.button>
-                        )}
-                        {isTeachingClass(s) && isMember && user && (
-                          <motion.button
-                            whileTap={{ scale: 0.94 }}
-                            onClick={() =>
-                              markAbsent.mutate({
-                                session: s,
-                                clear: absentIds.has(s.id),
-                              })
-                            }
-                            title={
-                              absentIds.has(s.id) ? "Tap to clear absence" : "Mark yourself absent"
-                            }
-                            className={`flex shrink-0 items-center gap-1.5 rounded-lg px-2.5 py-1 font-mono text-[10px] ring-1 transition-colors ${
-                              absentIds.has(s.id)
-                                ? "bg-evt-exam/20 text-evt-exam ring-evt-exam/40"
-                                : "text-dim ring-border hover:text-ink"
+                    </button>
+                  </div>
+                  <div className="flex flex-col gap-2">
+                    {list.sessions.map((s) => {
+                      const color = s.is_holiday ? HOLIDAY_COLOR : colorOf(s);
+                      return (
+                        <Fragment key={s.id}>
+                          <motion.div
+                            layout
+                            whileHover={{ scale: 1.005, y: -1 }}
+                            style={{ borderLeftColor: color ?? "transparent" }}
+                            className={`flex flex-wrap items-center gap-x-3 gap-y-2 rounded-xl border-l-[3px] bg-surface px-3.5 py-3 ring-1 transition-shadow hover:shadow-lg hover:shadow-black/20 ${
+                              s.is_holiday ? "ring-evt-present/30 bg-evt-present/5" : "ring-border"
                             }`}
                           >
-                            <CircleSlash className="size-3" />
-                            {absentIds.has(s.id) ? "Absent" : "Mark absent"}
-                          </motion.button>
-                        )}
-                      </motion.div>
-                      </Fragment>
-                    );
-                  })}
+                            <Marker
+                              shape={s.is_holiday ? "bar" : "circle"}
+                              color={color ?? FALLBACK_COURSE_COLOR}
+                              size={9}
+                            />
+                            <span className="font-mono text-[11px] text-dim shrink-0">
+                              {s.is_holiday
+                                ? "All day"
+                                : `${timeFmt.format(new Date(s.start_at))} – ${timeFmt.format(new Date(s.end_at))}`}
+                            </span>
+                            <span className="min-w-0 flex-1 basis-full sm:basis-auto">
+                              <span className="block truncate font-display text-sm font-semibold">
+                                {sessionFullName(s)}
+                              </span>
+                              <SessionMeta session={s} />
+                            </span>
+                            {s.course_code && (
+                              <span
+                                className="shrink-0 rounded-md px-2 py-0.5 font-mono text-[10px] font-medium"
+                                style={{
+                                  color: color ?? undefined,
+                                  backgroundColor: color ? `${color}18` : undefined,
+                                  border: color ? `1px solid ${color}35` : undefined,
+                                }}
+                              >
+                                {s.course_code}
+                              </span>
+                            )}
+                            {canManage && (
+                              <motion.button
+                                whileTap={{ scale: 0.94 }}
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setEditingSession(s);
+                                }}
+                                title="Edit class"
+                                className="flex shrink-0 items-center gap-1 rounded-lg px-2.5 py-1 font-mono text-[10px] font-semibold text-amber ring-1 ring-amber/30 transition-colors hover:bg-amber/15 hover:ring-amber/50"
+                              >
+                                <Pencil className="size-3" />
+                                <span>Edit</span>
+                              </motion.button>
+                            )}
+                            {isTeachingClass(s) && isMember && user && (
+                              <motion.button
+                                whileTap={{ scale: 0.94 }}
+                                onClick={() =>
+                                  markAbsent.mutate({
+                                    session: s,
+                                    clear: absentIds.has(s.id),
+                                  })
+                                }
+                                title={
+                                  absentIds.has(s.id)
+                                    ? "Tap to clear absence"
+                                    : "Mark yourself absent"
+                                }
+                                className={`flex shrink-0 items-center gap-1.5 rounded-lg px-2.5 py-1 font-mono text-[10px] ring-1 transition-colors ${
+                                  absentIds.has(s.id)
+                                    ? "bg-evt-exam/20 text-evt-exam ring-evt-exam/40"
+                                    : "text-dim ring-border hover:text-ink"
+                                }`}
+                              >
+                                <CircleSlash className="size-3" />
+                                {absentIds.has(s.id) ? "Absent" : "Mark absent"}
+                              </motion.button>
+                            )}
+                          </motion.div>
+                        </Fragment>
+                      );
+                    })}
 
-                  {list.events.map((d) => {
-                    const meta = eventMeta(d.type);
-                    return (
-                      <motion.div
-                        key={d.id}
-                        layout
-                        whileHover={{ scale: 1.005, y: -1 }}
-                        className={`flex flex-wrap items-center gap-x-3 gap-y-2 rounded-xl bg-surface px-3.5 py-2.5 ring-1 ${meta.ring}`}
-                      >
-                        <Marker shape={shapeForDeadline(d.type)} color="currentColor" size={9} />
-                        <span className="font-mono text-[11px] text-dim shrink-0">
-                          {formatDeadlineWhen(d)}
-                        </span>
-                        <span className="min-w-0 flex-1 basis-full truncate font-display text-sm font-semibold sm:basis-auto">
-                          {displayTitle(d.subject, d.title)}
-                        </span>
-                        {d.subject && (
-                          <span
-                            className="shrink-0 rounded-md px-2 py-0.5 font-mono text-[10px] font-semibold"
-                            style={{
-                              color: autoColor(d.subject),
-                              backgroundColor: `${autoColor(d.subject)}18`,
-                              border: `1px solid ${autoColor(d.subject)}40`,
-                            }}
-                          >
-                            {d.subject}
+                    {list.events.map((d) => {
+                      const meta = eventMeta(d.type);
+                      return (
+                        <motion.div
+                          key={d.id}
+                          layout
+                          whileHover={{ scale: 1.005, y: -1 }}
+                          className={`flex flex-wrap items-center gap-x-3 gap-y-2 rounded-xl bg-surface px-3.5 py-2.5 ring-1 ${meta.ring}`}
+                        >
+                          <Marker shape={shapeForDeadline(d.type)} color="currentColor" size={9} />
+                          <span className="font-mono text-[11px] text-dim shrink-0">
+                            {formatDeadlineWhen(d)}
                           </span>
-                        )}
-                        <span className={`shrink-0 rounded-md px-2 py-0.5 font-mono text-[10px] font-semibold uppercase tracking-wider ${meta.chip}`}>
-                          {meta.label}
-                        </span>
-                        {canManage && (
-                          <motion.button
-                            whileTap={{ scale: 0.94 }}
-                            type="button"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setEditingDeadline(d);
-                              setDeadlineDialogOpen(true);
-                            }}
-                            title="Edit event"
-                            className="flex shrink-0 items-center gap-1 rounded-lg px-2.5 py-1 font-mono text-[10px] font-semibold text-amber ring-1 ring-amber/30 transition-colors hover:bg-amber/15 hover:ring-amber/50"
+                          <span className="min-w-0 flex-1 basis-full truncate font-display text-sm font-semibold sm:basis-auto">
+                            {displayTitle(d.subject, d.title)}
+                          </span>
+                          {d.subject && (
+                            <span
+                              className="shrink-0 rounded-md px-2 py-0.5 font-mono text-[10px] font-semibold"
+                              style={{
+                                color: autoColor(d.subject),
+                                backgroundColor: `${autoColor(d.subject)}18`,
+                                border: `1px solid ${autoColor(d.subject)}40`,
+                              }}
+                            >
+                              {d.subject}
+                            </span>
+                          )}
+                          <span
+                            className={`shrink-0 rounded-md px-2 py-0.5 font-mono text-[10px] font-semibold uppercase tracking-wider ${meta.chip}`}
                           >
-                            <Pencil className="size-3" />
-                            <span>Edit</span>
-                          </motion.button>
-                        )}
-                      </motion.div>
-                    );
-                  })}
-                </div>
-              </motion.div>
+                            {meta.label}
+                          </span>
+                          {canManage && (
+                            <motion.button
+                              whileTap={{ scale: 0.94 }}
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setEditingDeadline(d);
+                                setDeadlineDialogOpen(true);
+                              }}
+                              title="Edit event"
+                              className="flex shrink-0 items-center gap-1 rounded-lg px-2.5 py-1 font-mono text-[10px] font-semibold text-amber ring-1 ring-amber/30 transition-colors hover:bg-amber/15 hover:ring-amber/50"
+                            >
+                              <Pencil className="size-3" />
+                              <span>Edit</span>
+                            </motion.button>
+                          )}
+                        </motion.div>
+                      );
+                    })}
+                  </div>
+                </motion.div>
               );
             })}
-
         </div>
       )}
 

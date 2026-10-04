@@ -2,10 +2,45 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { assertSafeFeedUrl } from "@/lib/safe-url";
+import type { SupabaseClient } from "@supabase/supabase-js";
+import type { Database } from "@/integrations/supabase/types";
 
-type ModCheckClient = {
-  from: (table: string) => any;
-};
+type ModCheckClient = SupabaseClient<Database>;
+
+export const timetableStatus = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .validator((input: unknown) => z.object({ batchId: z.string().uuid() }).parse(input))
+  .handler(async ({ data, context }) => {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const role = await supabaseAdmin
+      .from("user_roles")
+      .select("role")
+      .eq("user_id", context.userId)
+      .eq("role", "admin")
+      .maybeSingle();
+    if (role.error) throw new Error("Unable to verify access");
+    if (!role.data) {
+      const membership = await supabaseAdmin
+        .from("batch_memberships")
+        .select("id")
+        .eq("batch_id", data.batchId)
+        .eq("user_id", context.userId)
+        .eq("status", "approved")
+        .maybeSingle();
+      if (membership.error || !membership.data) throw new Error("Batch membership required");
+    }
+    const state = await supabaseAdmin
+      .from("batch_sync_state")
+      .select("last_success_at,last_error,paused")
+      .eq("batch_id", data.batchId)
+      .maybeSingle();
+    if (state.error) throw new Error("Sync status unavailable");
+    return {
+      lastSuccess: state.data?.last_success_at || null,
+      failed: !!state.data?.last_error,
+      paused: !!state.data?.paused,
+    };
+  });
 
 async function assertBatchMod(supabase: ModCheckClient, userId: string, batchId: string) {
   // Global admin override

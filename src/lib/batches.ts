@@ -21,13 +21,16 @@ export type BatchNode = Batch & {
 export const BATCH_STORAGE_KEY = "mahe.batch";
 
 /** Formats database batch names like "MAHE TAPMI - IPM 1 (2026–2031)" into clean, concise labels like "IPM 1". */
-export function formatBatchLabel(batch: { name: string; start_year?: number | null; end_year?: number | null }) {
+export function formatBatchLabel(batch: {
+  name: string;
+  start_year?: number | null;
+  end_year?: number | null;
+}) {
   const cleaned = batch.name.replace(/^MAHE\s+(?:TAPMI\s*)?-\s*/i, "").trim();
-  const match = cleaned.match(/^(IPM\s*\d+)(?:\s*\((.*?)\))?/i);
+  const match = cleaned.match(/^((?:IPM|MBA)\s*\d+)(?:\s*\((.*?)\))?/i);
   const code = match?.[1] ? match[1].toUpperCase() : cleaned;
-  const years = batch.start_year && batch.end_year 
-    ? `${batch.start_year}–${batch.end_year}`
-    : match?.[2] || "";
+  const years =
+    batch.start_year && batch.end_year ? `${batch.start_year}–${batch.end_year}` : match?.[2] || "";
   const full = years ? `${code} (${years})` : code;
   return { code, full, years };
 }
@@ -128,6 +131,7 @@ export function sessionsQuery(batchId: string | null) {
         .from("class_sessions")
         .select("*")
         .eq("batch_id", batchId!)
+        .eq("is_cancelled", false)
         .order("start_at", { ascending: true });
       if (error) throw error;
       return data ?? [];
@@ -135,15 +139,19 @@ export function sessionsQuery(batchId: string | null) {
   };
 }
 
-export function attendanceQuery(batchId: string | null, enabled: boolean) {
+export function attendanceQuery(
+  batchId: string | null,
+  enabled: boolean,
+  userId?: string,
+  canManage = false,
+) {
   return {
-    queryKey: ["attendance", batchId],
+    queryKey: ["attendance", batchId, canManage ? "managed" : userId],
     enabled: !!batchId && enabled,
     queryFn: async (): Promise<AttendanceMark[]> => {
-      const { data, error } = await supabase
-        .from("attendance_marks")
-        .select("*")
-        .eq("batch_id", batchId!);
+      let query = supabase.from("attendance_marks").select("*").eq("batch_id", batchId!);
+      if (!canManage) query = query.eq("user_id", userId ?? "00000000-0000-0000-0000-000000000000");
+      const { data, error } = await query;
       if (error) throw error;
       return data ?? [];
     },

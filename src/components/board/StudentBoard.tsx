@@ -32,18 +32,14 @@ import {
   X,
 } from "lucide-react";
 import { GradingPanel } from "@/components/grading/GradingPanel";
+import { DashboardSidebar } from "@/components/board/DashboardSidebar";
 import { ExamsPanel } from "@/components/exams/ExamsPanel";
 import { toast } from "sonner";
 import { db as supabase } from "@/lib/backend";
 import { useAuth } from "@/hooks/use-auth";
 import { useBatch } from "@/hooks/use-batch";
 import { useMe } from "@/hooks/use-me";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { BoardHeader } from "@/components/board/BoardHeader";
 import { DeadlineRow } from "@/components/board/DeadlineRow";
 import { ExamMarks } from "@/components/board/ExamMarks";
@@ -52,14 +48,15 @@ import { EventDrawer } from "@/components/board/EventDrawer";
 import { ApprovalsPanel } from "@/components/board/ApprovalsPanel";
 import { AnnouncementsPanel } from "@/components/board/AnnouncementsPanel";
 import { LiveClassHero } from "@/components/board/LiveClassHero";
+import { FeedAttendanceSummary } from "@/components/board/FeedAttendanceSummary";
 import { LiveClassHud } from "@/components/board/LiveClassHud";
 import { FeedCard, FeedCompactRow } from "@/components/board/FeedCard";
 import { usePersonalChecklist } from "@/hooks/use-personal-checklist";
-import { ActivityPanel } from "@/components/board/ActivityPanel";
 import { CalendarPanel } from "@/components/calendar/CalendarPanel";
 import { TimetablePanel } from "@/components/timetable/TimetablePanel";
 import { AttendancePanel } from "@/components/attendance/AttendancePanel";
 import { AdminConsolePanel } from "@/components/admin/AdminConsolePanel";
+import { NoticeImportPanel } from "@/components/board/NoticeImportPanel";
 import { EmailInboxPanel } from "@/components/board/EmailInboxPanel";
 import { MembersPanel } from "@/components/board/MembersPanel";
 import { FeedbackPanel } from "@/components/board/FeedbackPanel";
@@ -80,8 +77,16 @@ import {
   type FilterKey,
 } from "@/lib/deadlines";
 
-
-type TabKey = "feed" | "calendar" | "timetable" | "quizzes" | "exams" | "grading" | "attendance" | "admin";
+type TabKey =
+  | "feed"
+  | "calendar"
+  | "timetable"
+  | "quizzes"
+  | "exams"
+  | "grading"
+  | "attendance"
+  | "notices"
+  | "admin";
 
 const QUIZ_TYPES = ["quiz"] as const;
 const MIDTERM_TYPES = ["midterm"] as const;
@@ -99,24 +104,21 @@ const PANEL_TITLES: Record<PanelKey, string> = {
   inbox: "Email inbox",
 };
 
-
 export default function StudentBoard({ guestPreview }: { guestPreview?: boolean } = {}) {
   const { isModerator, isAdmin, isArush } = useAuth();
   const me = useMe();
   const { batchId, batch, canManage, loading: batchLoading } = useBatch();
-  const isMod = canManage || isModerator || isAdmin || isArush;
+  const isMod = canManage;
   const queryClient = useQueryClient();
   const { data: deadlines = [], isLoading } = useQuery(deadlinesQueryFor(batchId));
   const { data: sessions = [] } = useQuery(sessionsQuery(batchId));
   const { data: courses = [] } = useQuery(coursesQuery(batchId));
   const isFeedLoading = isLoading || (!batchId && batchLoading);
 
-
-
   const [tab, setTab] = useState<TabKey>("feed");
   const [examSubTab, setExamSubTab] = useState<"midterm" | "endterm">("midterm");
   const [filter, setFilter] = useState<FilterKey>("all");
-    const { doneMap, isDone, toggleDone } = usePersonalChecklist(batchId);
+  const { doneMap, isDone, toggleDone } = usePersonalChecklist(batchId);
   const [feedDensity, setFeedDensity] = useState<"comfortable" | "compact">(() => {
     if (typeof window !== "undefined") {
       const saved = window.localStorage.getItem("zenith.feed_density");
@@ -130,7 +132,9 @@ export default function StudentBoard({ guestPreview }: { guestPreview?: boolean 
     setFeedDensity(density);
     try {
       window.localStorage.setItem("zenith.feed_density", density);
-    } catch {}
+    } catch {
+      /* Storage may be unavailable in private browsing. */
+    }
   };
 
   const [feedCategory, setFeedCategory] = useState<
@@ -156,9 +160,16 @@ export default function StudentBoard({ guestPreview }: { guestPreview?: boolean 
   const [selected, setSelected] = useState<Deadline | null>(null);
   const [now, setNow] = useState(() => Date.now());
   const [panel, setPanel] = useState<PanelKey | null>(null);
+  const nextAcademic = useMemo(
+    () =>
+      sessions
+        .filter((s) => s.notes === "academic-calendar" && new Date(s.start_at).getTime() > now)
+        .sort((a, b) => a.start_at.localeCompare(b.start_at))[0],
+    [sessions, now],
+  );
 
   useEffect(() => {
-    const id = setInterval(() => setNow(Date.now()), 1000);
+    const id = setInterval(() => setNow(Date.now()), 15_000);
     return () => clearInterval(id);
   }, []);
 
@@ -255,10 +266,7 @@ export default function StudentBoard({ guestPreview }: { guestPreview?: boolean 
     [approved, now],
   );
 
-  const filtered = useMemo(
-    () => filterByKey(approved, filter, ""),
-    [approved, filter],
-  );
+  const filtered = useMemo(() => filterByKey(approved, filter, ""), [approved, filter]);
 
   /** Quizzes, exams and coursework each get their own tab and feed section. */
   const quizzes = useMemo(
@@ -277,11 +285,22 @@ export default function StudentBoard({ guestPreview }: { guestPreview?: boolean 
     () => approved.filter((d) => (WORK_TYPES as readonly string[]).includes(d.type)),
     [approved],
   );
-  const upcomingOf = (list: Deadline[]) => list.filter((d) => phaseOf(d, now) !== "completed");
-  const nextQuizzes = useMemo(() => upcomingOf(quizzes), [quizzes, now]);
-  const nextMidterms = useMemo(() => upcomingOf(midterms), [midterms, now]);
-  const nextEndterms = useMemo(() => upcomingOf(endterms), [endterms, now]);
-  const nextProjects = useMemo(() => upcomingOf(projects), [projects, now]);
+  const nextQuizzes = useMemo(
+    () => quizzes.filter((d) => phaseOf(d, now) !== "completed"),
+    [quizzes, now],
+  );
+  const nextMidterms = useMemo(
+    () => midterms.filter((d) => phaseOf(d, now) !== "completed"),
+    [midterms, now],
+  );
+  const nextEndterms = useMemo(
+    () => endterms.filter((d) => phaseOf(d, now) !== "completed"),
+    [endterms, now],
+  );
+  const nextProjects = useMemo(
+    () => projects.filter((d) => phaseOf(d, now) !== "completed"),
+    [projects, now],
+  );
 
   // ALL upcoming deadlines across ANY event type, strictly sorted by recency (nearest due_at first)
   const allUpcoming = useMemo(() => {
@@ -362,14 +381,20 @@ export default function StudentBoard({ guestPreview }: { guestPreview?: boolean 
     return { critical, thisWeek, later };
   }, [filteredUpcoming, now]);
 
-    const totalUpcomingCount = allUpcoming.length;
+  const totalUpcomingCount = allUpcoming.length;
   const completedUpcomingCount = useMemo(() => {
     return allUpcoming.filter((d) => doneMap[d.id]).length;
   }, [allUpcoming, doneMap]);
-  const progressPercent = totalUpcomingCount > 0 ? Math.round((completedUpcomingCount / totalUpcomingCount) * 100) : 0;
+  const progressPercent =
+    totalUpcomingCount > 0 ? Math.round((completedUpcomingCount / totalUpcomingCount) * 100) : 0;
 
   const FEED_CATEGORIES = [
-    { key: "all" as const, label: "All Upcoming", count: allUpcoming.length, icon: <Layers className="size-3.5" /> },
+    {
+      key: "all" as const,
+      label: "All Upcoming",
+      count: allUpcoming.length,
+      icon: <Layers className="size-3.5" />,
+    },
     {
       key: "quiz" as const,
       label: "Quizzes",
@@ -426,7 +451,14 @@ export default function StudentBoard({ guestPreview }: { guestPreview?: boolean 
     { key: "calendar", label: "Calendar", icon: <CalendarRange className="size-4" /> },
     { key: "timetable", label: "Timetable", icon: <CalendarClock className="size-4" /> },
     ...(quizzes.length > 0
-      ? [{ key: "quizzes" as TabKey, label: "Quizzes", icon: <FileQuestion className="size-4" />, count: quizzes.length }]
+      ? [
+          {
+            key: "quizzes" as TabKey,
+            label: "Quizzes",
+            icon: <FileQuestion className="size-4" />,
+            count: quizzes.length,
+          },
+        ]
       : []),
     {
       key: "exams",
@@ -436,11 +468,19 @@ export default function StudentBoard({ guestPreview }: { guestPreview?: boolean 
     },
     { key: "grading", label: "Grading", icon: <Award className="size-4" /> },
     { key: "attendance", label: "Attendance", icon: <UserCheck className="size-4" /> },
+    ...(isMod
+      ? [{ key: "notices" as TabKey, label: "Import notices", icon: <Mail className="size-4" /> }]
+      : []),
     ...(isAdmin || isArush
-      ? [{ key: "admin" as TabKey, label: "Admin Console", icon: <ShieldCheck className="size-4 text-emerald-400" /> }]
+      ? [
+          {
+            key: "admin" as TabKey,
+            label: "Admin Console",
+            icon: <ShieldCheck className="size-4 text-emerald-400" />,
+          },
+        ]
       : []),
   ];
-
 
   const menuItems = [
     { key: "members", label: "Members", icon: <Users className="size-4" /> },
@@ -453,13 +493,20 @@ export default function StudentBoard({ guestPreview }: { guestPreview?: boolean 
             icon: <ShieldCheck className="size-4" />,
             badge: pendingCount || undefined,
           },
-          { key: "inbox", label: "Inbox", icon: <Mail className="size-4" /> },
+          { key: "inbox", label: "Notice review", icon: <Mail className="size-4" /> },
         ]
       : []),
   ];
 
   return (
-    <div className="relative min-h-screen overflow-x-hidden bg-ground font-body text-ink">
+    <div className="zenith-workspace relative min-h-screen overflow-x-hidden bg-ground font-body text-ink">
+      <DashboardSidebar
+        active={tab}
+        onSelect={setTab}
+        batchLabel={batch ? formatBatchLabel(batch).code : "Your batch"}
+        admin={isAdmin}
+        canManage={isMod}
+      />
       <BoardHeader
         menuItems={menuItems}
         onMenuSelect={(k) => setPanel(k as PanelKey)}
@@ -474,15 +521,21 @@ export default function StudentBoard({ guestPreview }: { guestPreview?: boolean 
         }}
       />
 
-      <main className="relative z-10 mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 pt-4 sm:pt-6 pb-20">
+      <main
+        className={`workspace-main ${tab === "feed" ? "feed-page" : ""} relative z-10 mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 pt-4 sm:pt-6 pb-20`}
+      >
         {/* ── Best Practice Workspace Control Deck: Editorial Context + Flat Navigation ── */}
         <div className="mb-4 flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between border-b border-border/70 pb-3">
           <div className="min-w-0">
             <h1 className="font-display text-2xl font-black tracking-tight text-ink">
-              {batch ? formatBatchLabel(batch).code : "Board"}
+              {tab === "feed" ? "Feed" : (tabs.find((item) => item.key === tab)?.label ?? "Board")}
             </h1>
             <p className="text-[12px] font-medium text-dim mt-0.5 truncate">
-              {new Intl.DateTimeFormat("en-GB", { weekday: "short", day: "numeric", month: "short" }).format(now)}
+              {new Intl.DateTimeFormat("en-GB", {
+                weekday: "short",
+                day: "numeric",
+                month: "short",
+              }).format(now)}
             </p>
           </div>
 
@@ -490,7 +543,7 @@ export default function StudentBoard({ guestPreview }: { guestPreview?: boolean 
             {/* Flat Tab Bar with Animated Underline Accent */}
             <nav
               aria-label="Board sections"
-              className="flex items-center gap-1 sm:gap-2 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden shrink-0"
+              className="workspace-navigation flex items-center gap-1 sm:gap-2 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden shrink-0"
             >
               {tabs.map((t) => {
                 const active = tab === t.key;
@@ -551,8 +604,6 @@ export default function StudentBoard({ guestPreview }: { guestPreview?: boolean 
           </div>
         </div>
 
-
-
         {tab === "calendar" && (
           <div className="mb-5 rounded-xl bg-surface p-4 ring-1 ring-border">
             <div className="flex w-full flex-wrap items-center gap-3 font-mono text-[10px] uppercase tracking-[0.2em] text-cyan">
@@ -602,122 +653,45 @@ export default function StudentBoard({ guestPreview }: { guestPreview?: boolean 
           </div>
         )}
 
-
         <AnimatePresence mode="wait" initial={false}>
           <motion.div
             key={tab}
-            initial={{ opacity: 0, y: 12, filter: "blur(6px)" }}
-            animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
-            exit={{ opacity: 0, y: -12, filter: "blur(6px)" }}
+            initial={false}
+            animate={{ y: 0 }}
+            exit={{ y: -6 }}
             transition={{ duration: 0.26, ease: [0.22, 1, 0.36, 1] }}
           >
             {tab === "feed" && (
               <div className="flex flex-col gap-5 sm:gap-6">
-                {/* ── Top Live Class / Timetable Hero (Centerpiece) ── */}
-                <LiveClassHero
-                  now={now}
-                  deadlines={deadlines}
-                  onSeeFullTimetable={() => setTab("timetable")}
-                  onSeeExams={() => {
-                    setTab("exams");
-                    setExamSubTab("midterm");
-                  }}
-                  canManage={isMod}
-                />
-
-
-
-                {/* ── Active Filter Bar (shows when any filter is toggled) ── */}
-                {(urgentOnly || pendingOnly || feedCategory !== "all" || feedSearch) && (
-                  <div className="flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-cyan/30 bg-cyan/10 px-3.5 py-2 text-xs backdrop-blur-md">
-                    <div className="flex items-center gap-2">
-                      <Filter className="size-3.5 text-cyan" />
-                      <span className="font-semibold text-ink">
-                        Active filter:{" "}
-                        <span className="text-cyan font-bold">
-                          {urgentOnly
-                            ? "Due in 48 Hours"
-                            : pendingOnly
-                            ? "Pending Checklist Only"
-                            : feedCategory !== "all"
-                            ? `${feedCategory.charAt(0).toUpperCase() + feedCategory.slice(1)}s`
-                            : `Search "${feedSearch}"`}
-                        </span>
-                      </span>
-                      <AnimatePresence mode="wait">
-                        <motion.span
-                          key={filteredUpcoming.length}
-                          initial={{ opacity: 0, y: -4 }}
-                          animate={{ opacity: 1, y: 0 }}
-                          exit={{ opacity: 0, y: 4 }}
-                          transition={{ duration: 0.18 }}
-                          className="font-mono text-[11px] text-dim"
-                        >
-                          ({filteredUpcoming.length} {filteredUpcoming.length === 1 ? "event" : "events"} shown)
-                        </motion.span>
-                      </AnimatePresence>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setUrgentOnly(false);
-                        setPendingOnly(false);
-                        setFeedCategory("all");
-                        setFeedSearch("");
-                      }}
-                      className="font-mono text-xs font-bold text-cyan hover:underline cursor-pointer"
-                    >
-                      Reset all filters
-                    </button>
-                  </div>
-                )}
-
-                {/* ── Compact 48-Hour Urgency Ticker ── */}
-                {recencyBuckets.critical.length > 0 && !urgentOnly && (
-                  <div className="flex items-center gap-2 rounded-xl border border-rose/30 bg-rose/5 px-3 py-1.5 text-xs backdrop-blur-md overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-                    <div className="flex items-center gap-1.5 shrink-0 text-rose font-bold">
-                      <Flame className="size-3.5 animate-pulse" />
-                      <span className="uppercase tracking-wider text-[10px] sm:text-[11px]">Due in 48h ({recencyBuckets.critical.length}):</span>
-                    </div>
-                    <div className="flex items-center gap-1.5 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden py-0.5">
-                      {recencyBuckets.critical.map((item, i) => {
-                        const itemColor = autoColor(item.subject || item.title);
-                        const isItemDone = isDone(item.id);
-                        return (
-                          <motion.button
-                            key={item.id}
-                            type="button"
-                            initial={{ opacity: 0, x: -12, scale: 0.9 }}
-                            animate={{ opacity: 1, x: 0, scale: 1 }}
-                            transition={{ delay: i * 0.05, type: "spring", stiffness: 400, damping: 25 }}
-                            whileHover={{ scale: 1.05, y: -1 }}
-                            whileTap={{ scale: 0.96 }}
-                            onClick={() => setSelected(item)}
-                            className={`inline-flex shrink-0 items-center gap-1.5 rounded-lg border px-2 py-0.5 text-left transition-all cursor-pointer ${
-                              isItemDone
-                                ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 opacity-85"
-                                : "border-border bg-surface hover:border-rose/50 hover:shadow-xs text-ink urgent-ring"
-                            }`}
-                          >
-                            <span
-                              className="size-1.5 rounded-full shrink-0"
-                              style={{ backgroundColor: itemColor }}
-                            />
-                            <span className="font-bold text-[11px] whitespace-nowrap">
-                              {formatTickerLabel(item)}
-                            </span>
-                            <span className="text-[10px] text-rose font-mono shrink-0">
-                              · {timeLeft(item.due_at, now)}
-                            </span>
-                            {isItemDone && <span className="text-[10px] text-emerald-500 font-bold">✓</span>}
-                          </motion.button>
-                        );
-                      })}
-                    </div>
-                  </div>
-                )}
-
+                <div className="grid items-start gap-3 xl:grid-cols-[minmax(0,1fr)_340px]">
+                  <LiveClassHero
+                    now={now}
+                    onSeeFullTimetable={() => setTab("timetable")}
+                    onSeeAttendance={() => setTab("attendance")}
+                    canManage={isMod}
+                    minimal
+                  />
+                  <FeedAttendanceSummary now={now} onOpen={() => setTab("attendance")} />
+                </div>
                 {/* ── Mobile View Switcher (Feed Timeline vs Batch Announcements) ── */}
+                {nextAcademic && (
+                  <button
+                    type="button"
+                    onClick={() => setTab("calendar")}
+                    className="flex flex-wrap items-center gap-2 rounded-xl border border-border/60 bg-surface/60 px-4 py-2 text-left text-xs text-dim"
+                  >
+                    <CalendarClock className="size-3.5 text-cyan" />
+                    <span className="text-ink">{nextAcademic.title}</span>
+                    <span>
+                      ·{" "}
+                      {new Date(nextAcademic.start_at).toLocaleDateString("en-GB", {
+                        timeZone: "Asia/Kolkata",
+                        day: "numeric",
+                        month: "short",
+                      })}
+                    </span>
+                  </button>
+                )}
                 <div className="lg:hidden flex rounded-2xl bg-surface2/70 p-1 border border-border/80">
                   <button
                     type="button"
@@ -729,7 +703,7 @@ export default function StudentBoard({ guestPreview }: { guestPreview?: boolean 
                     }`}
                   >
                     <ListFilter className="size-3.5" />
-                    <span>Events Timeline ({filteredUpcoming.length})</span>
+                    <span>Feed ({filteredUpcoming.length})</span>
                   </button>
                   <button
                     type="button"
@@ -741,14 +715,16 @@ export default function StudentBoard({ guestPreview }: { guestPreview?: boolean 
                     }`}
                   >
                     <Megaphone className="size-3.5 text-cyan" />
-                    <span>Announcements & Attendance</span>
+                    <span>Updates</span>
                   </button>
                 </div>
 
                 {/* ── Main Feed & Sidebar Grid ── */}
-                <div className="grid grid-cols-1 items-start gap-5 lg:grid-cols-[minmax(0,1fr)_360px] xl:grid-cols-[minmax(0,1fr)_400px]">
+                <div className="grid grid-cols-1 items-start gap-5 lg:grid-cols-[minmax(0,1fr)_290px] xl:grid-cols-[minmax(0,1fr)_310px]">
                   {/* Left Column: Feed Timeline */}
-                  <div className={`min-w-0 flex flex-col gap-3.5 ${mobileTab === "sidebar" ? "hidden lg:flex" : "flex"}`}>
+                  <div
+                    className={`min-w-0 flex flex-col gap-3.5 ${mobileTab === "sidebar" ? "hidden lg:flex" : "flex"}`}
+                  >
                     {/* Modern Feed Command Bar */}
                     <div className="rounded-2xl border border-border/80 bg-surface/90 p-2.5 sm:p-3 backdrop-blur-md shadow-xs space-y-2.5">
                       {/* Search Bar + Quick Actions */}
@@ -766,7 +742,8 @@ export default function StudentBoard({ guestPreview }: { guestPreview?: boolean 
                                 searchInputRef.current?.blur();
                               }
                             }}
-                            placeholder="Filter events by title, course, location... (Press / to search)"
+                            aria-label="Search deadlines"
+                            placeholder="Search deadlines…"
                             className="w-full rounded-xl bg-surface2/60 pl-8 pr-16 py-1.5 text-xs text-ink placeholder:text-faint border border-border/60 outline-none focus:border-cyan/50 focus:ring-1 focus:ring-cyan/30"
                           />
                           <div className="absolute right-2.5 top-1/2 -translate-y-1/2 flex items-center gap-1">
@@ -796,7 +773,7 @@ export default function StudentBoard({ guestPreview }: { guestPreview?: boolean 
                                 ? "bg-surface text-ink shadow-xs font-semibold border border-border/80"
                                 : "text-faint hover:text-ink"
                             }`}
-                            title="Comfortable Cards view with full scope, countdowns, and quick actions"
+                            title="Cards"
                           >
                             <LayoutGrid className="size-3.5" />
                             <span className="hidden sm:inline">Cards</span>
@@ -809,7 +786,7 @@ export default function StudentBoard({ guestPreview }: { guestPreview?: boolean 
                                 ? "bg-surface text-ink shadow-xs font-semibold border border-border/80"
                                 : "text-faint hover:text-ink"
                             }`}
-                            title="Compact Linear view (single-line fast scanning)"
+                            title="Compact rows"
                           >
                             <List className="size-3.5" />
                             <span className="hidden sm:inline">Compact</span>
@@ -821,7 +798,9 @@ export default function StudentBoard({ guestPreview }: { guestPreview?: boolean 
                       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 pt-1 border-t border-border/50">
                         {/* Category Pills (Horizontal scrollable) */}
                         <div className="flex items-center gap-1.5 overflow-x-auto pb-1 sm:pb-0 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-                          {FEED_CATEGORIES.map((cat) => {
+                          {FEED_CATEGORIES.filter(
+                            (cat) => cat.count > 0 || cat.key === feedCategory || cat.key === "all",
+                          ).map((cat) => {
                             const active = feedCategory === cat.key;
                             return (
                               <motion.button
@@ -829,16 +808,22 @@ export default function StudentBoard({ guestPreview }: { guestPreview?: boolean 
                                 type="button"
                                 whileHover={{ y: -2, scale: 1.03 }}
                                 whileTap={{ scale: 0.95 }}
-                                animate={active ? { scale: [1, 1.12, 0.97, 1.04, 1] } : { scale: 1 }}
+                                animate={
+                                  active ? { scale: [1, 1.12, 0.97, 1.04, 1] } : { scale: 1 }
+                                }
                                 transition={{ type: "spring", stiffness: 500, damping: 22 }}
                                 onClick={() => setFeedCategory(cat.key)}
                                 className={`group relative inline-flex shrink-0 items-center gap-1.5 rounded-xl px-2.5 sm:px-3 py-1 text-xs font-medium transition-colors cursor-pointer ${
                                   active
                                     ? "bg-cyan/15 text-cyan border border-cyan/30 shadow-xs shadow-cyan/10 font-bold"
-                                    : "text-muted hover:text-ink hover:bg-surface2/60 border border-transparent"
+                                    : "text-dim hover:text-ink hover:bg-surface2/60 border border-transparent"
                                 }`}
                               >
-                                <span className={active ? "text-cyan" : "text-faint group-hover:text-muted"}>
+                                <span
+                                  className={
+                                    active ? "text-cyan" : "text-faint group-hover:text-dim"
+                                  }
+                                >
                                   {cat.icon}
                                 </span>
                                 <span>{cat.label}</span>
@@ -846,7 +831,7 @@ export default function StudentBoard({ guestPreview }: { guestPreview?: boolean 
                                   className={`ml-0.5 rounded-full px-1.5 py-0.2 text-[10px] font-mono ${
                                     active
                                       ? "bg-cyan/20 text-cyan font-bold"
-                                      : "bg-surface2 text-faint group-hover:text-muted"
+                                      : "bg-surface2 text-faint group-hover:text-dim"
                                   }`}
                                 >
                                   {cat.count}
@@ -859,7 +844,7 @@ export default function StudentBoard({ guestPreview }: { guestPreview?: boolean 
                         {/* Personal Checklist Preparation Progress */}
                         {totalUpcomingCount > 0 && (
                           <div
-                            className="inline-flex items-center gap-2 rounded-xl bg-surface2/60 border border-border/60 px-2.5 py-1 text-xs text-muted shrink-0 self-end sm:self-auto cursor-pointer hover:bg-surface2 transition-all"
+                            className="inline-flex items-center gap-2 rounded-xl bg-surface2/60 border border-border/60 px-2.5 py-1 text-xs text-dim shrink-0 self-end sm:self-auto cursor-pointer hover:bg-surface2 transition-all"
                             onClick={() => setPendingOnly((v) => !v)}
                             title={`${completedUpcomingCount} of ${totalUpcomingCount} upcoming events marked as prepared. Click to toggle pending only.`}
                           >
@@ -868,14 +853,16 @@ export default function StudentBoard({ guestPreview }: { guestPreview?: boolean 
                                 progressPercent === 100
                                   ? "text-emerald-400 animate-pulse"
                                   : progressPercent > 0
-                                  ? "text-cyan"
-                                  : "text-faint"
+                                    ? "text-cyan"
+                                    : "text-faint"
                               }`}
                             />
                             <span className="font-mono text-[11px] font-medium text-ink">
                               {completedUpcomingCount}/{totalUpcomingCount}
                             </span>
-                            <span className="hidden md:inline text-[11px] text-faint">prepared</span>
+                            <span className="hidden md:inline text-[11px] text-faint">
+                              prepared
+                            </span>
                             <div className="w-12 h-1.5 rounded-full bg-surface overflow-hidden border border-border/40">
                               <motion.div
                                 className="h-full bg-gradient-to-r from-cyan to-emerald-400 rounded-full"
@@ -883,7 +870,9 @@ export default function StudentBoard({ guestPreview }: { guestPreview?: boolean 
                                 transition={{ type: "spring", stiffness: 120, damping: 22 }}
                               />
                             </div>
-                            <span className="font-mono text-[10px] text-cyan font-bold">{progressPercent}%</span>
+                            <span className="font-mono text-[10px] text-cyan font-bold">
+                              {progressPercent}%
+                            </span>
                           </div>
                         )}
                       </div>
@@ -892,18 +881,21 @@ export default function StudentBoard({ guestPreview }: { guestPreview?: boolean 
                     {isFeedLoading ? (
                       <div className="flex flex-col gap-4">
                         {Array.from({ length: 3 }).map((_, i) => (
-                          <div key={i} className="h-32 rounded-2xl shimmer-sweep border border-border/40" />
+                          <div
+                            key={i}
+                            className="h-32 rounded-2xl shimmer-sweep border border-border/40"
+                          />
                         ))}
                       </div>
                     ) : filteredUpcoming.length === 0 ? (
-                      <div className="rounded-2xl border border-dashed border-border/80 bg-surface/30 p-8 text-center">
+                      <div className="rounded-2xl border border-dashed border-border/80 bg-surface/30 p-5 text-center">
                         <motion.div
                           animate={{
                             rotate: [0, -10, 10, -5, 5, 0],
                             scale: [1, 1.1, 0.95, 1.05, 1],
                           }}
                           transition={{ duration: 2, repeat: Infinity, repeatDelay: 3 }}
-                          className="mx-auto flex size-12 items-center justify-center rounded-xl bg-cyan/10 text-cyan mb-4"
+                          className="mx-auto flex size-9 items-center justify-center rounded-xl bg-cyan/10 text-cyan mb-2"
                         >
                           <Sparkles className="size-6" />
                         </motion.div>
@@ -912,12 +904,12 @@ export default function StudentBoard({ guestPreview }: { guestPreview?: boolean 
                           {feedSearch
                             ? `No deadlines or exams matching "${feedSearch}".`
                             : urgentOnly
-                            ? "No deadlines due in the next 48 hours."
-                            : pendingOnly
-                            ? "All upcoming deadlines are marked as done!"
-                            : feedCategory === "all"
-                            ? "No upcoming deadlines or exams scheduled."
-                            : `No upcoming events in ${feedCategory}.`}
+                              ? "No deadlines due in the next 48 hours."
+                              : pendingOnly
+                                ? "All upcoming deadlines are marked as done!"
+                                : feedCategory === "all"
+                                  ? "No upcoming deadlines or exams scheduled."
+                                  : `No upcoming events in ${feedCategory}.`}
                         </p>
                         {(feedCategory !== "all" || feedSearch || urgentOnly || pendingOnly) && (
                           <button
@@ -936,7 +928,7 @@ export default function StudentBoard({ guestPreview }: { guestPreview?: boolean 
                       </div>
                     ) : (
                       <div className="relative pl-4 sm:pl-7 border-l-2 border-border/70 ml-3.5 sm:ml-5 flex flex-col gap-6">
-                        {/* Bucket 1: Due in 48 Hours / Ongoing */}
+                        {/* Bucket 1: Due soon / Ongoing */}
                         {recencyBuckets.critical.length > 0 && (
                           <div className="relative">
                             {/* Spine Anchor Dot */}
@@ -946,7 +938,10 @@ export default function StudentBoard({ guestPreview }: { guestPreview?: boolean 
 
                             <div
                               onClick={() =>
-                                setCollapsedBuckets((prev) => ({ ...prev, critical: !prev.critical }))
+                                setCollapsedBuckets((prev) => ({
+                                  ...prev,
+                                  critical: !prev.critical,
+                                }))
                               }
                               className="mb-3 flex items-center justify-between gap-2 cursor-pointer select-none group"
                             >
@@ -1000,7 +995,10 @@ export default function StudentBoard({ guestPreview }: { guestPreview?: boolean 
 
                             <div
                               onClick={() =>
-                                setCollapsedBuckets((prev) => ({ ...prev, thisWeek: !prev.thisWeek }))
+                                setCollapsedBuckets((prev) => ({
+                                  ...prev,
+                                  thisWeek: !prev.thisWeek,
+                                }))
                               }
                               className="mb-3 flex items-center justify-between gap-2 cursor-pointer select-none group"
                             >
@@ -1117,7 +1115,7 @@ export default function StudentBoard({ guestPreview }: { guestPreview?: boolean 
                               {allCompleted.length}
                             </span>
                           </div>
-                          <div className="flex items-center gap-1.5 text-xs text-muted group-hover:text-ink transition-colors">
+                          <div className="flex items-center gap-1.5 text-xs text-dim group-hover:text-ink transition-colors">
                             <span className="font-mono text-[11px]">
                               {showPastFeed ? "Hide archive" : "Show archive"}
                             </span>
@@ -1158,24 +1156,14 @@ export default function StudentBoard({ guestPreview }: { guestPreview?: boolean 
                   </div>
 
                   {/* Right Column: Announcements, Attendance, Activity Sidebar */}
-                  <aside className={`min-w-0 flex-col gap-6 lg:sticky lg:top-24 ${mobileTab === "sidebar" ? "flex" : "hidden lg:flex"}`}>
+                  <aside
+                    className={`min-w-0 flex-col gap-6 lg:sticky lg:top-24 ${mobileTab === "sidebar" ? "flex" : "hidden lg:flex"}`}
+                  >
                     <AnnouncementsPanel compact />
-                    <div className="block">
-                      <FeedSection
-                        title="Attendance Overview"
-                        tone="text-cyan"
-                        onSeeAll={() => setTab("attendance")}
-                      >
-                        <AttendancePanel now={now} compact />
-                      </FeedSection>
-                    </div>
-                    <ActivityPanel compact />
                   </aside>
                 </div>
               </div>
             )}
-
-
 
             {tab === "calendar" && (
               <CalendarPanel
@@ -1222,17 +1210,14 @@ export default function StudentBoard({ guestPreview }: { guestPreview?: boolean 
               />
             )}
 
-
-
             {tab === "grading" && <GradingPanel />}
 
             {tab === "attendance" && <AttendancePanel now={now} />}
 
+            {tab === "notices" && isMod && <NoticeImportPanel />}
             {tab === "admin" && <AdminConsolePanel />}
-
           </motion.div>
         </AnimatePresence>
-
       </main>
 
       <EventDrawer
@@ -1333,7 +1318,7 @@ function FeedList({
       variants={feedContainerVariants}
       initial="hidden"
       animate="show"
-      className={density === "compact" ? "flex flex-col gap-2" : "flex flex-col gap-4 sm:gap-5"}
+      className={density === "compact" ? "flex flex-col gap-2" : "flex flex-col gap-2.5"}
     >
       <AnimatePresence mode="popLayout">
         {items.map((d, index) => (
@@ -1376,67 +1361,6 @@ function FeedList({
         ))}
       </AnimatePresence>
     </motion.div>
-  );
-}
-
-/** Titled block used to break the feed into readable sections. */
-function FeedSection({
-  title,
-  icon,
-  tone,
-  count,
-  urgent = false,
-  onSeeAll,
-  children,
-}: {
-  title: string;
-  icon?: React.ReactNode;
-  tone: string;
-  count?: number;
-  urgent?: boolean;
-  onSeeAll?: () => void;
-  children: React.ReactNode;
-}) {
-  return (
-    <motion.section
-      initial={{ opacity: 0, y: 10 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.3 }}
-      className="mb-12"
-    >
-      <div className="mb-5 flex items-center gap-3">
-        {icon && <span className={tone}>{icon}</span>}
-        <p className={`font-mono text-xs font-semibold uppercase tracking-[0.2em] ${tone}`}>
-          {title}
-        </p>
-        <span className="h-px flex-1 bg-border/80" />
-        {typeof count === "number" && (
-          <motion.span
-            key={count}
-            initial={{ scale: 0.85 }}
-            animate={{ scale: 1 }}
-            className={`rounded-full px-2.5 py-0.5 font-mono text-[11px] font-medium ring-1 ${
-              urgent
-                ? "bg-rose/12 text-rose ring-rose/30 font-bold animate-pulse"
-                : "bg-surface2 text-dim ring-border"
-            }`}
-          >
-            {count}
-          </motion.span>
-        )}
-        {onSeeAll && (
-          <motion.button
-            whileHover={{ scale: 1.05 }}
-            whileTap={{ scale: 0.95 }}
-            onClick={onSeeAll}
-            className="rounded-xl px-3 py-1 font-mono text-xs font-medium text-dim ring-1 ring-border transition-colors hover:bg-surface2 hover:text-ink cursor-pointer"
-          >
-            See all
-          </motion.button>
-        )}
-      </div>
-      {children}
-    </motion.section>
   );
 }
 
