@@ -44,6 +44,7 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { purgeNeverLoggedInUsers } from "@/lib/auth.functions";
+import { StudentEnrolmentPanel } from "./StudentEnrolmentPanel";
 
 type ConsoleTab = "members" | "activity" | "tracker";
 
@@ -276,6 +277,7 @@ export function AdminConsolePanel() {
       </div>
 
       {/* ── Sub Navigation Tabs ── */}
+      {isAdmin && <StudentEnrolmentPanel />}
       <div className="flex items-center justify-between gap-3 overflow-x-auto border-b border-border/60 pb-3">
         <div className="flex items-center gap-1.5">
           <button

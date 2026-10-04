@@ -8,6 +8,39 @@ export type Database = {
   };
   public: {
     Tables: {
+      student_enrolments: {
+        Row: {
+          mahe_id: string;
+          roll_no: string;
+          full_name: string;
+          dob: string;
+          email: string;
+          batch_id: string;
+          created_by: string;
+          created_at: string;
+        };
+        Insert: {
+          mahe_id: string;
+          roll_no: string;
+          full_name: string;
+          dob: string;
+          email: string;
+          batch_id: string;
+          created_by: string;
+          created_at?: string;
+        };
+        Update: {
+          mahe_id?: string;
+          roll_no?: string;
+          full_name?: string;
+          dob?: string;
+          email?: string;
+          batch_id?: string;
+          created_by?: string;
+          created_at?: string;
+        };
+        Relationships: [];
+      };
       announcements: {
         Row: {
           batch_id: string;
@@ -889,6 +922,7 @@ export type Database = {
           phone: string | null;
           pronouns: string | null;
           registration_no: string | null;
+          mahe_id: string | null;
           reminder_hours: number;
           section: string | null;
           timezone: string | null;
@@ -909,6 +943,7 @@ export type Database = {
           phone?: string | null;
           pronouns?: string | null;
           registration_no?: string | null;
+          mahe_id?: string | null;
           reminder_hours?: number;
           section?: string | null;
           timezone?: string | null;
@@ -929,6 +964,7 @@ export type Database = {
           phone?: string | null;
           pronouns?: string | null;
           registration_no?: string | null;
+          mahe_id?: string | null;
           reminder_hours?: number;
           section?: string | null;
           timezone?: string | null;

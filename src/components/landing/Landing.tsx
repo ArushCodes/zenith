@@ -121,8 +121,8 @@ export function Landing({ onPreview }: LandingProps = {}) {
 
               {/* Subtitle */}
               <p className="mt-5 max-w-xl text-base sm:text-lg leading-relaxed text-dim text-balance">
-                A student board for TAPMI Manipal. View your timetable, follow batch events and
-                track attendance.
+                Check today’s classroom and faculty, see your remaining class misses, and keep track
+                of your batch’s quizzes, submissions and exam dates.
               </p>
 
               {/* HERO DUAL CALL-TO-ACTION (Sign Up & Log In) */}
@@ -193,7 +193,7 @@ export function Landing({ onPreview }: LandingProps = {}) {
                   <div className="mt-2 flex items-center justify-between">
                     <div>
                       <h4 className="font-display text-base font-bold text-ink">
-                        Macroeconomics II
+                        Basics of Statistics
                       </h4>
                       <p className="font-mono text-xs text-dim">Prof. S. Ranganathan</p>
                     </div>
@@ -263,14 +263,14 @@ export function Landing({ onPreview }: LandingProps = {}) {
                     </div>
                     <div>
                       <p className="font-mono text-[10px] uppercase tracking-wider text-dim">
-                        Batch Attendance
+                        Statistics · 3 credits
                       </p>
-                      <p className="font-display text-sm font-bold text-ink">92.4% Average</p>
+                      <p className="font-display text-sm font-bold text-ink">2 class misses left</p>
                     </div>
                   </div>
                   <div className="text-right font-mono text-[11px]">
-                    <span className="font-bold text-emerald-400">Safe Margin</span>
-                    <p className="text-faint text-[10px]">7 bunks buffer</p>
+                    <span className="font-bold text-emerald-400">1 of 3 used</span>
+                    <p className="text-faint text-[10px]">Example · IPM 1</p>
                   </div>
                 </div>
               </div>
@@ -336,14 +336,14 @@ export function Landing({ onPreview }: LandingProps = {}) {
           <div className="rounded-3xl border border-cyan/30 bg-gradient-to-b from-cyan/10 via-surface/80 to-surface p-6 sm:p-10 backdrop-blur-xl">
             <div className="max-w-xl">
               <span className="font-mono text-[10px] uppercase tracking-[0.2em] text-cyan font-bold">
-                Batch-Private Isolation
+                IPM 1 · IPM 2 · IPM 3 · MBA 1 · MBA 2
               </span>
               <h2 className="mt-2 font-display text-2xl sm:text-3xl font-bold tracking-tight">
                 Separate boards for each batch.
               </h2>
               <p className="mt-2 text-sm text-dim">
-                Sign up with your official ID, choose your batch, and your board is instantly
-                customized to your classes.
+                Register with your MAHE ID and date of birth. Access follows your verified batch
+                record; representatives maintain notices and deadlines.
               </p>
             </div>
 
@@ -351,7 +351,7 @@ export function Landing({ onPreview }: LandingProps = {}) {
               {[
                 { level: "1. Institute", name: "MAHE Manipal" },
                 { level: "2. School", name: "TAPMI" },
-                { level: "3. Program", name: "IPM" },
+                { level: "3. Program", name: "IPM & MBA" },
                 { level: "4. Batch", name: "All Cohorts" },
               ].map((h) => (
                 <div

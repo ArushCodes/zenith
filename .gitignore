@@ -40,3 +40,4 @@ dist-ssr
 
 # Local verification artifacts
 tmp/
+supabase/.temp/

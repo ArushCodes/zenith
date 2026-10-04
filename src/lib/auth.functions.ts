@@ -20,6 +20,7 @@ export const registerWithRoster = createServerFn({ method: "POST" })
         password: z.string().min(8),
         regNo: z.string().regex(/^\d{12}$/),
         dob: z.string().min(8),
+        batchId: z.string().uuid().optional(),
       })
       .parse(input),
   )
@@ -29,11 +30,32 @@ export const registerWithRoster = createServerFn({ method: "POST" })
     await limitAuthAttempt("register", data.regNo);
     const { findStudentInRoster } = await import("./roster.server");
     const { toTitleCase, getBatchInfo, INSTITUTION_INFO } = await import("./roster.data");
-    const student = findStudentInRoster(data.regNo, data.dob);
+    let student = findStudentInRoster(data.regNo, data.dob);
+    if (!student) {
+      const { data: enrolment, error: rosterError } = await supabaseAdmin
+        .from("student_enrolments")
+        .select("*")
+        .eq("mahe_id", data.regNo)
+        .maybeSingle();
+      if (rosterError) throw new Error("Student verification is temporarily unavailable.");
+      const { matchesEnrolment } = await import("./enrolment-match");
+      if (enrolment && matchesEnrolment(enrolment, data))
+        student = {
+          sno: 0,
+          maheId: enrolment.mahe_id,
+          last4: enrolment.mahe_id.slice(-4),
+          rollNo: enrolment.roll_no,
+          name: enrolment.full_name,
+          dob: enrolment.dob,
+          batchId: enrolment.batch_id,
+        };
+    }
     if (!student)
       throw new Error(
-        "MAHE ID and date of birth do not match the available roster. IPM 2/3 registration opens when their rosters are added.",
+        "Student details do not match the available roster. Check your MAHE ID, birth date and learner email.",
       );
+    if (data.batchId && student.batchId !== data.batchId)
+      throw new Error("Choose the batch listed in your student record.");
     const { data: claimed, error: checkError } = await supabaseAdmin
       .from("profiles")
       .select("id")
@@ -67,7 +89,9 @@ export const registerWithRoster = createServerFn({ method: "POST" })
       email: data.email,
       university: INSTITUTION_INFO.university,
       college: INSTITUTION_INFO.college,
-      course: INSTITUTION_INFO.course,
+      course: getBatchInfo(student.batchId).batchCode.startsWith("MBA")
+        ? "MBA"
+        : INSTITUTION_INFO.course,
     };
   });
 
@@ -83,11 +107,13 @@ export const resolveLoginIdentifier = createServerFn({ method: "POST" })
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { findStudentInRosterByRoll } = await import("./roster.server");
     const roll = findStudentInRosterByRoll(raw)?.rollNo ?? raw.toUpperCase();
-    const { data: profile, error } = await supabaseAdmin
-      .from("profiles")
-      .select("email")
-      .eq("registration_no", roll)
-      .maybeSingle();
+    if (!/^[A-Z0-9-]+$/i.test(raw)) throw new Error("Use a learner email, roll number or MAHE ID.");
+    const profileQuery = supabaseAdmin.from("profiles").select("email");
+    const { data: profile, error } = await (
+      /^\d{12}$/.test(raw)
+        ? profileQuery.eq("mahe_id", raw)
+        : profileQuery.eq("registration_no", roll)
+    ).maybeSingle();
     if (error) throw new Error("Sign-in lookup is temporarily unavailable.");
     return { email: profile?.email ?? `${raw}@learner.manipal.edu` };
   });

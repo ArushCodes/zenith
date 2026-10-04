@@ -26,7 +26,6 @@ import {
   type ClassSession,
 } from "@/lib/batches";
 import {
-  BAND_COPY,
   CONTINUOUS_ABSENCE_DAYS,
   DEBARMENT_LINE,
   HARD_LINE,
@@ -35,7 +34,6 @@ import {
   PL_CAP_PCT,
   SAFE_LINE,
   TOTAL_CAP_PCT,
-  bandFor,
   consecutiveNeededFor70,
   courseCredits,
   eligibilityMisses,
@@ -54,7 +52,7 @@ import {
   untilReset,
   type LeaveType,
 } from "@/lib/attendance";
-import { Donut } from "@/components/ui/donut";
+import { MissAllowance } from "./MissAllowance";
 import { SessionMeta } from "@/components/common/SessionMeta";
 import { isTeachingClass, sessionLabel, autoColor } from "@/lib/courses";
 
@@ -378,7 +376,8 @@ export function AttendancePanel({ now, compact = false }: { now: number; compact
   return (
     <section className={compact ? "" : "mt-4"}>
       <p className="text-[10px] text-dim mb-3">
-        Attendance estimate · representative marks take priority over self-reported marks.
+        Remaining misses use recorded absences. Representative marks take priority; check unmarked
+        classes.
       </p>
       {!compact && (
         <div className="mb-4 flex flex-wrap items-center justify-between gap-2.5">
@@ -543,15 +542,18 @@ export function AttendancePanel({ now, compact = false }: { now: number; compact
               <div
                 className={`flex flex-col items-center ${compact ? "gap-4" : "gap-6 sm:flex-row sm:items-center"}`}
               >
-                <div className="shrink-0">
-                  <Donut
-                    value={overall.pct}
-                    color={meterColor(overall.pct)}
-                    size={compact ? 100 : 156}
-                    thresholds={[HARD_LINE, SAFE_LINE]}
-                    label={`${overall.pct}%`}
-                    sub={focused ? shortSubject(focused.course, 14) : "attended"}
-                  />
+                <div className="grid w-full shrink-0 grid-cols-2 gap-2 sm:w-64">
+                  {(focused ? [focused] : stats).map((row) => (
+                    <div
+                      key={row.course}
+                      className="rounded-xl border border-border bg-surface2/40 p-3"
+                    >
+                      <p className="mb-1 truncate text-xs text-dim">
+                        {shortSubject(row.course, 20)}
+                      </p>
+                      <MissAllowance course={row.course} missed={row.absent} />
+                    </div>
+                  ))}
                 </div>
 
                 <div className="min-w-0 flex-1 w-full">
@@ -559,7 +561,6 @@ export function AttendancePanel({ now, compact = false }: { now: number; compact
                     <h3 className="min-w-0 truncate font-display text-xl font-semibold leading-tight">
                       {focused ? shortSubject(focused.course, compact ? 20 : 28) : "All subjects"}
                     </h3>
-                    <BandChip pct={overall.pct} />
                     {focused && (
                       <button
                         onClick={() => setFocus(null)}
@@ -571,26 +572,9 @@ export function AttendancePanel({ now, compact = false }: { now: number; compact
                   </div>
 
                   <p className="mt-2 text-xs sm:text-sm leading-relaxed text-dim">
-                    {overall.safeLeft >= 0 ? (
-                      <>
-                        Safe misses left:{" "}
-                        <span className="font-semibold text-ink">{overall.safeLeft}</span>{" "}
-                        {overall.safeLeft === 1 ? "class" : "classes"} before a penalty.
-                      </>
-                    ) : overall.eligibleLeft >= 0 ? (
-                      <>
-                        <span className="font-semibold text-amber">
-                          −{overall.penalty.toFixed(1)} grade points
-                        </span>{" "}
-                        so far · {overall.eligibleLeft} more{" "}
-                        {overall.eligibleLeft === 1 ? "miss" : "misses"} before you lose exam
-                        eligibility.
-                      </>
-                    ) : (
-                      <span className="font-semibold text-rose">
-                        Below the {HARD_LINE}% eligibility line — Incomplete (I).
-                      </span>
-                    )}
+                    {focused
+                      ? "Remaining penalty-free misses for this course."
+                      : "Each course has its own miss allowance. Unused misses cannot transfer between courses."}
                   </p>
 
                   <div className="mt-4 grid grid-cols-3 gap-2">
@@ -844,25 +828,6 @@ function Rail({ pct, labels = false }: { pct: number; labels?: boolean }) {
   );
 }
 
-/** Which side of the 85 / 70 policy lines this percentage falls on. */
-function BandChip({ pct }: { pct: number }) {
-  const band = bandFor(pct);
-  const tone =
-    band === "good"
-      ? "bg-evt-present/12 text-evt-present ring-evt-present/30"
-      : band === "warn"
-        ? "bg-amber/15 text-amber ring-amber/30"
-        : "bg-rose/12 text-rose ring-rose/30";
-  return (
-    <span
-      title={BAND_COPY[band].detail}
-      className={`inline-flex items-center gap-1.5 rounded-lg px-2 py-1 font-mono text-[10px] ring-1 ${tone}`}
-    >
-      {BAND_COPY[band].label}
-    </span>
-  );
-}
-
 type SubjectStat = {
   course: string;
   credits: number;
@@ -895,7 +860,6 @@ function SubjectRow({
   onClick: () => void;
   compact?: boolean;
 }) {
-  const color = meterColor(row.pct);
   const isCut = row.penalty > 0;
   const isDanger = row.safeLeft === 1;
   const isLimit = row.safeLeft === 0 && !isCut;
@@ -935,7 +899,12 @@ function SubjectRow({
       }`}
     >
       <div className="shrink-0">
-        <Donut value={row.pct} color={color} size={36} thickness={5} />
+        <span
+          className={`inline-block min-w-10 text-center text-xl font-semibold ${row.safeLeft <= 0 ? "text-rose" : "text-cyan"}`}
+        >
+          {Math.max(0, row.safeLeft)}
+          <span className="block text-[9px] font-normal text-dim">left</span>
+        </span>
       </div>
 
       <span className="min-w-0 flex-1">
@@ -986,7 +955,10 @@ function SubjectRow({
       )}
 
       <span className="shrink-0 text-right">
-        <span className="block font-display text-lg font-semibold leading-none" style={{ color }}>
+        <span
+          className="block font-display text-lg font-semibold leading-none"
+          style={{ color: meterColor(row.pct) }}
+        >
           {row.pct}%
         </span>
         <span className="mt-1 block font-mono text-[9px] text-faint">

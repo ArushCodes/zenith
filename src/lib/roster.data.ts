@@ -12,6 +12,8 @@ export interface RosterStudent {
 export const IPM1_BATCH_ID = "ee4a435d-4003-4a22-940b-0ee0e676b6f5"; // Batch 2026–2031
 export const IPM2_BATCH_ID = "0a8267da-7cb7-4c05-9571-b9aaac94a2f7"; // Batch 2025–2030
 export const IPM3_BATCH_ID = "92e4710b-3c3e-433c-a3bc-23a02b98e385"; // Batch 2024–2029
+export const MBA1_BATCH_ID = "edda3f8e-2a44-4b6a-bbfd-ca52fc7d0365";
+export const MBA2_BATCH_ID = "a2055f1c-6551-4514-bc8c-72bc48d03b2e";
 
 export interface IPMBatchOption {
   id: string;
@@ -23,6 +25,22 @@ export interface IPMBatchOption {
 }
 
 export const IPM_BATCHES: IPMBatchOption[] = [
+  {
+    id: MBA1_BATCH_ID,
+    code: "MBA 1",
+    name: "MBA Batch 1",
+    years: "2026–2028",
+    slug: "tapmi-mba-2026",
+    hasRoster: true,
+  },
+  {
+    id: MBA2_BATCH_ID,
+    code: "MBA 2",
+    name: "MBA Batch 2",
+    years: "2025–2027",
+    slug: "tapmi-mba-2025",
+    hasRoster: true,
+  },
   {
     id: IPM1_BATCH_ID,
     code: "IPM 1",
@@ -47,7 +65,7 @@ export const IPM_BATCHES: IPMBatchOption[] = [
     slug: "tapmi-ipm-2024",
     hasRoster: false,
   },
-];
+].sort((a, b) => a.code.localeCompare(b.code));
 
 export function normalizeDob(input?: string | null): string {
   if (!input) return "";

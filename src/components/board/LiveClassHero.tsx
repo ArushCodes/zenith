@@ -46,6 +46,7 @@ import { SyllabusDialog } from "@/components/board/SyllabusDialog";
 import { courseAttendance, defaultClassDay } from "@/lib/course-attendance";
 import { getBunkStatus, sessionSubject } from "@/lib/attendance";
 import { IPM1_BATCH_ID } from "@/lib/roster.data";
+import { MissAllowance } from "@/components/attendance/MissAllowance";
 
 type Props = {
   now: number;
@@ -623,13 +624,10 @@ export function LiveClassHero({
           </div>
           <div className="flex items-center gap-3 text-xs">
             {allowance && !attendanceLoading && !attendanceError && (
-              <span className={allowance.safeLeft <= 0 ? "text-rose" : "text-cyan"}>
-                {allowance.safeLeft < 0
-                  ? `${Math.abs(allowance.safeLeft)} over allowance`
-                  : courseRecord?.unmarked
-                    ? `${allowance.allowed} miss allowance`
-                    : `${Math.max(0, allowance.safeLeft)} misses left`}
-              </span>
+              <MissAllowance
+                course={sessionSubject(attendanceClass)}
+                missed={courseRecord?.absent ?? 0}
+              />
             )}
             <ArrowRight className="size-4 text-dim" />
           </div>

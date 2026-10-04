@@ -160,6 +160,13 @@ export default function StudentBoard({ guestPreview }: { guestPreview?: boolean 
   const [selected, setSelected] = useState<Deadline | null>(null);
   const [now, setNow] = useState(() => Date.now());
   const [panel, setPanel] = useState<PanelKey | null>(null);
+  const nextAcademic = useMemo(
+    () =>
+      sessions
+        .filter((s) => s.notes === "academic-calendar" && new Date(s.start_at).getTime() > now)
+        .sort((a, b) => a.start_at.localeCompare(b.start_at))[0],
+    [sessions, now],
+  );
 
   useEffect(() => {
     const id = setInterval(() => setNow(Date.now()), 15_000);
@@ -649,9 +656,9 @@ export default function StudentBoard({ guestPreview }: { guestPreview?: boolean 
         <AnimatePresence mode="wait" initial={false}>
           <motion.div
             key={tab}
-            initial={{ opacity: 0, y: 8 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -6 }}
+            initial={false}
+            animate={{ y: 0 }}
+            exit={{ y: -6 }}
             transition={{ duration: 0.26, ease: [0.22, 1, 0.36, 1] }}
           >
             {tab === "feed" && (
@@ -667,6 +674,24 @@ export default function StudentBoard({ guestPreview }: { guestPreview?: boolean 
                   <FeedAttendanceSummary now={now} onOpen={() => setTab("attendance")} />
                 </div>
                 {/* ── Mobile View Switcher (Feed Timeline vs Batch Announcements) ── */}
+                {nextAcademic && (
+                  <button
+                    type="button"
+                    onClick={() => setTab("calendar")}
+                    className="flex flex-wrap items-center gap-2 rounded-xl border border-border/60 bg-surface/60 px-4 py-2 text-left text-xs text-dim"
+                  >
+                    <CalendarClock className="size-3.5 text-cyan" />
+                    <span className="text-ink">{nextAcademic.title}</span>
+                    <span>
+                      ·{" "}
+                      {new Date(nextAcademic.start_at).toLocaleDateString("en-GB", {
+                        timeZone: "Asia/Kolkata",
+                        day: "numeric",
+                        month: "short",
+                      })}
+                    </span>
+                  </button>
+                )}
                 <div className="lg:hidden flex rounded-2xl bg-surface2/70 p-1 border border-border/80">
                   <button
                     type="button"

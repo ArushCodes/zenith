@@ -29,7 +29,7 @@ export const Route = createFileRoute("/auth")({
       search["mode"] === "signup" ? "signup" : search["mode"] === "forgot" ? "forgot" : "signin",
   }),
   head: () => ({
-    meta: [{ title: "Your space awaits — Zenith" }, { name: "robots", content: "noindex" }],
+    meta: [{ title: "TAPMI student sign-in — Zenith" }, { name: "robots", content: "noindex" }],
   }),
   component: AuthPage,
 });
@@ -75,11 +75,11 @@ function AuthPage() {
           throw new Error("Sign-in failed. Check your email or roll number and password.");
         await navigate({ to: "/", replace: true });
       } else if (mode === "signup") {
-        if (batch !== IPM1_BATCH_ID)
+        if (!IPM_BATCHES.find((item) => item.id === batch)?.hasRoster)
           throw new Error("Registration will open once your batch roster is available.");
         if (password !== confirm) throw new Error("Passwords do not match.");
         const result = await registerWithRoster({
-          data: { email: email.trim(), password, regNo, dob },
+          data: { email: email.trim(), password, regNo, dob, batchId: batch },
         });
         const { error: signInError } = await db.auth.signInWithPassword({
           email: result.email,
@@ -121,10 +121,10 @@ function AuthPage() {
   }
 
   const titles = {
-    signin: "Welcome back.",
-    signup: "Make it your space.",
-    forgot: "Let's get you back in.",
-    reset: "A fresh start.",
+    signin: "Sign in to your batch.",
+    signup: "Register your student ID.",
+    forgot: "Recover your account.",
+    reset: "Reset your password.",
     welcome: "You're all set.",
   };
   return (
@@ -134,23 +134,25 @@ function AuthPage() {
           <span className="brand-symbol">z</span> zenith<span className="brand-period">.</span>
         </Link>
         <div className="auth-story-copy">
-          <span className="workspace-eyebrow">BUILT FOR YOUR NEXT CHAPTER</span>
+          <span className="workspace-eyebrow">TAPMI MANIPAL · STUDENT BOARD</span>
           <h1>
-            A little clarity.
-            <br />A lot of possibility.
+            Today’s classes.
+            <br />
+            Your batch’s deadlines.
           </h1>
           <p>
-            Your classes, your goals, your campus life. Give everything a place to come together.
+            Check your classroom, track course-wise misses, and find quizzes, assignments and exam
+            dates for your batch.
           </p>
           <div className="auth-orbit" aria-hidden="true">
             <span className="orbit-core">z.</span>
-            <span className="orbit-label orbit-label-one">Stay in the know</span>
-            <span className="orbit-label orbit-label-two">Find your rhythm</span>
-            <span className="orbit-label orbit-label-three">Make space</span>
+            <span className="orbit-label orbit-label-one">Timetable</span>
+            <span className="orbit-label orbit-label-two">Attendance</span>
+            <span className="orbit-label orbit-label-three">Deadlines</span>
           </div>
         </div>
         <p className="auth-story-footer">
-          TAPMI MANIPAL <span>MAHE · IPM</span>
+          TAPMI MANIPAL <span>MAHE · IPM & MBA</span>
         </p>
       </aside>
       <main className="auth-main">
@@ -180,7 +182,7 @@ function AuthPage() {
               <h2>{titles[mode]}</h2>
               <p className="auth-subtitle">
                 {mode === "signin"
-                  ? "Pick up where you left off."
+                  ? "Use your learner email, roll number or MAHE ID."
                   : mode === "signup"
                     ? "Verify your student record. No signup email code needed."
                     : mode === "forgot"
@@ -224,7 +226,13 @@ function AuthPage() {
                         ))}
                       </div>
                     </fieldset>
-                    {batch !== IPM1_BATCH_ID && (
+                    {IPM_BATCHES.find((item) => item.id === batch)?.code.startsWith("MBA") && (
+                      <p className="auth-notice">
+                        Your administrator must add your official student record before you
+                        register. Use the learner email listed in that record.
+                      </p>
+                    )}
+                    {!IPM_BATCHES.find((item) => item.id === batch)?.hasRoster && (
                       <p className="auth-notice">
                         Your batch roster is coming soon. Existing accounts can still sign in.
                       </p>
@@ -331,7 +339,10 @@ function AuthPage() {
                   </p>
                 )}
                 <button
-                  disabled={busy || (mode === "signup" && batch !== IPM1_BATCH_ID)}
+                  disabled={
+                    busy ||
+                    (mode === "signup" && !IPM_BATCHES.find((item) => item.id === batch)?.hasRoster)
+                  }
                   className="primary-button w-full"
                   type="submit"
                 >
@@ -339,7 +350,7 @@ function AuthPage() {
                   {busy
                     ? "Just a moment…"
                     : mode === "signin"
-                      ? "Enter your dashboard"
+                      ? "Sign in"
                       : mode === "signup"
                         ? "Verify & create account"
                         : mode === "forgot"
@@ -358,7 +369,7 @@ function AuthPage() {
                 </button>
               )}
               <p className="auth-assurance">
-                <CheckCircle2 size={14} /> A private space for your batch.
+                <CheckCircle2 size={14} /> Access follows your verified student record.
               </p>
             </>
           )}

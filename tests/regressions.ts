@@ -1,4 +1,25 @@
 import assert from "node:assert/strict";
+import { matchesEnrolment } from "../src/lib/enrolment-match";
+const enrolmentRecord = {
+  mahe_id: "999999999999",
+  dob: "2000-01-01",
+  email: "example@learner.manipal.edu",
+  batch_id: "mba1",
+};
+const enrolmentInput = {
+  regNo: "999999999999",
+  dob: "01/01/2000",
+  email: "example@learner.manipal.edu",
+  batchId: "mba1",
+};
+assert.equal(matchesEnrolment(enrolmentRecord, enrolmentInput), true);
+for (const changed of [
+  { email: "other@learner.manipal.edu" },
+  { dob: "2000-01-02" },
+  { regNo: "999999999998" },
+  { batchId: "mba2" },
+])
+  assert.equal(matchesEnrolment(enrolmentRecord, { ...enrolmentInput, ...changed }), false);
 import { courseAttendance, defaultClassDay } from "../src/lib/course-attendance";
 import { sessionSubject } from "../src/lib/attendance";
 import type { ClassSession } from "../src/lib/batches";

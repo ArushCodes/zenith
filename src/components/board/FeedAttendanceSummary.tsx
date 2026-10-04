@@ -8,6 +8,7 @@ import { courseAttendance } from "@/lib/course-attendance";
 import { sessionSubject, shortSubject, getBunkStatus } from "@/lib/attendance";
 import { isTeachingClass, autoColor } from "@/lib/courses";
 import { IPM1_BATCH_ID } from "@/lib/roster.data";
+import { MissAllowance } from "@/components/attendance/MissAllowance";
 
 export function FeedAttendanceSummary({ now, onOpen }: { now: number; onOpen: () => void }) {
   const { user } = useAuth();
@@ -40,6 +41,9 @@ export function FeedAttendanceSummary({ now, onOpen }: { now: number; onOpen: ()
           Full records <ArrowUpRight className="size-3.5" />
         </button>
       </div>
+      <p className="mb-3 text-[10px] text-dim">
+        Based on recorded absences. Check unmarked classes.
+      </p>
       {timetable.isError || attendance.isError ? (
         <p className="text-xs text-dim">Attendance unavailable</p>
       ) : timetable.isPending || attendance.isPending ? (
@@ -68,10 +72,11 @@ export function FeedAttendanceSummary({ now, onOpen }: { now: number; onOpen: ()
                     {shortSubject(row.course, 22)}
                   </span>
                 </div>
+                {allowance && <MissAllowance course={row.course} missed={row.absent} />}
                 <p
                   className={`mt-1 text-xs ${allowance && allowance.safeLeft <= 0 ? "text-rose" : "text-dim"}`}
                 >
-                  {row.absent} missed{allowance ? ` / ${allowance.allowed}` : ""}
+                  {row.absent} missed
                 </p>
                 <p className="mt-0.5 text-[10px] text-faint">
                   {row.present} present{row.unmarked ? ` · ${row.unmarked} unmarked` : ""}
