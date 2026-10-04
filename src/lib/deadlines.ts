@@ -234,7 +234,7 @@ const clockFmt = new Intl.DateTimeFormat("en-GB", {
 export function formatDeadlineWhen(d: Deadline) {
   const start = new Date(d.due_at);
   const day = dayOnlyFmt.format(start);
-  if (d.all_day) return day;
+  if (d.all_day) return `${day} · Time TBA`;
   const from = clockFmt.format(start);
   if (d.end_at) return `${day}, ${from}–${clockFmt.format(new Date(d.end_at))}`;
   return `${day}, ${from}`;
@@ -256,6 +256,7 @@ export function phaseOf(d: Deadline, now: number): Phase {
   const start = new Date(d.due_at).getTime();
   const end = deadlineEndMs(d);
   if (now > end) return "completed";
+  if (d.all_day) return "upcoming";
   if (now >= start && end > start) return "ongoing";
   return "upcoming";
 }
@@ -325,7 +326,9 @@ export function googleCalendarUrl(d: Deadline) {
   const params = new URLSearchParams({
     action: "TEMPLATE",
     text: eventTitle(d),
-    dates: `${toUtcStamp(new Date(d.due_at))}/${toUtcStamp(eventEnd(d))}`,
+    dates: d.all_day
+      ? `${dayKey(d.due_at).replaceAll("-", "")}/${dayKey(new Date(deadlineEndMs(d) + 1)).replaceAll("-", "")}`
+      : `${toUtcStamp(new Date(d.due_at))}/${toUtcStamp(eventEnd(d))}`,
     details: [d.subject, typeLabel(d.type), d.notes, d.submission_link].filter(Boolean).join("\n"),
     location: d.location ?? "",
   });
@@ -340,8 +343,12 @@ export function icsFor(d: Deadline) {
     "BEGIN:VEVENT",
     `UID:${d.id}@tapmi-ipm`,
     `DTSTAMP:${toUtcStamp(new Date())}`,
-    `DTSTART:${toUtcStamp(new Date(d.due_at))}`,
-    `DTEND:${toUtcStamp(eventEnd(d))}`,
+    d.all_day
+      ? `DTSTART;VALUE=DATE:${dayKey(d.due_at).replaceAll("-", "")}`
+      : `DTSTART:${toUtcStamp(new Date(d.due_at))}`,
+    d.all_day
+      ? `DTEND;VALUE=DATE:${dayKey(new Date(deadlineEndMs(d) + 1)).replaceAll("-", "")}`
+      : `DTEND:${toUtcStamp(eventEnd(d))}`,
     `SUMMARY:${eventTitle(d)}`,
     `DESCRIPTION:${[d.subject, typeLabel(d.type), d.notes].filter(Boolean).join(" — ")}`,
     `LOCATION:${d.location ?? ""}`,

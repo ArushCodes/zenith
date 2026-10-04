@@ -172,7 +172,7 @@ function Body({
           <span
             className={`font-mono text-base font-bold ${countdownColor[u]} ${pulsing ? "blink" : ""}`}
           >
-            {timeLeft(deadline.due_at, now)}
+            {deadline.all_day ? "Time TBA" : timeLeft(deadline.due_at, now)}
           </span>
         </div>
       </div>

@@ -215,3 +215,20 @@ try {
 console.log(
   "Passed: notice draft validation, missing deadlines, duplicate matching, IST editing and mocked extraction.",
 );
+
+import { phaseOf, icsFor, formatDeadlineWhen, type Deadline } from "../src/lib/deadlines";
+const dateOnlyEvent = {
+  id: "date-only",
+  due_at: "2026-10-08T00:00:00+05:30",
+  end_at: null,
+  all_day: true,
+  title: "Quiz",
+  subject: "Statistics",
+  type: "quiz",
+} as Deadline;
+assert.equal(phaseOf(dateOnlyEvent, Date.parse("2026-10-08T12:00:00+05:30")), "upcoming");
+assert.equal(phaseOf(dateOnlyEvent, Date.parse("2026-10-09T00:00:00+05:30")), "completed");
+assert.match(icsFor(dateOnlyEvent), /DTSTART;VALUE=DATE:20261008/);
+assert.match(icsFor(dateOnlyEvent), /DTEND;VALUE=DATE:20261009/);
+
+assert.match(formatDeadlineWhen(dateOnlyEvent), /Time TBA/);

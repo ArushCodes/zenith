@@ -25,7 +25,6 @@ const dateOf = (iso: string) => {
   return toIstInput(iso).slice(0, 10);
 };
 const timeOf = (iso: string) => {
-  const d = new Date(iso);
   return toIstInput(iso).slice(11, 16);
 };
 
@@ -273,6 +272,12 @@ export function DeadlineDialog({ open, onOpenChange, deadline }: Props) {
               />
             </div>
           </div>
+
+          {!form.from && (
+            <p className="sm:col-span-2 text-xs text-dim">
+              Time not announced? Leave it blank. Students will see the date and “Time TBA”.
+            </p>
+          )}
 
           <div>
             <label className={labelClass} htmlFor="mode">

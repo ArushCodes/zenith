@@ -1,16 +1,18 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { ArrowUpRight } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 import { useBatch } from "@/hooks/use-batch";
 import { attendanceQuery, sessionsQuery } from "@/lib/batches";
-import { courseAttendance } from "@/lib/course-attendance";
+import { courseAttendance, defaultClassDay } from "@/lib/course-attendance";
 import { sessionSubject, shortSubject, getBunkStatus } from "@/lib/attendance";
 import { isTeachingClass, autoColor } from "@/lib/courses";
+import { dayKey } from "@/lib/deadlines";
 import { IPM1_BATCH_ID } from "@/lib/roster.data";
 import { MissAllowance } from "@/components/attendance/MissAllowance";
 
 export function FeedAttendanceSummary({ now, onOpen }: { now: number; onOpen: () => void }) {
+  const [showAll, setShowAll] = useState(false);
   const { user } = useAuth();
   const { batchId, isMember, canManage } = useBatch();
   const timetable = useQuery(sessionsQuery(batchId));
@@ -25,6 +27,21 @@ export function FeedAttendanceSummary({ now, onOpen }: { now: number; onOpen: ()
         ...(stats.get(course) ?? { present: 0, absent: 0, unmarked: 0, held: 0 }),
       }));
   }, [timetable.data, attendance.data, user?.id, now]);
+  const focusDate = new Date(now);
+  focusDate.setDate(focusDate.getDate() + defaultClassDay(timetable.data ?? [], now));
+  const focusCourses = new Set(
+    (timetable.data ?? [])
+      .filter(isTeachingClass)
+      .filter((session) => dayKey(session.start_at) === dayKey(focusDate))
+      .map(sessionSubject),
+  );
+  const orderedRows = [...rows].sort(
+    (a, b) => Number(focusCourses.has(b.course)) - Number(focusCourses.has(a.course)),
+  );
+  const visibleRows =
+    showAll || !focusCourses.size
+      ? orderedRows
+      : orderedRows.filter((row) => focusCourses.has(row.course));
   if (!user || (!isMember && !canManage)) return null;
   return (
     <section
@@ -44,6 +61,16 @@ export function FeedAttendanceSummary({ now, onOpen }: { now: number; onOpen: ()
       <p className="mb-3 text-[10px] text-dim">
         Based on recorded absences. Check unmarked classes.
       </p>
+      {focusCourses.size > 0 && (
+        <div className="mb-3 flex items-center justify-between text-xs text-dim">
+          <span>
+            {dayKey(focusDate) === dayKey(new Date(now)) ? "Today's courses" : "Next day's courses"}
+          </span>
+          <button type="button" onClick={() => setShowAll(!showAll)} className="text-cyan">
+            {showAll ? "Scheduled subjects" : "All subjects"}
+          </button>
+        </div>
+      )}
       {timetable.isError || attendance.isError ? (
         <p className="text-xs text-dim">Attendance unavailable</p>
       ) : timetable.isPending || attendance.isPending ? (
@@ -52,7 +79,7 @@ export function FeedAttendanceSummary({ now, onOpen }: { now: number; onOpen: ()
         <p className="text-xs text-dim">No classes yet</p>
       ) : (
         <div className="grid grid-cols-2 gap-2">
-          {rows.map((row) => {
+          {visibleRows.map((row) => {
             const allowance =
               batchId === IPM1_BATCH_ID ? getBunkStatus(row.course, row.absent) : null;
             return (

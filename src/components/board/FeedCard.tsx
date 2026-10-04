@@ -153,13 +153,15 @@ export function FeedCard({
 
     return {
       dateStr: dayFormatter.format(start),
-      timeStr: deadline.end_at
-        ? `${timeFormatter.format(start)} – ${timeFormatter.format(end)}`
-        : timeFormatter.format(start),
+      timeStr: deadline.all_day
+        ? "Time TBA"
+        : deadline.end_at
+          ? `${timeFormatter.format(start)} – ${timeFormatter.format(end)}`
+          : timeFormatter.format(start),
       durationStr: deadline.end_at ? dur : "",
       isCriticalUrgent: isCritical,
     };
-  }, [deadline.due_at, deadline.end_at, now]);
+  }, [deadline.due_at, deadline.end_at, deadline.all_day, now]);
 
   return (
     <motion.article
@@ -276,7 +278,7 @@ export function FeedCard({
         <div className="flex items-center gap-2 shrink-0">
           {phase === "ongoing" && (
             <span className="flex items-center gap-1 rounded-md bg-cyan/15 px-2.5 py-0.5 font-mono text-xs font-bold text-cyan ring-1 ring-cyan/40">
-              <span className="size-1.5 rounded-full bg-cyan animate-ping" />
+              <span className="size-1.5 rounded-full bg-cyan" />
               Live
             </span>
           )}
@@ -297,8 +299,7 @@ export function FeedCard({
                     : "bg-surface2 text-dim font-medium"
               }`}
             >
-              {isCriticalUrgent && <span className="size-1.5 rounded-full bg-rose animate-ping" />}
-              {timeLeft(deadline.due_at, now)}
+              {deadline.all_day ? "Time TBA" : timeLeft(deadline.due_at, now)}
             </span>
           )}
         </div>
@@ -311,7 +312,13 @@ export function FeedCard({
             isDone ? "line-through text-dim" : "text-ink group-hover:text-cyan"
           }`}
         >
-          {title}
+          {deadline.type === "assignment"
+            ? `Submit · ${title}`
+            : deadline.type === "presentation"
+              ? `Present · ${title}`
+              : deadline.type === "quiz"
+                ? `Prepare · ${title}`
+                : title}
         </h3>
 
         {/* Sleek Metadata Row: dot-separated, clean and responsive */}
@@ -549,7 +556,7 @@ export function FeedCompactRow({
 
         {phase === "ongoing" ? (
           <span className="flex items-center gap-1 rounded-md bg-cyan/15 px-2 py-0.5 font-mono text-[11px] font-bold text-cyan">
-            <span className="size-1.5 rounded-full bg-cyan animate-ping" />
+            <span className="size-1.5 rounded-full bg-cyan" />
             Live
           </span>
         ) : phase === "completed" ? (
@@ -566,7 +573,7 @@ export function FeedCompactRow({
                   : "bg-surface2 text-dim"
             }`}
           >
-            {timeLeft(deadline.due_at, now)}
+            {deadline.all_day ? "Time TBA" : timeLeft(deadline.due_at, now)}
           </span>
         )}
 

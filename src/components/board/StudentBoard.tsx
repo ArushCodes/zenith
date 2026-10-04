@@ -305,16 +305,16 @@ export default function StudentBoard({ guestPreview }: { guestPreview?: boolean 
   // ALL upcoming deadlines across ANY event type, strictly sorted by recency (nearest due_at first)
   const allUpcoming = useMemo(() => {
     return approved
-      .filter((d) => phaseOf(d, now) !== "completed")
+      .filter((d) => phaseOf(d, now) !== "completed" && !isDone(d.id))
       .sort((a, b) => new Date(a.due_at).getTime() - new Date(b.due_at).getTime());
-  }, [approved, now]);
+  }, [approved, now, isDone]);
 
   // ALL completed deadlines (most recently completed first)
   const allCompleted = useMemo(() => {
     return approved
-      .filter((d) => phaseOf(d, now) === "completed")
+      .filter((d) => phaseOf(d, now) === "completed" || isDone(d.id))
       .sort((a, b) => new Date(b.due_at).getTime() - new Date(a.due_at).getTime());
-  }, [approved, now]);
+  }, [approved, now, isDone]);
 
   // Filtered upcoming feed by selected category & search query
   const filteredUpcoming = useMemo(() => {

@@ -370,6 +370,18 @@ export function LiveClassHero({
             </button>
           </div>
 
+          {offset !== 1 && (
+            <button
+              type="button"
+              onClick={() => {
+                setOffset(1);
+                setInspectedId(null);
+              }}
+              className="rounded-lg px-2 py-1 text-xs text-cyan hover:bg-cyan/10"
+            >
+              Tomorrow
+            </button>
+          )}
           {liveClass ? (
             <span className="inline-flex items-center gap-2 rounded-xl bg-rose/15 px-3 py-1 text-xs font-bold text-rose border border-rose/30 shadow-xs shadow-rose/20">
               <span className="relative flex size-2">

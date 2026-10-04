@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { useAuth } from "@/hooks/use-auth";
+import { toast } from "sonner";
 import confetti from "canvas-confetti";
 
 export function usePersonalChecklist(batchId: string | null) {
@@ -43,6 +44,23 @@ export function usePersonalChecklist(batchId: string | null) {
   const toggleDone = useCallback(
     (id: string, e?: React.MouseEvent) => {
       e?.stopPropagation();
+      if (!doneMap[id])
+        toast.success("Marked done", {
+          action: {
+            label: "Undo",
+            onClick: () => {
+              setDoneMap((current) => {
+                const next = { ...current, [id]: false };
+                try {
+                  window.localStorage.setItem(key, JSON.stringify(next));
+                } catch {
+                  /* Storage unavailable. */
+                }
+                return next;
+              });
+            },
+          },
+        });
       setDoneMap((prev) => {
         const currentlyDone = !prev[id];
         const next = { ...prev, [id]: currentlyDone };
@@ -74,7 +92,7 @@ export function usePersonalChecklist(batchId: string | null) {
         return next;
       });
     },
-    [key],
+    [key, doneMap],
   );
 
   const isDone = useCallback((id: string) => !!doneMap[id], [doneMap]);

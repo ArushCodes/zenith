@@ -53,6 +53,8 @@ export function AnnouncementsPanel({ compact = false }: { compact?: boolean }) {
     onError: (e: Error) => toast.error(e.message),
   });
 
+  if (compact && !isLoading && !items.length && !canManage) return null;
+
   const list = compact ? items.slice(0, 3) : items;
 
   return (
@@ -133,9 +135,7 @@ export function AnnouncementsPanel({ compact = false }: { compact?: boolean }) {
         <div className="h-24 animate-pulse rounded-2xl bg-surface2/40" />
       ) : list.length === 0 ? (
         <div className="rounded-2xl border border-dashed border-border bg-surface/40 p-6 text-center">
-          <p className="font-sans text-xs sm:text-sm text-faint">
-            No announcements posted yet.
-          </p>
+          <p className="font-sans text-xs sm:text-sm text-faint">No announcements posted yet.</p>
         </div>
       ) : (
         <div className="flex flex-col gap-3">
