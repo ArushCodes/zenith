@@ -377,6 +377,9 @@ export function AttendancePanel({ now, compact = false }: { now: number; compact
 
   return (
     <section className={compact ? "" : "mt-4"}>
+      <p className="text-[10px] text-dim mb-3">
+        Attendance estimate · representative marks take priority over self-reported marks.
+      </p>
       {!compact && (
         <div className="mb-4 flex flex-wrap items-center justify-between gap-2.5">
           <div className="flex flex-wrap items-center gap-2.5">
@@ -526,8 +529,7 @@ export function AttendancePanel({ now, compact = false }: { now: number; compact
                 <div className="flex items-center gap-2">
                   <ShieldCheck className="size-4 text-emerald-500 shrink-0" />
                   <span className="font-sans text-xs font-semibold text-ink">
-                    70% Debarment Radar: All courses meet or exceed minimum eligibility
-                    requirements.
+                    All courses meet the 70% minimum.
                   </span>
                 </div>
                 <span className="hidden sm:inline font-mono text-[10px] font-bold text-emerald-600 dark:text-emerald-400">
@@ -545,7 +547,7 @@ export function AttendancePanel({ now, compact = false }: { now: number; compact
                   <Donut
                     value={overall.pct}
                     color={meterColor(overall.pct)}
-                    size={compact ? 136 : 156}
+                    size={compact ? 100 : 156}
                     thresholds={[HARD_LINE, SAFE_LINE]}
                     label={`${overall.pct}%`}
                     sub={focused ? shortSubject(focused.course, 14) : "attended"}
@@ -571,9 +573,9 @@ export function AttendancePanel({ now, compact = false }: { now: number; compact
                   <p className="mt-2 text-xs sm:text-sm leading-relaxed text-dim">
                     {overall.safeLeft >= 0 ? (
                       <>
-                        You can still miss{" "}
+                        Safe misses left:{" "}
                         <span className="font-semibold text-ink">{overall.safeLeft}</span>{" "}
-                        {overall.safeLeft === 1 ? "class" : "classes"} before grade cuts begin.
+                        {overall.safeLeft === 1 ? "class" : "classes"} before a penalty.
                       </>
                     ) : overall.eligibleLeft >= 0 ? (
                       <>
@@ -592,9 +594,9 @@ export function AttendancePanel({ now, compact = false }: { now: number; compact
                   </p>
 
                   <div className="mt-4 grid grid-cols-3 gap-2">
-                    <StatTile label="Projected attended" value={overall.planned - overall.absent} />
+                    <StatTile label="Projected" value={overall.planned - overall.absent} />
                     <StatTile label="Missed" value={overall.absent} />
-                    <StatTile label="Planned total" value={overall.planned} />
+                    <StatTile label="Planned" value={overall.planned} />
                   </div>
 
                   <Rail pct={overall.pct} labels />

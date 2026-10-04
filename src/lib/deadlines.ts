@@ -5,6 +5,12 @@ import type { Tables } from "@/integrations/supabase/types";
 export type Deadline = Tables<"deadlines">;
 export type DeadlineType = Deadline["type"];
 
+export function eventSourceLabel(source: string) {
+  if (source === "email") return "Reviewed notice";
+  if (source === "ics" || source === "registro") return "Timetable feed";
+  return "Manual event";
+}
+
 export const DEADLINE_TYPES: { value: DeadlineType; label: string }[] = [
   { value: "quiz", label: "Quiz" },
   { value: "assignment", label: "Assignment" },

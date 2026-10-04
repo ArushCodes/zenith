@@ -8,13 +8,15 @@ import { useAuth } from "@/hooks/use-auth";
 import { useBatch } from "@/hooks/use-batch";
 import { emailQueueQuery, type EmailIngest } from "@/lib/batches";
 import type { Deadline } from "@/lib/deadlines";
+import { fromIstInput, toIstInput, matchesNotice } from "@/lib/notice-drafts";
+import { deadlinesQueryFor } from "@/lib/deadlines";
 
 type Extracted = {
   title?: string;
   subject?: string;
   subject_code?: string;
   type?: Deadline["type"];
-  due_at?: string;
+  due_at?: string | null;
   work_mode?: Deadline["work_mode"];
   submission_link?: string;
   notes?: string;
@@ -26,13 +28,18 @@ const fmt = new Intl.DateTimeFormat("en-GB", {
   hour: "2-digit",
   minute: "2-digit",
   hour12: false,
+  timeZone: "Asia/Kolkata",
 });
 
 export function EmailInboxPanel() {
   const { user } = useAuth();
   const { batchId, canManage } = useBatch();
   const queryClient = useQueryClient();
-  const { data: items = [], isLoading } = useQuery(emailQueueQuery(batchId, canManage));
+  const {
+    data: items = [],
+    isLoading,
+    error: queueError,
+  } = useQuery(emailQueueQuery(batchId, canManage));
   const [openId, setOpenId] = useState<string | null>(null);
 
   const decide = useMutation({
@@ -48,6 +55,8 @@ export function EmailInboxPanel() {
       const candidate = draft ?? ((item.extracted ?? {}) as Extracted);
       if (approve && (!candidate.title || !candidate.due_at))
         throw new Error("Title and due date are required");
+      if (approve && candidate.due_at && !Number.isFinite(new Date(candidate.due_at).getTime()))
+        throw new Error("Enter a valid deadline");
       const { error } = await supabase.rpc(
         "review_email_candidate" as never,
         {
@@ -81,14 +90,16 @@ export function EmailInboxPanel() {
     <section className="mt-4 flex flex-col gap-6">
       <div>
         <p className="mb-2 flex items-center gap-2 font-mono text-[10px] uppercase tracking-[0.2em] text-cyan">
-          <Mail className="size-3.5" /> Detected in email · {pending.length}
+          <Mail className="size-3.5" /> Drafts · {pending.length}
         </p>
-        {isLoading ? (
+        {queueError ? (
+          <p role="alert" className="text-xs text-rose">
+            Could not load drafts. Retry when the connection is restored.
+          </p>
+        ) : isLoading ? (
           <p className="font-mono text-xs text-faint">Loading…</p>
         ) : pending.length === 0 ? (
-          <p className="font-mono text-xs text-faint">
-            Nothing waiting. Forwarded emails with deadlines will show up here for review.
-          </p>
+          <p className="font-mono text-xs text-faint">No drafts waiting.</p>
         ) : (
           <div className="flex flex-col gap-2">
             {pending.map((item) => (
@@ -150,6 +161,9 @@ function EmailCard({
 }) {
   const base = (item.extracted ?? {}) as Extracted;
   const [draft, setDraft] = useState<Extracted>(base);
+  const { batchId } = useBatch();
+  const { data: deadlines = [] } = useQuery(deadlinesQueryFor(batchId));
+  const duplicate = deadlines.some((event) => matchesNotice(event, draft));
 
   return (
     <motion.div layout className="rounded-xl bg-surface ring-1 ring-border">
@@ -177,72 +191,94 @@ function EmailCard({
             exit={{ opacity: 0, height: 0 }}
             className="overflow-hidden border-t border-border px-3 py-3"
           >
-            <div className="grid gap-2 sm:grid-cols-2">
-              <Field
-                label="Title"
-                value={draft.title ?? ""}
-                onChange={(v) => setDraft({ ...draft, title: v })}
-              />
-              <Field
-                label="Subject"
-                value={draft.subject ?? ""}
-                onChange={(v) => setDraft({ ...draft, subject: v })}
-              />
-              <Field
-                label="Subject code"
-                value={draft.subject_code ?? ""}
-                onChange={(v) => setDraft({ ...draft, subject_code: v })}
-              />
-              <label className="flex flex-col gap-1">
-                <span className="font-mono text-[10px] uppercase tracking-wide text-faint">
-                  Type
-                </span>
-                <select
-                  value={draft.type ?? "assignment"}
-                  onChange={(e) => setDraft({ ...draft, type: e.target.value as Deadline["type"] })}
-                  className="rounded-lg bg-surface2 px-3 py-2 text-sm ring-1 ring-border outline-none"
-                >
-                  {[
-                    "quiz",
-                    "assignment",
-                    "presentation",
-                    "midterm",
-                    "endterm",
-                    "guest_lecture",
-                    "other",
-                  ].map((t) => (
-                    <option key={t} value={t}>
-                      {t}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <Field
-                label="Due (local)"
-                type="datetime-local"
-                value={draft.due_at ? toLocalInput(draft.due_at) : ""}
-                onChange={(v) => setDraft({ ...draft, due_at: v })}
-              />
-              <Field
-                label="Submission link"
-                value={draft.submission_link ?? ""}
-                onChange={(v) => setDraft({ ...draft, submission_link: v })}
-              />
+            <div className="grid gap-4 lg:grid-cols-2">
+              <div className="grid gap-2 sm:grid-cols-2">
+                <Field
+                  label="Title"
+                  value={draft.title ?? ""}
+                  onChange={(v) => setDraft({ ...draft, title: v })}
+                />
+                <Field
+                  label="Subject"
+                  value={draft.subject ?? ""}
+                  onChange={(v) => setDraft({ ...draft, subject: v })}
+                />
+                <Field
+                  label="Subject code"
+                  value={draft.subject_code ?? ""}
+                  onChange={(v) => setDraft({ ...draft, subject_code: v })}
+                />
+                <label className="flex flex-col gap-1">
+                  <span className="font-mono text-[10px] uppercase tracking-wide text-faint">
+                    Type
+                  </span>
+                  <select
+                    value={draft.type ?? "assignment"}
+                    onChange={(e) =>
+                      setDraft({ ...draft, type: e.target.value as Deadline["type"] })
+                    }
+                    className="rounded-lg bg-surface2 px-3 py-2 text-sm ring-1 ring-border outline-none"
+                  >
+                    {[
+                      "quiz",
+                      "assignment",
+                      "presentation",
+                      "midterm",
+                      "endterm",
+                      "guest_lecture",
+                      "other",
+                    ].map((t) => (
+                      <option key={t} value={t}>
+                        {t}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <Field
+                  label="Deadline (IST)"
+                  type="datetime-local"
+                  value={draft.due_at ? toIstInput(draft.due_at) : ""}
+                  onChange={(v) => setDraft({ ...draft, due_at: fromIstInput(v) })}
+                />
+                <Field
+                  label="Submission link"
+                  value={draft.submission_link ?? ""}
+                  onChange={(v) => setDraft({ ...draft, submission_link: v })}
+                />
+              </div>
+
+              <div className="space-y-3">
+                <label className="block text-xs text-dim mt-3">
+                  Instructions
+                  <textarea
+                    className="w-full mt-1 rounded-lg bg-surface2 p-2 text-sm"
+                    rows={3}
+                    value={draft.notes || ""}
+                    onChange={(e) => setDraft({ ...draft, notes: e.target.value })}
+                  />
+                </label>
+                {item.body && (
+                  <p
+                    aria-label="Original notice"
+                    className="mt-3 max-h-72 overflow-y-auto whitespace-pre-wrap rounded-lg bg-surface2/60 p-2 font-mono text-[11px] text-dim"
+                  >
+                    {item.body}
+                  </p>
+                )}
+              </div>
             </div>
-
-            {item.body && (
-              <p className="mt-3 max-h-32 overflow-y-auto whitespace-pre-wrap rounded-lg bg-surface2/60 p-2 font-mono text-[11px] text-dim">
-                {item.body.slice(0, 1200)}
-              </p>
-            )}
-
-            <div className="mt-3 flex gap-2">
+            <div className="mt-3 flex flex-wrap gap-2">
+              {duplicate && (
+                <span role="status" className="text-xs text-amber">
+                  Matching event exists. Edit or dismiss this draft.
+                </span>
+              )}
               <button
-                disabled={busy}
+                disabled={busy || duplicate || !draft.title?.trim() || !draft.due_at}
                 onClick={() => onDecide(true, draft)}
                 className="flex items-center gap-1.5 rounded-lg bg-cyan px-3 py-1.5 text-sm font-semibold text-ground disabled:opacity-60"
               >
-                <Check className="size-3.5" /> Publish deadline
+                <Check className="size-3.5" /> Publish
               </button>
               <button
                 disabled={busy}
@@ -257,13 +293,6 @@ function EmailCard({
       </AnimatePresence>
     </motion.div>
   );
-}
-
-function toLocalInput(iso: string) {
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return "";
-  const pad = (n: number) => String(n).padStart(2, "0");
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
 function Field({

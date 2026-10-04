@@ -22,6 +22,7 @@ import {
 } from "lucide-react";
 import {
   cleanExamTitle,
+  eventSourceLabel,
   displayTitle,
   eventMeta,
   phaseOf,
@@ -392,7 +393,7 @@ export function FeedCard({
 
         <div className="flex items-center gap-2">
           <span className="hidden sm:inline-flex items-center gap-1 font-body text-[11px] font-medium text-faint">
-            <ShieldCheck className="size-3 text-cyan" /> Verified
+            {eventSourceLabel(deadline.source)}
           </span>
 
           {canManage && (

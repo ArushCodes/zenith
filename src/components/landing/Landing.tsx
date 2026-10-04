@@ -116,13 +116,13 @@ export function Landing({ onPreview }: LandingProps = {}) {
 
               {/* Punchy Headline (LCP Anchor) */}
               <h1 className="mt-5 font-display text-4xl sm:text-6xl lg:text-[62px] font-extrabold leading-[1.06] tracking-tight text-balance">
-                Never miss a deadline, class or attendance mark.
+                Your classes, deadlines and attendance.
               </h1>
 
               {/* Subtitle */}
               <p className="mt-5 max-w-xl text-base sm:text-lg leading-relaxed text-dim text-balance">
-                The private dashboard for your batch. Quizzes, assignments, exams, live timetable,
-                and your attendance percentages — maintained live by your class representatives.
+                A student board for TAPMI Manipal. View your timetable, follow batch events and
+                track attendance.
               </p>
 
               {/* HERO DUAL CALL-TO-ACTION (Sign Up & Log In) */}
@@ -282,11 +282,10 @@ export function Landing({ onPreview }: LandingProps = {}) {
         <section className="py-12 border-t border-border/60 [content-visibility:auto] [contain-intrinsic-size:1px_380px]">
           <div className="text-center max-w-2xl mx-auto mb-10">
             <h2 className="font-display text-2xl sm:text-3xl font-bold tracking-tight">
-              Built specifically for how TAPMI runs.
+              One board for your batch.
             </h2>
             <p className="mt-2 text-sm text-dim">
-              No WhatsApp chaos, no missed email chains. Everything synchronized directly to your
-              batch.
+              Timetable feeds and notices maintained by your batch representatives.
             </p>
           </div>
 
@@ -304,13 +303,13 @@ export function Landing({ onPreview }: LandingProps = {}) {
               },
               {
                 icon: UserCheck,
-                title: "Smart Attendance",
+                title: "Attendance planning",
                 desc: "Track classes missed and the allowance for your course credits. IPM 1 rules come from the handbook.",
               },
               {
                 icon: ShieldCheck,
-                title: "CR & Mod Verified",
-                desc: "Accurate information verified by your elected class reps. Zero rumor mill spam.",
+                title: "Batch notices",
+                desc: "Events added by representatives, with reviewed notice imports.",
               },
             ].map((feature, i) => (
               <motion.div
@@ -340,7 +339,7 @@ export function Landing({ onPreview }: LandingProps = {}) {
                 Batch-Private Isolation
               </span>
               <h2 className="mt-2 font-display text-2xl sm:text-3xl font-bold tracking-tight">
-                Strict 4-level institutional hierarchy.
+                Separate boards for each batch.
               </h2>
               <p className="mt-2 text-sm text-dim">
                 Sign up with your official ID, choose your batch, and your board is instantly
@@ -373,7 +372,7 @@ export function Landing({ onPreview }: LandingProps = {}) {
         <section className="mt-8 mb-8 rounded-3xl border border-border bg-gradient-to-b from-surface to-ground p-8 sm:p-12 text-center relative overflow-hidden [content-visibility:auto] [contain-intrinsic-size:1px_300px]">
           <div className="relative z-10 max-w-xl mx-auto">
             <h2 className="font-display text-3xl sm:text-4xl font-extrabold tracking-tight">
-              Ready to take control of your semester?
+              Join your batch.
             </h2>
             <p className="mt-3 text-sm sm:text-base text-dim">
               Join your fellow TAPMI batchmates. Sign up in under 60 seconds with your learner

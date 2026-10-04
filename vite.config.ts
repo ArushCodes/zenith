@@ -24,6 +24,8 @@ export default defineConfig(({ mode }) => {
     "EMAIL_INTAKE_SECRET",
     "AI_GATEWAY_URL",
     "AI_GATEWAY_API_KEY",
+    "AI_GATEWAY_MODEL",
+    "GEMINI_MODEL",
     "GEMINI_API_KEY",
   ]) {
     if (!process.env[key] && serverEnv[key]) process.env[key] = serverEnv[key];

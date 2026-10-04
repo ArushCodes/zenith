@@ -68,3 +68,71 @@ await assert.rejects(
 console.log(
   "Passed: attendance boundaries, rep precedence, feed URL guards, IST dates, recurrence exclusions and cancellations.",
 );
+
+const { noticeResultSchema, toIstInput, fromIstInput, matchesNotice } =
+  await import("../src/lib/notice-drafts");
+assert.equal(toIstInput("2026-10-05T04:00:00Z"), "2026-10-05T09:30");
+assert.equal(fromIstInput("2026-10-05T09:30"), "2026-10-05T04:00:00.000Z");
+assert.equal(fromIstInput(""), null);
+assert.equal(
+  matchesNotice(
+    { title: " Quiz ", due_at: "2026-10-05T09:30:00+05:30" },
+    { title: "quiz", due_at: "2026-10-05T04:00:00Z" },
+  ),
+  true,
+);
+assert.equal(
+  noticeResultSchema.parse({ events: [{ title: "Quiz", type: "quiz", due_at: null }] }).events[0]
+    .due_at,
+  null,
+);
+assert.throws(() =>
+  noticeResultSchema.parse({ events: [{ title: "Quiz", type: "quiz", due_at: "tomorrow" }] }),
+);
+assert.throws(() =>
+  noticeResultSchema.parse({
+    events: [{ title: "Quiz", type: "quiz", due_at: null, submission_link: "javascript:alert(1)" }],
+  }),
+);
+const { extractNotice } = await import("../src/lib/notice-extraction.server");
+const savedFetch = globalThis.fetch;
+const savedKey = process.env.GEMINI_API_KEY;
+try {
+  process.env.GEMINI_API_KEY = "unit-test-only";
+  globalThis.fetch = async (_url, options) => {
+    const payload = JSON.parse(String(options?.body));
+    assert.match(payload.systemInstruction.parts[0].text, /untrusted data/);
+    return Response.json({
+      candidates: [
+        {
+          content: {
+            parts: [
+              {
+                text: JSON.stringify({
+                  events: [
+                    { title: "Quiz", type: "quiz", due_at: null },
+                    {
+                      title: "Assignment",
+                      type: "assignment",
+                      due_at: "2026-10-05T23:59:00+05:30",
+                    },
+                  ],
+                }),
+              },
+            ],
+          },
+        },
+      ],
+    });
+  };
+  assert.equal((await extractNotice("Synthetic test notice", "2026-10-04")).length, 2);
+  globalThis.fetch = async () => new Response("error", { status: 429 });
+  await assert.rejects(extractNotice("test", "2026-10-04"), /429/);
+} finally {
+  globalThis.fetch = savedFetch;
+  if (savedKey === undefined) delete process.env.GEMINI_API_KEY;
+  else process.env.GEMINI_API_KEY = savedKey;
+}
+console.log(
+  "Passed: notice draft validation, missing deadlines, duplicate matching, IST editing and mocked extraction.",
+);

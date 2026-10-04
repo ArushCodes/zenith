@@ -51,6 +51,7 @@ import {
   type Deadline,
   displayTitle,
 } from "@/lib/deadlines";
+import { TimetableSyncStatus } from "@/components/board/TimetableSyncStatus";
 import { saveIcsUrl, syncTimetableNow } from "@/lib/timetable.functions";
 import { SessionMeta } from "@/components/common/SessionMeta";
 
@@ -300,6 +301,7 @@ export function TimetablePanel() {
         </div>
       </div>
 
+      <TimetableSyncStatus />
       {canManage && syncState && (
         <p className="mb-3 font-mono text-[10px] text-faint">
           {syncState.paused

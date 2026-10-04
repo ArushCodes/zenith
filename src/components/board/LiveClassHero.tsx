@@ -42,6 +42,7 @@ import {
   FALLBACK_COURSE_COLOR,
 } from "@/lib/courses";
 import { cleanExamTitle, dayKey, eventMeta, timeLeft, type Deadline } from "@/lib/deadlines";
+import { TimetableSyncStatus } from "./TimetableSyncStatus";
 import { SyllabusDialog } from "@/components/board/SyllabusDialog";
 
 type Props = {
@@ -211,12 +212,13 @@ export function LiveClassHero({
       : "#22D3EE";
 
   const inspected = classes.find((s) => s.id === inspectedId);
-  const featured = liveClass || nextClassToday || nextUpcomingAnyDay;
-  const dialValue = liveClass ? liveProgress.remainingMin : "↗";
+  const featured = offset === 0 ? liveClass || nextClassToday || nextUpcomingAnyDay : classes[0];
+  const dialValue = liveClass ? liveProgress.remainingMin : offset !== 0 ? classes.length : "↗";
 
   return (
     <motion.section
       aria-label="Current class tracker"
+      data-state={liveClass ? "live" : nextClassToday ? "next" : "idle"}
       className={`class-tracker ${minimal ? "class-tracker-minimal" : ""} relative overflow-hidden rounded-2xl border border-border/80 bg-surface/95 p-4 sm:p-5`}
       onPointerMove={(event) => {
         if (reducedMotion || event.pointerType !== "mouse") return;
@@ -269,7 +271,15 @@ export function LiveClassHero({
           </svg>
           <div>
             <strong>{dialValue}</strong>
-            <span>{liveClass ? "min left" : featured ? "up next" : "all clear"}</span>
+            <span>
+              {liveClass
+                ? "min left"
+                : offset !== 0
+                  ? "classes"
+                  : featured
+                    ? "up next"
+                    : "all clear"}
+            </span>
           </div>
         </div>
       )}
@@ -804,6 +814,7 @@ export function LiveClassHero({
         </div>
       )}
 
+      {minimal && <TimetableSyncStatus />}
       {/* ── Syllabus Dialog ── */}
       <SyllabusDialog
         deadline={syllabusExam}

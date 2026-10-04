@@ -9,6 +9,7 @@ import {
   Sparkles,
   UserCheck,
   FileQuestion,
+  Mail,
 } from "lucide-react";
 import { Link } from "@tanstack/react-router";
 
@@ -21,6 +22,7 @@ const icons = {
   grading: Sparkles,
   attendance: UserCheck,
   admin: ShieldCheck,
+  notices: Mail,
 };
 type Section = keyof typeof icons;
 export function DashboardSidebar({
@@ -28,12 +30,14 @@ export function DashboardSidebar({
   onSelect,
   batchLabel = "IPM 1",
   admin = false,
+  canManage = false,
   preview = false,
 }: {
   active: string;
   onSelect: (section: Section) => void;
   batchLabel?: string;
   admin?: boolean;
+  canManage?: boolean;
   preview?: boolean;
 }) {
   const sections: { key: Section; label: string }[] = [
@@ -44,6 +48,7 @@ export function DashboardSidebar({
     { key: "exams", label: "Exams" },
     { key: "grading", label: "Grades & goals" },
     { key: "attendance", label: "Attendance" },
+    ...(canManage ? [{ key: "notices" as const, label: "Import notices" }] : []),
     ...(admin ? [{ key: "admin" as const, label: "Admin console" }] : []),
   ];
   return (
@@ -52,7 +57,7 @@ export function DashboardSidebar({
         <span className="brand-symbol">z</span> zenith<span className="brand-period">.</span>
       </Link>
       <div className="sidebar-batch">
-        <span className="sidebar-batch-icon">IPM</span>
+        <span className="sidebar-batch-icon">{batchLabel.startsWith("MBA") ? "MBA" : "IPM"}</span>
         <div>
           <strong>{batchLabel}</strong>
           <span>TAPMI · Manipal</span>
@@ -79,9 +84,9 @@ export function DashboardSidebar({
       </nav>
       <div className="sidebar-bottom">
         <a href="mailto:support@zenithfor.me" className="sidebar-support">
-          <LifeBuoy size={17} /> Need a hand?
+          <LifeBuoy size={17} /> Support
         </a>
-        <span className="sidebar-footer">ZENITH / {preview ? "PREVIEW" : "STUDENT SPACE"}</span>
+        <span className="sidebar-footer">ZENITH / {preview ? "DEMO" : "TAPMI MANIPAL"}</span>
       </div>
     </aside>
   );

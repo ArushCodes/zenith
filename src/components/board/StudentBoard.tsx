@@ -56,6 +56,7 @@ import { CalendarPanel } from "@/components/calendar/CalendarPanel";
 import { TimetablePanel } from "@/components/timetable/TimetablePanel";
 import { AttendancePanel } from "@/components/attendance/AttendancePanel";
 import { AdminConsolePanel } from "@/components/admin/AdminConsolePanel";
+import { NoticeImportPanel } from "@/components/board/NoticeImportPanel";
 import { EmailInboxPanel } from "@/components/board/EmailInboxPanel";
 import { MembersPanel } from "@/components/board/MembersPanel";
 import { FeedbackPanel } from "@/components/board/FeedbackPanel";
@@ -77,7 +78,15 @@ import {
 } from "@/lib/deadlines";
 
 type TabKey =
-  "feed" | "calendar" | "timetable" | "quizzes" | "exams" | "grading" | "attendance" | "admin";
+  | "feed"
+  | "calendar"
+  | "timetable"
+  | "quizzes"
+  | "exams"
+  | "grading"
+  | "attendance"
+  | "notices"
+  | "admin";
 
 const QUIZ_TYPES = ["quiz"] as const;
 const MIDTERM_TYPES = ["midterm"] as const;
@@ -452,6 +461,9 @@ export default function StudentBoard({ guestPreview }: { guestPreview?: boolean 
     },
     { key: "grading", label: "Grading", icon: <Award className="size-4" /> },
     { key: "attendance", label: "Attendance", icon: <UserCheck className="size-4" /> },
+    ...(isMod
+      ? [{ key: "notices" as TabKey, label: "Import notices", icon: <Mail className="size-4" /> }]
+      : []),
     ...(isAdmin || isArush
       ? [
           {
@@ -474,7 +486,7 @@ export default function StudentBoard({ guestPreview }: { guestPreview?: boolean 
             icon: <ShieldCheck className="size-4" />,
             badge: pendingCount || undefined,
           },
-          { key: "inbox", label: "Inbox", icon: <Mail className="size-4" /> },
+          { key: "inbox", label: "Notice review", icon: <Mail className="size-4" /> },
         ]
       : []),
   ];
@@ -486,6 +498,7 @@ export default function StudentBoard({ guestPreview }: { guestPreview?: boolean 
         onSelect={setTab}
         batchLabel={batch ? formatBatchLabel(batch).code : "Your batch"}
         admin={isAdmin}
+        canManage={isMod}
       />
       <BoardHeader
         menuItems={menuItems}
@@ -731,7 +744,7 @@ export default function StudentBoard({ guestPreview }: { guestPreview?: boolean 
                                 ? "bg-surface text-ink shadow-xs font-semibold border border-border/80"
                                 : "text-faint hover:text-ink"
                             }`}
-                            title="Comfortable Cards view with full scope, countdowns, and quick actions"
+                            title="Cards"
                           >
                             <LayoutGrid className="size-3.5" />
                             <span className="hidden sm:inline">Cards</span>
@@ -744,7 +757,7 @@ export default function StudentBoard({ guestPreview }: { guestPreview?: boolean 
                                 ? "bg-surface text-ink shadow-xs font-semibold border border-border/80"
                                 : "text-faint hover:text-ink"
                             }`}
-                            title="Compact Linear view (single-line fast scanning)"
+                            title="Compact rows"
                           >
                             <List className="size-3.5" />
                             <span className="hidden sm:inline">Compact</span>
@@ -884,7 +897,7 @@ export default function StudentBoard({ guestPreview }: { guestPreview?: boolean 
                       </div>
                     ) : (
                       <div className="relative pl-4 sm:pl-7 border-l-2 border-border/70 ml-3.5 sm:ml-5 flex flex-col gap-6">
-                        {/* Bucket 1: Due in 48 Hours / Ongoing */}
+                        {/* Bucket 1: Due soon / Ongoing */}
                         {recencyBuckets.critical.length > 0 && (
                           <div className="relative">
                             {/* Spine Anchor Dot */}
@@ -1118,7 +1131,7 @@ export default function StudentBoard({ guestPreview }: { guestPreview?: boolean 
                     <AnnouncementsPanel compact />
                     <div className="block">
                       <FeedSection
-                        title="Attendance Overview"
+                        title="Attendance"
                         tone="text-cyan"
                         onSeeAll={() => setTab("attendance")}
                       >
@@ -1180,6 +1193,7 @@ export default function StudentBoard({ guestPreview }: { guestPreview?: boolean 
 
             {tab === "attendance" && <AttendancePanel now={now} />}
 
+            {tab === "notices" && isMod && <NoticeImportPanel />}
             {tab === "admin" && <AdminConsolePanel />}
           </motion.div>
         </AnimatePresence>

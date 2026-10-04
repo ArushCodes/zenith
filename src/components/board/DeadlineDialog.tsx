@@ -5,6 +5,7 @@ import { db as supabase } from "@/lib/backend";
 import { DEADLINE_TYPES, type Deadline, type DeadlineType } from "@/lib/deadlines";
 import { useBatch } from "@/hooks/use-batch";
 import { coursesQuery, sessionsQuery } from "@/lib/batches";
+import { toIstInput } from "@/lib/notice-drafts";
 import { isAcademicEvent } from "@/lib/courses";
 import {
   Dialog,
@@ -20,14 +21,12 @@ type Props = {
   deadline?: Deadline | null;
 };
 
-const pad = (n: number) => String(n).padStart(2, "0");
 const dateOf = (iso: string) => {
-  const d = new Date(iso);
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+  return toIstInput(iso).slice(0, 10);
 };
 const timeOf = (iso: string) => {
   const d = new Date(iso);
-  return `${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  return toIstInput(iso).slice(11, 16);
 };
 
 /** These deliverables must be attached to a real subject. */
@@ -53,7 +52,6 @@ const emptyForm = {
   working_group: "",
   notes: "",
 };
-
 
 const fieldClass =
   "w-full rounded-lg bg-ground px-3 py-2 text-sm text-ink ring-1 ring-border outline-none transition-shadow placeholder:text-faint focus:ring-cyan/50";
@@ -104,9 +102,8 @@ export function DeadlineDialog({ open, onOpenChange, deadline }: Props) {
   const save = useMutation({
     mutationFn: async () => {
       const allDay = !form.from;
-      const due = new Date(`${form.date}T${form.from || "00:00"}`);
-      const end =
-        !allDay && form.to ? new Date(`${form.date}T${form.to}`) : null;
+      const due = new Date(`${form.date}T${form.from || "00:00"}:00+05:30`);
+      const end = !allDay && form.to ? new Date(`${form.date}T${form.to}:00+05:30`) : null;
       if (end && end.getTime() <= due.getTime()) throw new Error("End time must be after start");
 
       const payload = {
@@ -139,7 +136,7 @@ export function DeadlineDialog({ open, onOpenChange, deadline }: Props) {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["deadlines"] });
-      toast.success(deadline ? "Deadline updated" : "Deadline added to the board");
+      toast.success(deadline ? "Deadline updated" : "Event added");
       onOpenChange(false);
     },
     onError: (error: Error) => toast.error(error.message),
@@ -176,7 +173,9 @@ export function DeadlineDialog({ open, onOpenChange, deadline }: Props) {
           }}
         >
           <div className="sm:col-span-2">
-            <label className={labelClass} htmlFor="title">Title</label>
+            <label className={labelClass} htmlFor="title">
+              Title
+            </label>
             <input
               id="title"
               required
@@ -188,7 +187,9 @@ export function DeadlineDialog({ open, onOpenChange, deadline }: Props) {
           </div>
 
           <div>
-            <label className={labelClass} htmlFor="type">Type</label>
+            <label className={labelClass} htmlFor="type">
+              Type
+            </label>
             <select
               id="type"
               className={`${fieldClass} mt-1`}
@@ -230,7 +231,9 @@ export function DeadlineDialog({ open, onOpenChange, deadline }: Props) {
           </div>
 
           <div>
-            <label className={labelClass} htmlFor="date">Date</label>
+            <label className={labelClass} htmlFor="date">
+              Date
+            </label>
             <input
               id="date"
               type="date"
@@ -243,7 +246,9 @@ export function DeadlineDialog({ open, onOpenChange, deadline }: Props) {
 
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className={labelClass} htmlFor="from">From (optional)</label>
+              <label className={labelClass} htmlFor="from">
+                Time (IST, optional)
+              </label>
               <input
                 id="from"
                 type="time"
@@ -255,7 +260,9 @@ export function DeadlineDialog({ open, onOpenChange, deadline }: Props) {
               />
             </div>
             <div>
-              <label className={labelClass} htmlFor="to">To</label>
+              <label className={labelClass} htmlFor="to">
+                To
+              </label>
               <input
                 id="to"
                 type="time"
@@ -268,7 +275,9 @@ export function DeadlineDialog({ open, onOpenChange, deadline }: Props) {
           </div>
 
           <div>
-            <label className={labelClass} htmlFor="mode">Work</label>
+            <label className={labelClass} htmlFor="mode">
+              Work
+            </label>
             <select
               id="mode"
               className={`${fieldClass} mt-1`}
@@ -277,13 +286,19 @@ export function DeadlineDialog({ open, onOpenChange, deadline }: Props) {
                 setForm({ ...form, work_mode: e.target.value as "individual" | "group" })
               }
             >
-              <option value="individual" className="bg-ground">Individual</option>
-              <option value="group" className="bg-ground">Group</option>
+              <option value="individual" className="bg-ground">
+                Individual
+              </option>
+              <option value="group" className="bg-ground">
+                Group
+              </option>
             </select>
           </div>
 
           <div>
-            <label className={labelClass} htmlFor="size">Group size</label>
+            <label className={labelClass} htmlFor="size">
+              Group size
+            </label>
             <input
               id="size"
               type="number"
@@ -297,7 +312,9 @@ export function DeadlineDialog({ open, onOpenChange, deadline }: Props) {
           </div>
 
           <div>
-            <label className={labelClass} htmlFor="wg">Working group no. (optional)</label>
+            <label className={labelClass} htmlFor="wg">
+              Working group no. (optional)
+            </label>
             <input
               id="wg"
               className={`${fieldClass} mt-1 font-mono`}
@@ -308,7 +325,9 @@ export function DeadlineDialog({ open, onOpenChange, deadline }: Props) {
           </div>
 
           <div>
-            <label className={labelClass} htmlFor="location">Location</label>
+            <label className={labelClass} htmlFor="location">
+              Location
+            </label>
             <input
               id="location"
               className={`${fieldClass} mt-1`}
@@ -319,7 +338,9 @@ export function DeadlineDialog({ open, onOpenChange, deadline }: Props) {
           </div>
 
           <div className="sm:col-span-2">
-            <label className={labelClass} htmlFor="link">Submission link</label>
+            <label className={labelClass} htmlFor="link">
+              Submission link
+            </label>
             <input
               id="link"
               type="url"

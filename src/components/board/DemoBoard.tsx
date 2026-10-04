@@ -88,23 +88,23 @@ export default function DemoBoard() {
   );
   const heading =
     tab === "feed"
-      ? "A good day starts with clarity."
+      ? "Feed"
       : tab === "calendar"
-        ? "Your week, in perspective."
+        ? "Calendar"
         : tab === "timetable"
-          ? "Find your daily rhythm."
+          ? "Timetable"
           : tab === "attendance"
-            ? "A little breathing room."
+            ? "Attendance"
             : tab === "grading"
-              ? "Small steps. Bigger goals."
-              : "Know what's coming.";
+              ? "Grades"
+              : "Exams";
   return (
     <div className="zenith-workspace demo-workspace">
       <DashboardSidebar active={tab} onSelect={setTab} preview />
       <header className="demo-header">
         <span className="demo-breadcrumb">
           Workspace <ChevronRight size={13} />
-          <strong>{tab === "feed" ? "Overview" : tab[0]!.toUpperCase() + tab.slice(1)}</strong>
+          <strong>{tab === "feed" ? "Feed" : tab[0]!.toUpperCase() + tab.slice(1)}</strong>
         </span>
         <div className="demo-header-actions">
           <span className="demo-pill">SAMPLE DATA</span>
@@ -128,7 +128,7 @@ export default function DemoBoard() {
           <div>
             <span className="workspace-eyebrow">YOUR ACADEMIC SPACE</span>
             <h1>{heading}</h1>
-            <p>Everything you need for your next move, in one place.</p>
+            <p>Sample data · demo only</p>
           </div>
           <span className="demo-date">
             <CalendarDays size={15} />
@@ -143,7 +143,7 @@ export default function DemoBoard() {
         <nav className="demo-mobile-nav" aria-label="Dashboard sections">
           {["feed", "calendar", "timetable", "exams", "grading", "attendance"].map((item) => (
             <button key={item} onClick={() => setTab(item)} aria-pressed={tab === item}>
-              {item === "feed" ? "Overview" : item}
+              {item === "feed" ? "Feed" : item}
             </button>
           ))}
         </nav>
