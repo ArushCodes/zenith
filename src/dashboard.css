@@ -1311,6 +1311,7 @@
   overflow: clip;
 }
 .class-tracker-minimal .class-tracker-feature {
+  min-height: 112px;
   padding: 10px 145px 10px 0 !important;
 }
 .class-tracker-minimal .class-tracker-toolbar {
@@ -1365,7 +1366,7 @@
   background: color-mix(in srgb, var(--cyan) 10%, var(--surface));
 }
 .class-tracker-minimal [aria-pressed] > div:last-child {
-  display: none;
+  display: flex;
 }
 .class-tracker-minimal [aria-pressed] > div:first-of-type > div:last-child {
   display: none;
@@ -1411,6 +1412,7 @@
 }
 @media (max-width: 600px) {
   .class-tracker-minimal .class-tracker-feature {
+    min-height: 88px;
     padding-right: 82px !important;
   }
   .class-progress-dial {

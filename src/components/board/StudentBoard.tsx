@@ -51,7 +51,6 @@ import { LiveClassHero } from "@/components/board/LiveClassHero";
 import { LiveClassHud } from "@/components/board/LiveClassHud";
 import { FeedCard, FeedCompactRow } from "@/components/board/FeedCard";
 import { usePersonalChecklist } from "@/hooks/use-personal-checklist";
-import { ActivityPanel } from "@/components/board/ActivityPanel";
 import { CalendarPanel } from "@/components/calendar/CalendarPanel";
 import { TimetablePanel } from "@/components/timetable/TimetablePanel";
 import { AttendancePanel } from "@/components/attendance/AttendancePanel";
@@ -659,6 +658,7 @@ export default function StudentBoard({ guestPreview }: { guestPreview?: boolean 
                 <LiveClassHero
                   now={now}
                   onSeeFullTimetable={() => setTab("timetable")}
+                  onSeeAttendance={() => setTab("attendance")}
                   canManage={isMod}
                   minimal
                 />
@@ -769,7 +769,9 @@ export default function StudentBoard({ guestPreview }: { guestPreview?: boolean 
                       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 pt-1 border-t border-border/50">
                         {/* Category Pills (Horizontal scrollable) */}
                         <div className="flex items-center gap-1.5 overflow-x-auto pb-1 sm:pb-0 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-                          {FEED_CATEGORIES.map((cat) => {
+                          {FEED_CATEGORIES.filter(
+                            (cat) => cat.count > 0 || cat.key === feedCategory || cat.key === "all",
+                          ).map((cat) => {
                             const active = feedCategory === cat.key;
                             return (
                               <motion.button
@@ -1129,16 +1131,6 @@ export default function StudentBoard({ guestPreview }: { guestPreview?: boolean 
                     className={`min-w-0 flex-col gap-6 lg:sticky lg:top-24 ${mobileTab === "sidebar" ? "flex" : "hidden lg:flex"}`}
                   >
                     <AnnouncementsPanel compact />
-                    <div className="block">
-                      <FeedSection
-                        title="Attendance"
-                        tone="text-cyan"
-                        onSeeAll={() => setTab("attendance")}
-                      >
-                        <AttendancePanel now={now} compact />
-                      </FeedSection>
-                    </div>
-                    <ActivityPanel compact />
                   </aside>
                 </div>
               </div>
@@ -1340,67 +1332,6 @@ function FeedList({
         ))}
       </AnimatePresence>
     </motion.div>
-  );
-}
-
-/** Titled block used to break the feed into readable sections. */
-function FeedSection({
-  title,
-  icon,
-  tone,
-  count,
-  urgent = false,
-  onSeeAll,
-  children,
-}: {
-  title: string;
-  icon?: React.ReactNode;
-  tone: string;
-  count?: number;
-  urgent?: boolean;
-  onSeeAll?: () => void;
-  children: React.ReactNode;
-}) {
-  return (
-    <motion.section
-      initial={{ opacity: 0, y: 10 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.3 }}
-      className="mb-5"
-    >
-      <div className="mb-3 flex items-center gap-3">
-        {icon && <span className={tone}>{icon}</span>}
-        <p className={`font-mono text-xs font-semibold uppercase tracking-[0.2em] ${tone}`}>
-          {title}
-        </p>
-        <span className="h-px flex-1 bg-border/80" />
-        {typeof count === "number" && (
-          <motion.span
-            key={count}
-            initial={{ scale: 0.85 }}
-            animate={{ scale: 1 }}
-            className={`rounded-full px-2.5 py-0.5 font-mono text-[11px] font-medium ring-1 ${
-              urgent
-                ? "bg-rose/12 text-rose ring-rose/30 font-bold animate-pulse"
-                : "bg-surface2 text-dim ring-border"
-            }`}
-          >
-            {count}
-          </motion.span>
-        )}
-        {onSeeAll && (
-          <motion.button
-            whileHover={{ scale: 1.05 }}
-            whileTap={{ scale: 0.95 }}
-            onClick={onSeeAll}
-            className="rounded-xl px-3 py-1 font-mono text-xs font-medium text-dim ring-1 ring-border transition-colors hover:bg-surface2 hover:text-ink cursor-pointer"
-          >
-            See all
-          </motion.button>
-        )}
-      </div>
-      {children}
-    </motion.section>
   );
 }
 

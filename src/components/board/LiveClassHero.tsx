@@ -44,10 +44,14 @@ import {
 import { cleanExamTitle, dayKey, eventMeta, timeLeft, type Deadline } from "@/lib/deadlines";
 import { TimetableSyncStatus } from "./TimetableSyncStatus";
 import { SyllabusDialog } from "@/components/board/SyllabusDialog";
+import { courseAttendance } from "@/lib/course-attendance";
+import { getBunkStatus, sessionSubject } from "@/lib/attendance";
+import { IPM1_BATCH_ID } from "@/lib/roster.data";
 
 type Props = {
   now: number;
   onSeeFullTimetable?: () => void;
+  onSeeAttendance?: () => void;
   onSeeExams?: () => void;
   deadlines?: Deadline[];
   canManage?: boolean;
@@ -71,6 +75,7 @@ const shortDayFmt = new Intl.DateTimeFormat("en-GB", {
 export function LiveClassHero({
   now,
   onSeeFullTimetable,
+  onSeeAttendance,
   onSeeExams,
   deadlines = [],
   canManage = false,
@@ -84,7 +89,11 @@ export function LiveClassHero({
 
   const { data: sessions = [] } = useQuery(sessionsQuery(batchId));
   const { data: courses = [] } = useQuery(coursesQuery(batchId));
-  const { data: marks = [] } = useQuery(attendanceQuery(batchId, isMember, user?.id, canManage));
+  const {
+    data: marks = [],
+    isPending: attendanceLoading,
+    isError: attendanceError,
+  } = useQuery(attendanceQuery(batchId, isMember || canManage, user?.id, canManage));
 
   const colorMap = useMemo(() => buildColorMap(courses, sessions), [courses, sessions]);
 
@@ -132,6 +141,11 @@ export function LiveClassHero({
 
   const [offset, setOffset] = useState(0);
   const [inspectedId, setInspectedId] = useState<string | null>(null);
+  const [showCompleted, setShowCompleted] = useState(false);
+  const attendanceByCourse = useMemo(
+    () => courseAttendance(sessions, marks, user?.id, now),
+    [sessions, marks, user?.id, now],
+  );
   const reducedMotion = useReducedMotion();
   const pointerX = useMotionValue(50);
   const pointerY = useMotionValue(50);
@@ -213,6 +227,19 @@ export function LiveClassHero({
 
   const inspected = classes.find((s) => s.id === inspectedId);
   const featured = offset === 0 ? liveClass || nextClassToday || nextUpcomingAnyDay : classes[0];
+  const attendanceClass = inspected || (offset === 0 ? liveClass || nextClassToday : featured);
+  const courseRecord = attendanceClass
+    ? attendanceByCourse.get(sessionSubject(attendanceClass))
+    : null;
+  const allowance =
+    attendanceClass && batchId === IPM1_BATCH_ID
+      ? getBunkStatus(sessionSubject(attendanceClass), courseRecord?.absent ?? 0)
+      : null;
+  const completedCount = classes.filter((s) => new Date(s.end_at).getTime() <= now).length;
+  const visibleClasses =
+    minimal && offset === 0 && !showCompleted
+      ? classes.filter((s) => new Date(s.end_at).getTime() > now)
+      : classes;
   const dialValue = liveClass ? liveProgress.remainingMin : offset !== 0 ? classes.length : "↗";
 
   return (
@@ -565,22 +592,73 @@ export function LiveClassHero({
         )}
       </AnimatePresence>
 
-      {/* ── Today's Schedule Glance (Roster of Periods) — Zero Clipping ── */}
+      {minimal && (isMember || canManage) && user && attendanceClass && (
+        <button
+          type="button"
+          onClick={onSeeAttendance}
+          className="relative z-10 mt-4 flex w-full flex-wrap items-center justify-between gap-3 rounded-xl border border-border/70 bg-surface2/50 px-4 py-3 text-left transition-colors hover:border-cyan/40"
+          aria-label={`View attendance for ${sessionSubject(attendanceClass)}`}
+        >
+          <div className="min-w-0">
+            <p className="text-[10px] font-semibold uppercase tracking-wider text-dim">
+              Your attendance · {sessionPeriodLabel(attendanceClass)}
+            </p>
+            <p className="mt-1 text-sm font-semibold text-ink">
+              {attendanceError
+                ? "Attendance unavailable"
+                : attendanceLoading
+                  ? "Loading attendance…"
+                  : courseRecord?.held
+                    ? `${courseRecord.present} present · ${courseRecord.absent} missed`
+                    : "No completed classes yet"}
+              {!attendanceLoading && !attendanceError && !!courseRecord?.unmarked && (
+                <span className="ml-2 text-xs font-normal text-dim">
+                  {courseRecord.unmarked} unmarked
+                </span>
+              )}
+            </p>
+          </div>
+          <div className="flex items-center gap-3 text-xs">
+            {allowance && !attendanceLoading && !attendanceError && (
+              <span className={allowance.safeLeft <= 0 ? "text-rose" : "text-cyan"}>
+                {allowance.safeLeft < 0
+                  ? `${Math.abs(allowance.safeLeft)} over allowance`
+                  : courseRecord?.unmarked
+                    ? `${allowance.allowed} miss allowance`
+                    : `${Math.max(0, allowance.safeLeft)} misses left`}
+              </span>
+            )}
+            <ArrowRight className="size-4 text-dim" />
+          </div>
+        </button>
+      )}
+
+      {/* Today's remaining classes stay visible; completed periods are optional. */}
       {classes.length > 0 && (
         <div className="class-tracker-schedule relative z-10 border-t border-border/60 pt-5 mt-4">
           <div className="mb-3 flex items-center justify-between">
             <span className="font-mono text-xs font-bold uppercase tracking-wider text-dim">
               {offset === 0 ? "Today" : shortDayFmt.format(selectedDate)} · {classes.length} classes
             </span>
+            {minimal && offset === 0 && completedCount > 0 && (
+              <button
+                type="button"
+                onClick={() => setShowCompleted((value) => !value)}
+                className="text-xs text-dim hover:text-ink"
+              >
+                {showCompleted ? "Hide completed" : `${completedCount} completed`}
+              </button>
+            )}
           </div>
 
           <div className="flex items-stretch gap-2.5 sm:gap-3 overflow-x-auto pb-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-            {classes.map((s) => {
+            {visibleClasses.map((s) => {
               const color = sessionColor(s, colorMap) ?? FALLBACK_COURSE_COLOR;
               const isLive = liveClass?.id === s.id;
               const isPast = new Date(s.end_at).getTime() <= now;
               const periodSubject = sessionPeriodLabel(s);
               const mark = myMarks.get(s.id);
+              const record = attendanceByCourse.get(sessionSubject(s));
 
               return (
                 <motion.button
@@ -629,7 +707,13 @@ export function LiveClassHero({
 
                   <div className="mt-3 pt-2 border-t border-border/50 flex items-center justify-between text-xs">
                     <span className="font-mono text-[10px] text-faint">
-                      {s.course_code || "Class"}
+                      {minimal &&
+                      (isMember || canManage) &&
+                      user &&
+                      !attendanceLoading &&
+                      !attendanceError
+                        ? `${record?.absent ?? 0} missed${record?.unmarked ? ` · ${record.unmarked} unmarked` : ""}`
+                        : s.course_code || "Class"}
                     </span>
                     {mark === "absent" ? (
                       <span className="font-mono text-[10px] font-bold text-rose">Absent</span>

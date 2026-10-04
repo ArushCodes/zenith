@@ -1,4 +1,7 @@
 import assert from "node:assert/strict";
+import { courseAttendance } from "../src/lib/course-attendance";
+import { sessionSubject } from "../src/lib/attendance";
+import type { ClassSession } from "../src/lib/batches";
 import {
   safeMisses,
   gradePenalty,
@@ -29,6 +32,38 @@ const self = {
 const rep = { ...self, mark_source: "rep", status: "absent" } as const;
 assert.equal(resolveMarks([rep, self] as never, "student").get("session")?.status, "absent");
 assert.equal(resolveMarks([self, rep] as never, "other").size, 0);
+const completedClass = {
+  id: "session",
+  title: "Mathematics",
+  course_name: "Mathematics",
+  start_at: "2026-10-05T03:30:00Z",
+  end_at: "2026-10-05T04:30:00Z",
+} as ClassSession;
+const courseRows = courseAttendance(
+  [
+    completedClass,
+    { ...completedClass, id: "unmarked" },
+    { ...completedClass, id: "future", end_at: "2026-10-06T04:30:00Z" },
+  ],
+  [self, rep] as never,
+  "student",
+  Date.parse("2026-10-05T05:00:00Z"),
+);
+assert.deepEqual(courseRows.get(sessionSubject(completedClass)), {
+  held: 2,
+  present: 0,
+  absent: 1,
+  unmarked: 1,
+});
+assert.equal(
+  courseAttendance(
+    [completedClass],
+    [self, rep] as never,
+    "other",
+    Date.parse("2026-10-05T05:00:00Z"),
+  ).get(sessionSubject(completedClass))?.unmarked,
+  1,
+);
 for (const url of [
   "http://example.com/calendar",
   "https://127.0.0.1/feed",
