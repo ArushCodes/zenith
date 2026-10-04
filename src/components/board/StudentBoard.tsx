@@ -542,7 +542,7 @@ export default function StudentBoard({ guestPreview }: { guestPreview?: boolean 
             {/* Flat Tab Bar with Animated Underline Accent */}
             <nav
               aria-label="Board sections"
-              className="workspace-navigation flex items-center gap-1 sm:gap-2 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden shrink-0"
+              className="workspace-navigation flex lg:hidden items-center gap-1 sm:gap-2 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden shrink-0"
             >
               {tabs.map((t) => {
                 const active = tab === t.key;

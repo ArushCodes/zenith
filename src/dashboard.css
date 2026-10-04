@@ -1476,7 +1476,7 @@
   outline-offset: 2px;
 }
 @media (min-width: 901px) {
-  .feed-page .workspace-navigation {
+  .workspace-navigation {
     display: none;
   }
 }

@@ -13,9 +13,11 @@ import type { Deadline } from "@/lib/deadlines";
 export function ExamMarks({
   deadline,
   defaultWeight = 20,
+  inline = false,
 }: {
   deadline: Deadline;
   defaultWeight?: number;
+  inline?: boolean;
 }) {
   const { batchId, isMember } = useBatch();
   const { user } = useAuth();
@@ -23,7 +25,7 @@ export function ExamMarks({
   const { data: marks = [] } = useQuery(examMarksQuery(batchId, user?.id));
   const mine = marks.find((m) => m.deadline_id === deadline.id) ?? null;
 
-  const [isOpen, setIsOpen] = useState(false);
+  const [isOpen, setIsOpen] = useState(inline);
   const [score, setScore] = useState("");
   const [total, setTotal] = useState("");
   const [weightage, setWeightage] = useState(String(defaultWeight));
@@ -64,7 +66,7 @@ export function ExamMarks({
     },
     onSuccess: () => {
       invalidate();
-      setIsOpen(false);
+      if (!inline) setIsOpen(false);
       toast.success("Marks saved successfully");
     },
     onError: (e: Error) => toast.error(e.message),
@@ -80,7 +82,7 @@ export function ExamMarks({
       invalidate();
       setScore("");
       setTotal("");
-      setIsOpen(false);
+      if (!inline) setIsOpen(false);
       toast.success("Marks removed");
     },
     onError: (e: Error) => toast.error(e.message),
@@ -137,28 +139,30 @@ export function ExamMarks({
             </div>
           )}
 
-          <button
-            type="button"
-            onClick={() => setIsOpen(!isOpen)}
-            className="flex items-center gap-1.5 rounded-xl border border-border bg-surface px-3 py-1.5 font-sans text-xs font-semibold text-dim hover:bg-surface2 hover:text-ink transition-colors cursor-pointer"
-          >
-            {mine ? (
-              <>
-                <Pencil className="size-3 text-amber" />
-                <span>{isOpen ? "Close" : "Edit Marks"}</span>
-              </>
-            ) : (
-              <>
-                <Award className="size-3 text-cyan" />
-                <span>{isOpen ? "Cancel" : "Record Score"}</span>
-              </>
-            )}
-            {isOpen ? (
-              <ChevronUp className="size-3.5 ml-0.5" />
-            ) : (
-              <ChevronDown className="size-3.5 ml-0.5" />
-            )}
-          </button>
+          {!inline && (
+            <button
+              type="button"
+              onClick={() => setIsOpen(!isOpen)}
+              className="flex items-center gap-1.5 rounded-xl border border-border bg-surface px-3 py-1.5 font-sans text-xs font-semibold text-dim hover:bg-surface2 hover:text-ink transition-colors cursor-pointer"
+            >
+              {mine ? (
+                <>
+                  <Pencil className="size-3 text-amber" />
+                  <span>{isOpen ? "Close" : "Edit Marks"}</span>
+                </>
+              ) : (
+                <>
+                  <Award className="size-3 text-cyan" />
+                  <span>{isOpen ? "Cancel" : "Record Score"}</span>
+                </>
+              )}
+              {isOpen ? (
+                <ChevronUp className="size-3.5 ml-0.5" />
+              ) : (
+                <ChevronDown className="size-3.5 ml-0.5" />
+              )}
+            </button>
+          )}
         </div>
       </div>
 
@@ -274,10 +278,16 @@ export function ExamMarks({
 
               <button
                 type="button"
-                onClick={() => setIsOpen(false)}
+                onClick={() => {
+                  if (inline) {
+                    setScore(mine ? String(mine.score) : "");
+                    setTotal(mine ? String(mine.total) : "");
+                    setWeightage(mine ? String(mine.weightage) : String(defaultWeight));
+                  } else setIsOpen(false);
+                }}
                 className="rounded-xl border border-border bg-surface2 px-3.5 py-2 font-sans text-xs font-semibold text-dim hover:text-ink transition-colors cursor-pointer"
               >
-                Cancel
+                {inline ? "Reset" : "Cancel"}
               </button>
 
               <button

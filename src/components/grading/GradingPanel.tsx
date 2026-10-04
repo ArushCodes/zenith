@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { GradingPanel as PersonalGradingPanel } from "@/components/board/GradingPanel";
 import { useBatch } from "@/hooks/use-batch";
 import { IPM1_BATCH_ID } from "@/lib/roster.data";
@@ -178,78 +179,105 @@ export const IPM1_COURSES: CourseGradingInfo[] = [
 export function GradingPanel() {
   const { batchId } = useBatch();
   const reduced = useReducedMotion();
+  const [view, setView] = useState("marks");
   return (
     <div className="space-y-4">
-      <PersonalGradingPanel />
+      <nav
+        aria-label="Grading views"
+        className="sticky top-16 z-20 flex gap-1 rounded-xl border border-border bg-surface p-1"
+      >
+        {(
+          [
+            ["marks", "My marks"],
+            ["weights", "Weightages"],
+            ["targets", "Targets"],
+          ] as const
+        )
+          .filter(([key]) => key === "marks" || batchId === IPM1_BATCH_ID)
+          .map(([key, label]) => (
+            <button
+              type="button"
+              key={key}
+              aria-pressed={view === key}
+              onClick={() => setView(key)}
+              className={`flex-1 rounded-lg px-3 py-2 text-xs font-semibold transition-colors ${view === key ? "bg-cyan/15 text-cyan" : "text-dim hover:bg-surface2"}`}
+            >
+              {label}
+            </button>
+          ))}
+      </nav>
+      <div hidden={view !== "marks" && batchId === IPM1_BATCH_ID}>
+        <PersonalGradingPanel />
+      </div>
       {batchId === IPM1_BATCH_ID && (
         <>
-          <details className="rounded-xl border border-border bg-surface p-4">
-            <summary className="cursor-pointer text-sm font-semibold">
-              Course weightages · IPM 1
-            </summary>
-            <div className="mt-4 grid gap-3 md:grid-cols-2">
-              {IPM1_COURSES.map((c) => {
-                const parts = [
-                  ["Midterm", c.midtermVal, "#fb7185"],
-                  ["Endterm", c.endtermVal, "#22d3ee"],
-                  ["Quizzes", c.quizzesVal, "#c084fc"],
-                  ["Project", c.projectVal, "#fbbf24"],
-                  ["Other", c.assignmentsVal, "#34d399"],
-                ] as const;
-                return (
-                  <details key={c.code} className="rounded-lg border border-border p-3">
-                    <summary className="cursor-pointer text-xs font-semibold">
-                      {c.name} <span className="text-dim">· {c.credits} credits</span>
-                      <span className="mt-2 flex h-2 overflow-hidden rounded-full bg-surface2">
+          {view === "weights" && (
+            <section className="rounded-xl border border-border bg-surface p-4">
+              <div className="mt-4 grid gap-3 md:grid-cols-2">
+                {IPM1_COURSES.map((c) => {
+                  const parts = [
+                    ["Midterm", c.midtermVal, "#fb7185"],
+                    ["Endterm", c.endtermVal, "#22d3ee"],
+                    ["Quizzes", c.quizzesVal, "#c084fc"],
+                    ["Project", c.projectVal, "#fbbf24"],
+                    ["Other", c.assignmentsVal, "#34d399"],
+                  ] as const;
+                  return (
+                    <details key={c.code} className="rounded-lg border border-border p-3">
+                      <summary className="cursor-pointer text-xs font-semibold">
+                        {c.name} <span className="text-dim">· {c.credits} credits</span>
+                        <span className="mt-2 flex h-2 overflow-hidden rounded-full bg-surface2">
+                          {parts
+                            .filter((p) => p[1] > 0)
+                            .map(([label, value, color]) => (
+                              <motion.span
+                                key={label}
+                                initial={false}
+                                animate={{ width: value + "%" }}
+                                transition={{ duration: reduced ? 0 : 0.3 }}
+                                style={{ backgroundColor: color }}
+                                title={label + " " + value + "%"}
+                              />
+                            ))}
+                        </span>
+                      </summary>
+                      <div className="mt-3 flex flex-wrap gap-3 text-xs">
                         {parts
                           .filter((p) => p[1] > 0)
                           .map(([label, value, color]) => (
-                            <motion.span
-                              key={label}
-                              initial={false}
-                              animate={{ width: value + "%" }}
-                              transition={{ duration: reduced ? 0 : 0.3 }}
-                              style={{ backgroundColor: color }}
-                              title={label + " " + value + "%"}
-                            />
+                            <span key={label} style={{ color }}>
+                              {label} {value}%
+                            </span>
                           ))}
-                      </span>
-                    </summary>
-                    <div className="mt-3 flex flex-wrap gap-3 text-xs">
-                      {parts
-                        .filter((p) => p[1] > 0)
-                        .map(([label, value, color]) => (
-                          <span key={label} style={{ color }}>
-                            {label} {value}%
-                          </span>
+                      </div>
+                      {[
+                        c.midtermText,
+                        c.endtermText,
+                        c.quizzesText,
+                        c.projectText,
+                        c.assignmentsText,
+                        ...(c.notes ?? []),
+                      ]
+                        .filter((n) => n && n !== "—" && !/^\d+%$/.test(n))
+                        .map((n, i) => (
+                          <p key={i} className="mt-2 text-xs text-dim">
+                            {n}
+                          </p>
                         ))}
-                    </div>
-                    {[
-                      c.midtermText,
-                      c.endtermText,
-                      c.quizzesText,
-                      c.projectText,
-                      c.assignmentsText,
-                      ...(c.notes ?? []),
-                    ]
-                      .filter((n) => n && n !== "—" && !/^\d+%$/.test(n))
-                      .map((n, i) => (
-                        <p key={i} className="mt-2 text-xs text-dim">
-                          {n}
-                        </p>
-                      ))}
-                  </details>
-                );
-              })}
-            </div>
-          </details>
-          <details className="rounded-xl border border-border bg-surface p-4">
-            <summary className="cursor-pointer text-sm font-semibold">Explore GPA targets</summary>
-            <p className="my-3 text-xs text-dim">
-              Planning estimates. Relative grading determines the final result.
-            </p>
-            <GpaSimulator courses={IPM1_COURSES} />
-          </details>
+                    </details>
+                  );
+                })}
+              </div>
+            </section>
+          )}
+          {view === "targets" && (
+            <section className="rounded-xl border border-border bg-surface p-4">
+              <p className="my-3 text-xs text-dim">
+                Planning estimates. Relative grading determines the final result.
+              </p>
+              <GpaSimulator courses={IPM1_COURSES} />
+            </section>
+          )}
         </>
       )}
     </div>

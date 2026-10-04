@@ -1,3 +1,7 @@
+import { useQuery } from "@tanstack/react-query";
+import { useAuth } from "@/hooks/use-auth";
+import { useBatch } from "@/hooks/use-batch";
+import { examMarksQuery } from "@/lib/marks";
 import { useMemo, useState } from "react";
 import { motion, useReducedMotion } from "framer-motion";
 import { ChevronDown, Pencil, Search, Trash2 } from "lucide-react";
@@ -20,6 +24,9 @@ export function AssessmentAgenda({
   onDelete: (d: Deadline) => void;
   onOpen?: (d: Deadline) => void;
 }) {
+  const { user } = useAuth();
+  const { batchId } = useBatch();
+  const { data: marks = [] } = useQuery(examMarksQuery(batchId, user?.id));
   const [search, setSearch] = useState("");
   const [open, setOpen] = useState<string | null>(null);
   const reduced = useReducedMotion();
@@ -105,7 +112,7 @@ export function AssessmentAgenda({
               </>
             )}
           </div>
-          <ExamMarks deadline={d} defaultWeight={0} />
+          <ExamMarks deadline={d} defaultWeight={0} inline />
         </motion.div>
       )}
     </motion.article>
