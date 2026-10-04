@@ -1,6 +1,8 @@
 import "@tanstack/react-start/server-only";
 import ical, { type ParameterValue } from "node-ical";
 import { FeedError } from "./safe-url";
+import { isAssessmentSession } from "./courses";
+import { dayKey } from "./deadlines";
 
 const text = (value: ParameterValue | undefined): string =>
   typeof value === "string" ? value : (value?.val ?? "");
@@ -38,9 +40,15 @@ export async function parseCalendarSessions(source: string, batchId: string) {
       const start = instance.start.toISOString();
       const end = instance.end.toISOString();
       if (end < start) throw new FeedError("A calendar event ends before it starts.");
-      const summary = text(instance.event.summary).trim() || "Class";
+      const rawSummary = text(instance.event.summary).trim() || "Class";
+      const assessment = isAssessmentSession({
+        title: rawSummary,
+        course_name: field(text(instance.event.description), "Course"),
+        short_name: null,
+      });
+      const summary = assessment ? rawSummary.replace(/^🎉\s*/, "") : rawSummary;
       const desc = text(instance.event.description);
-      const holiday = /holiday/i.test(summary) || /^🎉/.test(summary);
+      const holiday = !assessment && (/holiday/i.test(summary) || /^🎉/.test(summary));
       const slot = field(desc, "Slot");
       const code = slot ? (/:\s*([A-Z]{2,4}\s?\d{3,4})/.exec(slot)?.[1] ?? null) : null;
       const number = /-(\d+)\s*$/.exec(slot ?? "")?.[1] ?? /-\s*S(\d+)\s*-/.exec(summary)?.[1];
@@ -67,5 +75,12 @@ export async function parseCalendarSessions(source: string, batchId: string) {
         throw new FeedError("Calendar has more than 5,000 sessions. Narrow the feed range.");
     }
   }
-  return rows;
+  const holidayDays = new Set(
+    rows.filter((row) => row.is_holiday).map((row) => dayKey(row.start_at)),
+  );
+  // Generic exam-period placeholders on a declared holiday are feed artefacts.
+  return rows.filter(
+    (row) =>
+      !(holidayDays.has(dayKey(row.start_at)) && /end[\s-]?term.*conceptual/i.test(row.title)),
+  );
 }

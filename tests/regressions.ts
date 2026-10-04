@@ -42,7 +42,13 @@ const completedClass = {
 assert.equal(defaultClassDay([completedClass], Date.parse("2026-10-05T04:29:59Z")), 0);
 assert.equal(defaultClassDay([completedClass], Date.parse("2026-10-05T04:30:00Z")), 1);
 assert.equal(defaultClassDay([], Date.parse("2026-10-05T05:00:00Z")), 0);
-assert.equal(defaultClassDay([completedClass, { ...completedClass, end_at: "2026-10-05T08:00:00Z" }], Date.parse("2026-10-05T05:00:00Z")), 0);
+assert.equal(
+  defaultClassDay(
+    [completedClass, { ...completedClass, end_at: "2026-10-05T08:00:00Z" }],
+    Date.parse("2026-10-05T05:00:00Z"),
+  ),
+  0,
+);
 const courseRows = courseAttendance(
   [
     completedClass,
@@ -83,6 +89,19 @@ const calendar = (events: string) =>
 const event = (extra = "", date = "20261005T090000") =>
   `BEGIN:VEVENT\r\nUID:course-1\r\nDTSTART:${date}\r\nDTEND:20261005T101500\r\nSUMMARY:Mathematics\r\n${extra}\r\nEND:VEVENT`;
 const floating = await parseCalendarSessions(calendar(event()), "batch");
+const examPlaceholder = event().replace("SUMMARY:Mathematics", "SUMMARY:🎉 End Term - Conceptual");
+const parsedExam = await parseCalendarSessions(calendar(examPlaceholder), "batch");
+assert.equal(parsedExam[0]?.is_holiday, false);
+assert.equal(parsedExam[0]?.title, "End Term - Conceptual");
+const holidayPlaceholder = event()
+  .replace("UID:course-1", "UID:holiday-1")
+  .replace("SUMMARY:Mathematics", "SUMMARY:🎉 VIJAYA DASHAMI");
+const examOnHoliday = await parseCalendarSessions(
+  calendar(examPlaceholder + "\r\n" + holidayPlaceholder),
+  "batch",
+);
+assert.equal(examOnHoliday.length, 1);
+assert.equal(examOnHoliday[0]?.is_holiday, true);
 assert.equal(floating[0]?.start_at, "2026-10-05T03:30:00.000Z");
 const explicit = await parseCalendarSessions(
   calendar(

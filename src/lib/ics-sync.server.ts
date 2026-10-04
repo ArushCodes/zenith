@@ -85,7 +85,7 @@ export async function syncBatch(batchId: string, force = false): Promise<string>
   }
 }
 
-import { autoColor } from "@/lib/courses";
+import { autoColor, isAssessmentSession } from "@/lib/courses";
 
 /** Derive the course catalogue from synced sessions and give each a unique colour. */
 async function syncCourses(
@@ -96,7 +96,7 @@ async function syncCourses(
 
   const map = new Map<string, { name: string; short: string; faculty: string | null }>();
   for (const r of rows) {
-    if (r.is_holiday) continue;
+    if (r.is_holiday || isAssessmentSession(r)) continue;
     // Feeds without a slot code still get a catalogue entry keyed by subject name.
     const code = r.course_code ?? r.short_name ?? r.course_name;
     if (!code) continue;

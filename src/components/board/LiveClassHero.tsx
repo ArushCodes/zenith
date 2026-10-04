@@ -32,7 +32,6 @@ import { attendanceQuery, coursesQuery, sessionsQuery, type ClassSession } from 
 import {
   autoColor,
   buildColorMap,
-  isAcademicEvent,
   isDayOff,
   isTeachingClass,
   sessionColor,
@@ -172,7 +171,7 @@ export function LiveClassHero({
   const classes = useMemo(() => daySessions.filter(isTeachingClass), [daySessions]);
 
   const isWeekendOff = useMemo(() => isDayOff(selectedDate), [selectedDate]);
-  const isHoliday = useMemo(() => daySessions.some(isAcademicEvent), [daySessions]);
+  const isHoliday = useMemo(() => daySessions.some((s) => s.is_holiday), [daySessions]);
 
   const liveClass = useMemo(() => {
     if (offset !== 0) return null;

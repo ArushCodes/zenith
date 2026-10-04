@@ -318,9 +318,9 @@ export function isHoliday(s: ClassSession) {
 /** Assessments (quizzes, tests, exams…) live on the timetable but are never
  *  taught classes, so attendance must ignore them. */
 const ASSESSMENT_RE =
-  /\b(quiz|test|exam|midterm|mid-?term|endterm|end-?term|viva|presentation)\b/i;
+  /\b(quiz|test|exam|mid[\s-]?term|end[\s-]?term|viva|presentation)\b/i;
 
-export function isAssessmentSession(s: ClassSession) {
+export function isAssessmentSession(s: Pick<ClassSession, "title" | "course_name" | "short_name">) {
   return (
     ASSESSMENT_RE.test(s.title) ||
     ASSESSMENT_RE.test(s.course_name ?? "") ||
