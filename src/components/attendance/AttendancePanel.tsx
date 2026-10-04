@@ -1,3 +1,4 @@
+import { attendanceColor } from "@/lib/attendance-colors";
 import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { motion } from "framer-motion";
@@ -29,30 +30,23 @@ import {
   CONTINUOUS_ABSENCE_DAYS,
   DEBARMENT_LINE,
   HARD_LINE,
-  LEAVE_COPY,
   PENALTY_PER_SESSION,
   PL_CAP_PCT,
-  SAFE_LINE,
   TOTAL_CAP_PCT,
   consecutiveNeededFor70,
   courseCredits,
   eligibilityMisses,
   getBunkStatus,
-  gradePenalty,
   leaveCaps,
   longestAbsenceRun,
-  meterColor,
   plannedFor,
   resolveMarks,
   safeMissBufferFor70,
-  safeMisses,
   sessionSubject,
   shortSubject,
   trimesterEnd,
-  untilReset,
   type LeaveType,
 } from "@/lib/attendance";
-import { MissAllowance } from "./MissAllowance";
 import { SessionMeta } from "@/components/common/SessionMeta";
 import { isTeachingClass, sessionLabel, autoColor } from "@/lib/courses";
 
@@ -256,31 +250,6 @@ export function AttendancePanel({ now, compact = false }: { now: number; compact
     [classes, absentIds, now],
   );
 
-  /** Donut source: one subject when focused, else the whole trimester. */
-  const overall = useMemo(() => {
-    const rows = focus ? stats.filter((s) => s.course === focus) : stats;
-    const planned = rows.reduce((a, s) => a + s.planned, 0);
-    const pl = rows.reduce((a, s) => a + s.pl, 0);
-    const il = rows.reduce((a, s) => a + s.il, 0);
-    const absent = pl + il;
-    const attended = Math.max(0, planned - absent);
-    const caps = leaveCaps(planned, pl);
-    return {
-      planned,
-      pl,
-      il,
-      absent,
-      caps,
-      plLeft: caps.personal - pl,
-      ilLeft: caps.institutional - il,
-      totalLeft: caps.total - absent,
-      safeLeft: safeMisses(planned) - absent,
-      eligibleLeft: eligibilityMisses(planned) - absent,
-      penalty: gradePenalty(planned, absent),
-      pct: planned ? Math.round((attended / planned) * 100) : 100,
-    };
-  }, [stats, focus]);
-
   const conflicts = useMemo(() => {
     const bySession = new Map<string, AttendanceMark[]>();
     for (const m of marks)
@@ -320,8 +289,6 @@ export function AttendancePanel({ now, compact = false }: { now: number; compact
     a.click();
     URL.revokeObjectURL(url);
   }
-
-  const focused = focus ? stats.find((s) => s.course === focus) : null;
 
   const criticalDebarment = useMemo(
     () => stats.filter((s) => s.held > 0 && s.heldPct < DEBARMENT_LINE),
@@ -537,87 +504,19 @@ export function AttendancePanel({ now, compact = false }: { now: number; compact
               </div>
             )}
 
-            {/* ---------------- Hero ---------------- */}
-            <div className="rounded-2xl bg-surface p-4 sm:p-5 ring-1 ring-border">
-              <div
-                className={`flex flex-col items-center ${compact ? "gap-4" : "gap-6 sm:flex-row sm:items-center"}`}
-              >
-                <div className="grid w-full shrink-0 grid-cols-2 gap-2 sm:w-64">
-                  {(focused ? [focused] : stats).map((row) => (
-                    <div
-                      key={row.course}
-                      className="rounded-xl border border-border bg-surface2/40 p-3"
-                    >
-                      <p className="mb-1 truncate text-xs text-dim">
-                        {shortSubject(row.course, 20)}
-                      </p>
-                      <MissAllowance course={row.course} missed={row.absent} />
-                    </div>
-                  ))}
-                </div>
-
-                <div className="min-w-0 flex-1 w-full">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <h3 className="min-w-0 truncate font-display text-xl font-semibold leading-tight">
-                      {focused ? shortSubject(focused.course, compact ? 20 : 28) : "All subjects"}
-                    </h3>
-                    {focused && (
-                      <button
-                        onClick={() => setFocus(null)}
-                        className="ml-auto shrink-0 rounded-lg px-2 py-1 font-mono text-[10px] text-faint ring-1 ring-border hover:text-ink"
-                      >
-                        Show all
-                      </button>
-                    )}
-                  </div>
-
-                  <p className="mt-2 text-xs sm:text-sm leading-relaxed text-dim">
-                    {focused
-                      ? "Remaining penalty-free misses for this course."
-                      : "Each course has its own miss allowance. Unused misses cannot transfer between courses."}
-                  </p>
-
-                  <div className="mt-4 grid grid-cols-3 gap-2">
-                    <StatTile label="Projected" value={overall.planned - overall.absent} />
-                    <StatTile label="Missed" value={overall.absent} />
-                    <StatTile label="Planned" value={overall.planned} />
-                  </div>
-
-                  <Rail pct={overall.pct} labels />
-
-                  <div
-                    className={`mt-5 grid gap-x-6 gap-y-3 ${compact ? "grid-cols-1" : "sm:grid-cols-2"}`}
-                  >
-                    <LeaveBar type="personal" used={overall.pl} cap={overall.caps.personal} />
-                    <LeaveBar
-                      type="institutional"
-                      used={overall.il}
-                      cap={overall.caps.institutional}
-                    />
-                  </div>
-
-                  {termEnd && (
-                    <p className="mt-3 font-mono text-[10px] leading-relaxed text-faint">
-                      Budget runs to {termFmt.format(new Date(termEnd))} · resets in{" "}
-                      {untilReset(termEnd, now)}
-                    </p>
-                  )}
-
-                  {longestRun.days > CONTINUOUS_ABSENCE_DAYS && (
-                    <p className="mt-3 flex items-start gap-2 rounded-lg bg-rose/10 px-2.5 py-2 font-mono text-[10px] leading-relaxed text-rose ring-1 ring-rose/30">
-                      <AlertTriangle className="mt-0.5 size-3.5 shrink-0" />
-                      <span className="min-w-0 flex-1">
-                        {longestRun.days} continuous days absent (
-                        {termFmt.format(new Date(longestRun.from))} –{" "}
-                        {termFmt.format(new Date(longestRun.to))}). Over {CONTINUOUS_ABSENCE_DAYS}{" "}
-                        days without the Director's approval means withdrawal.
-                      </span>
-                    </p>
-                  )}
-                </div>
-              </div>
-            </div>
-
+            <PolicyCard />
+            {termEnd && (
+              <p className="text-xs text-dim">
+                Term ends {termFmt.format(new Date(termEnd))}. Allowances apply separately to each
+                subject.
+              </p>
+            )}
+            {longestRun.days > CONTINUOUS_ABSENCE_DAYS && (
+              <p className="rounded-lg border border-rose/30 p-3 text-xs text-rose">
+                {longestRun.days} continuous days absent. More than 13 days without written Director
+                approval can mean withdrawal.
+              </p>
+            )}
             {/* ---------------- Subject list ---------------- */}
             <div className="overflow-hidden rounded-2xl bg-surface ring-1 ring-border">
               <div className="flex items-center gap-2 border-b border-border px-4 py-2.5">
@@ -625,7 +524,7 @@ export function AttendancePanel({ now, compact = false }: { now: number; compact
                   By subject
                 </p>
                 <p className="ml-auto font-mono text-[10px] text-faint">
-                  {HARD_LINE}% eligibility · {SAFE_LINE}% no penalty
+                  {HARD_LINE}% eligibility · 1 miss per credit
                 </p>
               </div>
               {stats.map((s) => (
@@ -687,8 +586,6 @@ export function AttendancePanel({ now, compact = false }: { now: number; compact
             )}
           </section>
         )}
-
-        {!compact && <PolicyCard />}
       </div>
 
       <BunkSimulatorModal
@@ -702,129 +599,50 @@ export function AttendancePanel({ now, compact = false }: { now: number; compact
   );
 }
 
-/** Small labelled number used in the hero. */
-function StatTile({ label, value }: { label: string; value: number }) {
-  return (
-    <div className="min-w-0 rounded-xl bg-surface2/60 px-2 sm:px-3 py-2 ring-1 ring-border">
-      <p className="font-display text-lg font-semibold leading-none">{value}</p>
-      <p className="mt-1 truncate font-mono text-[9px] uppercase tracking-wider text-faint">
-        {label}
-      </p>
-    </div>
-  );
-}
-
-/** One leave type as a slim used/cap bar. */
-function LeaveBar({ type, used, cap }: { type: LeaveType; used: number; cap: number }) {
-  const over = used > cap;
-  const fill = cap > 0 ? Math.min(100, (used / cap) * 100) : used > 0 ? 100 : 0;
-  return (
-    <div title={LEAVE_COPY[type].detail} className="min-w-0">
-      <div className="flex items-baseline gap-2 min-w-0">
-        <span className="truncate font-mono text-[10px] uppercase tracking-wider text-faint">
-          {LEAVE_COPY[type].label}
-        </span>
-        <span
-          className={`ml-auto font-mono text-[11px] shrink-0 ${over ? "text-rose" : "text-dim"}`}
-        >
-          {used}/{cap}
-        </span>
-      </div>
-      <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-surface2">
-        <motion.div
-          initial={{ width: 0 }}
-          animate={{ width: `${fill}%` }}
-          transition={{ type: "spring", stiffness: 120, damping: 24 }}
-          className={`h-full rounded-full ${over ? "bg-rose" : "bg-cyan/70"}`}
-        />
-      </div>
-    </div>
-  );
-}
-
-/** The handbook rules, spelled out so nobody has to open the PDF. */
 function PolicyCard() {
   return (
-    <div className="rounded-2xl bg-surface p-4 font-mono text-[11px] leading-relaxed text-dim ring-1 border border-border">
-      <div className="flex flex-wrap items-center gap-2 mb-2">
-        <p className="font-display text-sm font-semibold text-ink">TAPMI IPM Attendance Policy</p>
-        <span className="rounded bg-cyan/15 px-2 py-0.5 font-mono text-[10px] text-cyan">
-          Credit & Bunk Rules
-        </span>
-      </div>
-      <ul className="mt-2 flex flex-col gap-2">
-        <li>
-          <strong className="text-ink">Credit-to-Session Ratio:</strong> Total course sessions are
-          strictly fixed by credits:{" "}
-          <span className="text-ink font-semibold">1 Credit = 8 Sessions</span>,{" "}
-          <span className="text-ink font-semibold">2 Credits = 16 Sessions</span>, and{" "}
-          <span className="text-ink font-semibold">3 Credits = 24 Sessions</span> (never from
-          Registro counts).
-        </li>
-        <li>
-          <strong className="text-ink">1 Miss Per Credit Rule:</strong> You are allowed to miss
-          exactly <span className="text-emerald-500 font-semibold">1 class per credit</span> without
-          penalty (1 bunk for 1-credit, 2 bunks for 2-credit, and 3 bunks for 3-credit courses).
-        </li>
-        <li>
-          <strong className="text-ink">Course grade-point deduction:</strong> Missing any class
-          beyond your credit allowance incurs an immediate{" "}
-          <span className="text-rose font-bold">
-            0.5 course grade-point deduction for every subsequent class missed
-          </span>
-          .
-        </li>
-        <li>
-          <strong className="text-ink">70% Debarment Threshold:</strong> In addition to safe bunks,
-          The IPM 1 handbook specifies{" "}
-          <span className="text-amber-500 font-semibold">&ge;70% attendance</span> over the complete
-          course, subject to the separate personal and institutional leave limits. Held-to-date
-          percentages are progress indicators.
-        </li>
-        <li>
-          <strong className="text-ink">Continuous Absence:</strong> Missing more than 13 straight
-          calendar days without written approval from the Director results in automatic withdrawal.
-        </li>
-      </ul>
-    </div>
-  );
-}
-
-/** Percentage rail with subtle ticks at the 70% and 85% policy lines. */
-function Rail({ pct, labels = false }: { pct: number; labels?: boolean }) {
-  return (
-    <div className={labels ? "mt-4" : ""}>
-      <div className="relative h-2 overflow-hidden rounded-full bg-surface2">
-        <motion.div
-          initial={{ width: 0 }}
-          animate={{ width: `${Math.min(100, pct)}%` }}
-          transition={{ type: "spring", stiffness: 120, damping: 22 }}
-          className="h-full rounded-full"
-          style={{ backgroundColor: meterColor(pct) }}
-        />
-        {[HARD_LINE, SAFE_LINE].map((line) => (
-          <span
-            key={line}
-            title={`${line}% line`}
-            className="absolute top-0 h-full w-px bg-ink/35"
-            style={{ left: `${line}%` }}
-          />
+    <section className="rounded-xl border border-border bg-surface p-4">
+      <h3 className="text-sm font-semibold">IPM 1 attendance rules</h3>
+      <div className="mt-3 grid gap-2 sm:grid-cols-3">
+        {[
+          ["1 credit", "8 classes · 1 miss"],
+          ["2 credits", "16 classes · 2 misses"],
+          ["3 credits", "24 classes · 3 misses"],
+        ].map(([title, detail]) => (
+          <div key={title} className="rounded-lg bg-surface2 p-3">
+            <p className="text-xs font-semibold">{title}</p>
+            <p className="mt-1 text-xs text-dim">{detail} before penalty</p>
+          </div>
         ))}
       </div>
-      {labels && (
-        <div className="relative mt-1 h-3">
-          {[HARD_LINE, SAFE_LINE].map((line) => (
-            <span
-              key={line}
-              className="absolute font-mono text-[9px] leading-none text-faint"
-              style={{ left: `${line}%`, transform: "translateX(-50%)" }}
-            >
-              {line}%
-            </span>
-          ))}
-        </div>
-      )}
-    </div>
+      <p className="mt-3 text-xs text-dim">
+        Each extra miss costs 0.5 course grade points. Keep at least 70% attendance over the
+        complete course.
+      </p>
+      <details className="mt-3 text-xs text-dim">
+        <summary className="cursor-pointer">Leave limits & other rules</summary>
+        <ul className="mt-2 space-y-2">
+          <li>
+            Personal leave: up to 15% of a course’s classes. Institutional leave needs institute
+            approval and starts at 15%, with unused personal leave transferable to institutional
+            leave; combined leave cannot exceed 30%.
+          </li>
+          <li>
+            Miss allowances cannot transfer between subjects. A held-to-date percentage is a
+            progress indicator.
+          </li>
+          <li>
+            No repeat exam or quiz for personal leave. More than 13 continuous days absent requires
+            written approval from the Director to avoid withdrawal.
+          </li>
+          <li>Representative marks take priority. Unmarked classes still need checking.</li>
+        </ul>
+      </details>
+      <p className="mt-3 text-[10px] text-dim">
+        Colors: green full allowance · yellow partly used · red 1 or 0 left · dark red over
+        allowance.
+      </p>
+    </section>
   );
 }
 
@@ -866,7 +684,7 @@ function SubjectRow({
 
   const status =
     row.pct < HARD_LINE
-      ? { text: "Below 70% · Incomplete (I)", tone: "text-rose font-bold" }
+      ? { text: "Below 70% · Incomplete (I)", tone: "font-bold" }
       : isCut
         ? {
             text: compact
@@ -877,7 +695,7 @@ function SubjectRow({
         : isDanger
           ? {
               text: `1 safe miss left`,
-              tone: "text-amber-500 font-bold",
+              tone: "font-bold",
             }
           : isLimit
             ? {
@@ -886,7 +704,7 @@ function SubjectRow({
               }
             : {
                 text: `${row.safeLeft}/${row.allowedMisses} safe misses left`,
-                tone: "text-emerald-500 font-medium",
+                tone: "font-medium",
               };
 
   return (
@@ -900,7 +718,8 @@ function SubjectRow({
     >
       <div className="shrink-0">
         <span
-          className={`inline-block min-w-10 text-center text-xl font-semibold ${row.safeLeft <= 0 ? "text-rose" : "text-cyan"}`}
+          className="inline-block min-w-10 text-center text-xl font-semibold"
+          style={{ color: attendanceColor(row.safeLeft, row.allowedMisses, row.excessMisses) }}
         >
           {Math.max(0, row.safeLeft)}
           <span className="block text-[9px] font-normal text-dim">left</span>
@@ -922,6 +741,7 @@ function SubjectRow({
         </span>
         <span
           className={`mt-0.5 block truncate font-mono text-[10px] leading-relaxed ${status.tone}`}
+          style={{ color: attendanceColor(row.safeLeft, row.allowedMisses, row.excessMisses) }}
         >
           {status.text}
         </span>
@@ -947,7 +767,6 @@ function SubjectRow({
 
       {!compact && (
         <span className="hidden w-28 shrink-0 sm:block">
-          <Rail pct={row.pct} />
           <span className="mt-1 block font-mono text-[9px] text-faint">
             {row.absent} of {row.planned} missed
           </span>
@@ -957,7 +776,7 @@ function SubjectRow({
       <span className="shrink-0 text-right">
         <span
           className="block font-display text-lg font-semibold leading-none"
-          style={{ color: meterColor(row.pct) }}
+          style={{ color: attendanceColor(row.safeLeft, row.allowedMisses, row.excessMisses) }}
         >
           {row.pct}%
         </span>

@@ -1,3 +1,4 @@
+import { attendanceColor } from "@/lib/attendance-colors";
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { ArrowUpRight } from "lucide-react";
@@ -101,7 +102,18 @@ export function FeedAttendanceSummary({ now, onOpen }: { now: number; onOpen: ()
                 </div>
                 {allowance && <MissAllowance course={row.course} missed={row.absent} />}
                 <p
-                  className={`mt-1 text-xs ${allowance && allowance.safeLeft <= 0 ? "text-rose" : "text-dim"}`}
+                  className="mt-1 text-xs text-dim"
+                  style={
+                    allowance
+                      ? {
+                          color: attendanceColor(
+                            allowance.safeLeft,
+                            allowance.allowed,
+                            allowance.excess,
+                          ),
+                        }
+                      : undefined
+                  }
                 >
                   {row.absent} missed
                 </p>

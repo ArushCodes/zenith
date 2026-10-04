@@ -1,3 +1,4 @@
+import { attendanceColor } from "@/lib/attendance-colors";
 import { useState, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -433,13 +434,42 @@ export function BunkSimulatorModal({
                             : "No sessions missed"}
                           {" · "}
                           {c.remainingSafeMisses === 1 ? (
-                            <span className="font-semibold text-amber-500">⚠️ 1 bunk left</span>
+                            <span
+                              className="font-semibold"
+                              style={{
+                                color: attendanceColor(
+                                  c.remainingSafeMisses,
+                                  c.credits,
+                                  c.excessMisses,
+                                ),
+                              }}
+                            >
+                              1 miss left
+                            </span>
                           ) : c.remainingSafeMisses <= 0 ? (
-                            <span className="font-semibold text-rose">
+                            <span
+                              className="font-semibold"
+                              style={{
+                                color: attendanceColor(
+                                  c.remainingSafeMisses,
+                                  c.credits,
+                                  c.excessMisses,
+                                ),
+                              }}
+                            >
                               {c.excessMisses > 0 ? `${c.excessMisses} over limit` : "0 bunks left"}
                             </span>
                           ) : (
-                            <span className="text-emerald-500 font-medium">
+                            <span
+                              className="font-medium"
+                              style={{
+                                color: attendanceColor(
+                                  c.remainingSafeMisses,
+                                  c.credits,
+                                  c.excessMisses,
+                                ),
+                              }}
+                            >
                               {c.remainingSafeMisses} bunks left
                             </span>
                           )}
