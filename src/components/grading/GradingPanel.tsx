@@ -2,7 +2,7 @@ import { useState } from "react";
 import { GradingPanel as PersonalGradingPanel } from "@/components/board/GradingPanel";
 import { useBatch } from "@/hooks/use-batch";
 import { IPM1_BATCH_ID } from "@/lib/roster.data";
-import { GpaSimulator } from "./GpaSimulator";
+import { ScoreTargets } from "./ScoreTargets";
 import { motion, useReducedMotion } from "framer-motion";
 export type CourseGradingInfo = {
   code: string;
@@ -275,8 +275,7 @@ export function GradingPanel() {
           )}
           {view === "targets" && (
             <section className="rounded-xl border border-border bg-surface p-4">
-              <p className="my-3 text-xs text-dim">Estimate · final grades are relative.</p>
-              <GpaSimulator courses={IPM1_COURSES} />
+              <ScoreTargets />
             </section>
           )}
         </>

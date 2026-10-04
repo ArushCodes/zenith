@@ -84,7 +84,7 @@ export function GradingPanel() {
         ))}
       </div>
 
-      {editing && (
+      {editing && canManage && (
         <ComponentDialog
           draft={editing}
           courses={rows}
@@ -155,7 +155,7 @@ function CourseCard({
             )}
             {row.isProvisional && (
               <span className="rounded-md bg-amber/12 px-1.5 py-0.5 font-mono text-[9px] text-amber ring-1 ring-amber/30">
-                Provisional split
+                Weights unconfirmed
               </span>
             )}
           </span>
@@ -323,13 +323,11 @@ function ComponentRow({
   return (
     <div className="flex flex-wrap items-center gap-3 border-b border-border px-4 py-3 last:border-b-0">
       <span className="min-w-0 flex-1">
-        <span className="block truncate font-display text-[13px] font-semibold">
+        <span className="flex flex-wrap items-center gap-2 font-display text-sm font-semibold">
           {component.name}
-        </span>
-        <span className="mt-0.5 block font-mono text-[10px] text-faint">
-          Worth {weightage}% · {KIND_LABEL[component.kind] ?? component.kind} ·{" "}
-          {component.work_mode === "group" ? "group" : "individual"}
-          {component.timing_note ? ` · ${component.timing_note}` : ""}
+          <span className="rounded-md bg-cyan/15 px-2 py-0.5 font-mono text-sm text-cyan">
+            {weightage}%
+          </span>
         </span>
       </span>
 
@@ -388,11 +386,7 @@ function ComponentRow({
       </span>
 
       <span className="w-full font-mono text-[10px] text-dim sm:w-auto sm:min-w-[140px] sm:text-right">
-        {pct === null && preview === null
-          ? "Not graded yet"
-          : `${pct ?? round1((Number(s) / Number(t)) * 100)}% on the paper → ${
-              earned ?? preview
-            } of ${weightage} marks`}
+        {pct === null && preview === null ? "—" : `${earned ?? preview} / ${weightage}`}
       </span>
     </div>
   );
