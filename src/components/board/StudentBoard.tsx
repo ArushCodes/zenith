@@ -1,3 +1,4 @@
+import { AssessmentAgenda } from "./AssessmentAgenda";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { AnimatePresence, motion } from "framer-motion";
@@ -41,8 +42,6 @@ import { useBatch } from "@/hooks/use-batch";
 import { useMe } from "@/hooks/use-me";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { BoardHeader } from "@/components/board/BoardHeader";
-import { DeadlineRow } from "@/components/board/DeadlineRow";
-import { ExamMarks } from "@/components/board/ExamMarks";
 import { DeadlineDialog } from "@/components/board/DeadlineDialog";
 import { EventDrawer } from "@/components/board/EventDrawer";
 import { ApprovalsPanel } from "@/components/board/ApprovalsPanel";
@@ -1182,12 +1181,10 @@ export default function StudentBoard({ guestPreview }: { guestPreview?: boolean 
             {tab === "timetable" && <TimetablePanel />}
 
             {tab === "quizzes" && (
-              <DeadlineBoard
-                title="Quizzes"
+              <AssessmentAgenda
                 items={quizzes}
                 now={now}
                 canManage={isMod}
-                showMarks
                 onEdit={openEdit}
                 onDelete={(x) => remove.mutate(x)}
                 onOpen={setSelected}
@@ -1361,123 +1358,5 @@ function FeedList({
         ))}
       </AnimatePresence>
     </motion.div>
-  );
-}
-
-/** Full-tab list of one kind of work, split into what's live, ahead and done. */
-function DeadlineBoard({
-  title,
-  items,
-  now,
-  canManage,
-  typeFilters,
-  showMarks = false,
-  onEdit,
-  onDelete,
-  onOpen,
-}: {
-  title: string;
-  items: Deadline[];
-  now: number;
-  canManage: boolean;
-  typeFilters?: readonly DeadlineType[];
-  showMarks?: boolean;
-  onEdit: (d: Deadline) => void;
-  onDelete: (d: Deadline) => void;
-  onOpen: (d: Deadline) => void;
-}) {
-  const [types, setTypes] = useState<DeadlineType[]>([]);
-
-  const shown = useMemo(
-    () => (types.length === 0 ? items : items.filter((d) => types.includes(d.type))),
-    [items, types],
-  );
-
-  const groups: [string, Deadline[], string][] = [
-    ["Happening now", shown.filter((d) => phaseOf(d, now) === "ongoing"), "text-cyan"],
-    ["Upcoming", shown.filter((d) => phaseOf(d, now) === "upcoming"), "text-amber"],
-    [
-      "Completed",
-      shown
-        .filter((d) => phaseOf(d, now) === "completed")
-        .sort((a, b) => new Date(b.due_at).getTime() - new Date(a.due_at).getTime()),
-      "text-evt-present",
-    ],
-  ];
-
-  return (
-    <section className="mt-2">
-      <h2 className="mb-6 font-display text-xl font-semibold tracking-tight">{title}</h2>
-
-      {typeFilters && typeFilters.length > 0 && (
-        <div className="mb-6 flex flex-wrap items-center gap-2">
-          <button
-            onClick={() => setTypes([])}
-            className={`rounded-lg px-2.5 py-1.5 font-mono text-[10px] uppercase tracking-[0.12em] outline-none ring-1 transition-colors focus:outline-none focus-visible:outline-none ${
-              types.length === 0
-                ? "bg-cyan/15 text-cyan ring-cyan/40"
-                : "text-dim ring-border hover:text-ink"
-            }`}
-          >
-            All ({items.length})
-          </button>
-          {typeFilters.map((t) => {
-            const meta = eventMeta(t);
-            const n = items.filter((d) => d.type === t).length;
-            const on = types.includes(t);
-            return (
-              <button
-                key={t}
-                onClick={() =>
-                  setTypes((p) => (p.includes(t) ? p.filter((x) => x !== t) : [...p, t]))
-                }
-                className={`rounded-lg px-2.5 py-1.5 font-mono text-[10px] uppercase tracking-[0.12em] outline-none transition-all focus:outline-none focus-visible:outline-none ${meta.chip} ${
-                  on ? "ring-2" : ""
-                } ${types.length > 0 && !on ? "opacity-50" : ""}`}
-              >
-                {meta.label} ({n})
-              </button>
-            );
-          })}
-        </div>
-      )}
-
-      {shown.length === 0 ? (
-        <p className="rounded-2xl bg-surface/50 px-8 py-14 text-center font-mono text-xs text-faint ring-1 ring-border">
-          Nothing here yet.
-        </p>
-      ) : (
-        <div className="flex flex-col gap-9">
-          {groups.map(([label, list, tone]) =>
-            list.length === 0 ? null : (
-              <div key={label}>
-                <div className="mb-3 flex items-center gap-3">
-                  <p className={`font-mono text-[10px] uppercase tracking-[0.2em] ${tone}`}>
-                    {label}
-                  </p>
-                  <span className="h-px flex-1 bg-border" />
-                  <p className="font-mono text-[10px] text-faint">{list.length}</p>
-                </div>
-                <div className={`flex flex-col gap-4 ${label === "Completed" ? "opacity-70" : ""}`}>
-                  {list.map((d) => (
-                    <div key={d.id}>
-                      <DeadlineRow
-                        deadline={d}
-                        now={now}
-                        canManage={canManage}
-                        onEdit={onEdit}
-                        onDelete={onDelete}
-                        onOpen={onOpen}
-                      />
-                      {showMarks && <ExamMarks deadline={d} />}
-                    </div>
-                  ))}
-                </div>
-              </div>
-            ),
-          )}
-        </div>
-      )}
-    </section>
   );
 }

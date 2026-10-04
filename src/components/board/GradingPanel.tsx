@@ -58,7 +58,10 @@ export function GradingPanel() {
         )}
       </div>
 
-      <PassRuleCard />
+      <details className="text-xs text-dim">
+        <summary className="cursor-pointer py-2">How grading works</summary>
+        <PassRuleCard />
+      </details>
 
       {isLoading && (
         <p className="mt-6 text-center font-mono text-xs text-faint">Loading courses…</p>
@@ -133,9 +136,9 @@ function CourseCard({
   batchId: string;
   userId: string | undefined;
 }) {
-  const headline = row.projected ?? null;
+  const headline = row.gradedWeight > 0 ? row.banked : null;
   const tone =
-    row.overallAtRisk || row.endTermAtRisk
+    (row.overallAtRisk && row.gradedWeight >= 100) || row.endTermAtRisk
       ? "text-rose"
       : headline === null
         ? "text-faint"
@@ -176,10 +179,10 @@ function CourseCard({
 
         <span className="shrink-0 text-right">
           <span className={`block font-display text-lg font-semibold leading-none ${tone}`}>
-            {headline === null ? "—" : `${headline}%`}
+            {headline === null ? "—" : `${headline}`}
           </span>
           <span className="mt-1 block font-mono text-[9px] text-faint">
-            {headline === null ? "no marks yet" : "projected final"}
+            {headline === null ? "no marks yet" : "marks banked / 100"}
           </span>
         </span>
         <ChevronDown
@@ -187,7 +190,9 @@ function CourseCard({
         />
       </button>
 
-      {(row.overallAtRisk || row.endTermAtRisk || round1(row.weightSum) !== 100) && (
+      {((row.overallAtRisk && row.gradedWeight >= 100) ||
+        row.endTermAtRisk ||
+        round1(row.weightSum) !== 100) && (
         <div className="flex flex-col gap-1 border-t border-border px-4 py-2">
           {row.endTermAtRisk && (
             <Warning>
@@ -195,7 +200,7 @@ function CourseCard({
               overall score.
             </Warning>
           )}
-          {row.overallAtRisk && (
+          {row.overallAtRisk && row.gradedWeight >= 100 && (
             <Warning>
               At this rate the course lands under {PASS_LINE}% overall, which is a fail.
             </Warning>
@@ -208,6 +213,16 @@ function CourseCard({
         </div>
       )}
 
+      <div
+        className="mx-4 mb-3 h-1.5 overflow-hidden rounded-full bg-surface2"
+        aria-label={`${row.gradedWeight}% of course graded`}
+      >
+        <motion.div
+          initial={false}
+          animate={{ width: `${Math.min(100, row.gradedWeight)}%` }}
+          className="h-full rounded-full bg-cyan"
+        />
+      </div>
       {open && (
         <div className="border-t border-border">
           {row.components.map((c) => (
@@ -283,10 +298,12 @@ function ComponentRow({
       if (!Number.isFinite(ns) || !Number.isFinite(nt) || nt <= 0)
         throw new Error("Enter your score and the total it was marked out of.");
       if (ns < 0 || ns > nt) throw new Error("Score has to be between 0 and the total.");
-      const { error } = await supabase.from("component_marks").upsert(
-        { component_id: component.id, batch_id: batchId, user_id: userId!, score: ns, total: nt },
-        { onConflict: "component_id,user_id" },
-      );
+      const { error } = await supabase
+        .from("component_marks")
+        .upsert(
+          { component_id: component.id, batch_id: batchId, user_id: userId!, score: ns, total: nt },
+          { onConflict: "component_id,user_id" },
+        );
       if (error) throw error;
     },
     onSuccess: () => {
@@ -327,6 +344,18 @@ function ComponentRow({
         </span>
       </span>
 
+      {Number(t) > 0 && (
+        <input
+          type="range"
+          aria-label={`Score for ${component.name}`}
+          min="0"
+          max={Number(t)}
+          step="0.5"
+          value={Math.min(Number(t), Math.max(0, Number(s) || 0))}
+          onChange={(e) => setS(e.target.value)}
+          className="w-full accent-cyan sm:w-28"
+        />
+      )}
       <span className="flex items-center gap-1.5">
         <input
           value={s}
@@ -454,7 +483,8 @@ function ComponentDialog({
     onError: (e: Error) => toast.error(e.message),
   });
 
-  const field = "w-full rounded-lg bg-surface2 px-2.5 py-1.5 font-mono text-[11px] text-ink ring-1 ring-border outline-none focus:ring-cyan";
+  const field =
+    "w-full rounded-lg bg-surface2 px-2.5 py-1.5 font-mono text-[11px] text-ink ring-1 ring-border outline-none focus:ring-cyan";
 
   return (
     <div

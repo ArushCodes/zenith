@@ -46,7 +46,7 @@ export function ExamMarks({
       const s = Number(score);
       const t = Number(total);
       const w = weightage === "" ? defaultWeight : Number(weightage);
-      if (!Number.isFinite(s) || !Number.isFinite(t) || t <= 0)
+      if (!score.trim() || !total.trim() || !Number.isFinite(s) || !Number.isFinite(t) || t <= 0)
         throw new Error("Enter a valid score and the total marks.");
       if (s < 0 || s > t) throw new Error("Score must be between 0 and the total marks.");
       const { error } = await supabase.from("exam_marks").upsert(
@@ -91,7 +91,14 @@ export function ExamMarks({
   const s = Number(score);
   const t = Number(total);
   const w = weightage === "" ? defaultWeight : Number(weightage);
-  const valid = Number.isFinite(s) && Number.isFinite(t) && t > 0 && s >= 0 && s <= t;
+  const valid =
+    !!score.trim() &&
+    !!total.trim() &&
+    Number.isFinite(s) &&
+    Number.isFinite(t) &&
+    t > 0 &&
+    s >= 0 &&
+    s <= t;
   const pct = valid ? scorePct(s, t) : null;
   const points = valid && w > 0 ? weightedPoints(s, t, w) : null;
 
@@ -146,7 +153,11 @@ export function ExamMarks({
                 <span>{isOpen ? "Cancel" : "Record Score"}</span>
               </>
             )}
-            {isOpen ? <ChevronUp className="size-3.5 ml-0.5" /> : <ChevronDown className="size-3.5 ml-0.5" />}
+            {isOpen ? (
+              <ChevronUp className="size-3.5 ml-0.5" />
+            ) : (
+              <ChevronDown className="size-3.5 ml-0.5" />
+            )}
           </button>
         </div>
       </div>
@@ -205,6 +216,30 @@ export function ExamMarks({
               </div>
             </div>
 
+            {t > 0 && (
+              <label className="mt-3 block text-xs text-dim">
+                Adjust score · {score || "0"}/{total}
+                <input
+                  type="range"
+                  aria-label="Adjust assessment score"
+                  min="0"
+                  max={t}
+                  step="0.5"
+                  value={Math.min(t, Math.max(0, s))}
+                  onChange={(e) => setScore(e.target.value)}
+                  className="mt-2 w-full accent-cyan"
+                />
+              </label>
+            )}
+            {pct !== null && (
+              <div className="mt-3 h-2 overflow-hidden rounded-full bg-surface2">
+                <motion.div
+                  initial={false}
+                  animate={{ width: Math.min(100, pct) + "%" }}
+                  className="h-full bg-cyan"
+                />
+              </div>
+            )}
             {/* Real-time Calculation Result */}
             {valid && (
               <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-cyan/30 bg-cyan/8 p-3">
@@ -216,7 +251,8 @@ export function ExamMarks({
                 </div>
                 {points !== null && (
                   <div className="font-mono text-xs font-bold text-ink">
-                    Earned: <span className="text-cyan font-extrabold">{points}</span> / {fmtNum(w)} course points
+                    Earned: <span className="text-cyan font-extrabold">{points}</span> / {fmtNum(w)}{" "}
+                    course points
                   </div>
                 )}
               </div>
