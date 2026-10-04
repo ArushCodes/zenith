@@ -216,32 +216,18 @@ export function GradingPanel() {
               <div className="mt-4 grid gap-3 md:grid-cols-2">
                 {IPM1_COURSES.map((c) => {
                   const parts = [
-                    ["Midterm", c.midtermVal, "#fb7185"],
-                    ["Endterm", c.endtermVal, "#22d3ee"],
+                    ["Mid", c.midtermVal, "#fb7185"],
+                    ["End", c.endtermVal, "#22d3ee"],
                     ["Quizzes", c.quizzesVal, "#c084fc"],
                     ["Project", c.projectVal, "#fbbf24"],
                     ["Other", c.assignmentsVal, "#34d399"],
                   ] as const;
                   return (
-                    <details key={c.code} className="rounded-lg border border-border p-3">
-                      <summary className="cursor-pointer text-xs font-semibold">
+                    <article key={c.code} className="rounded-lg border border-border p-4">
+                      <div className="text-sm font-semibold">
                         {c.name} <span className="text-dim">· {c.credits} credits</span>
-                        <span className="mt-2 flex h-2 overflow-hidden rounded-full bg-surface2">
-                          {parts
-                            .filter((p) => p[1] > 0)
-                            .map(([label, value, color]) => (
-                              <motion.span
-                                key={label}
-                                initial={false}
-                                animate={{ width: value + "%" }}
-                                transition={{ duration: reduced ? 0 : 0.3 }}
-                                style={{ backgroundColor: color }}
-                                title={label + " " + value + "%"}
-                              />
-                            ))}
-                        </span>
-                      </summary>
-                      <div className="mt-3 flex flex-wrap gap-3 text-xs">
+                      </div>
+                      <div className="mt-2 flex flex-wrap gap-3 text-xs">
                         {parts
                           .filter((p) => p[1] > 0)
                           .map(([label, value, color]) => (
@@ -250,21 +236,38 @@ export function GradingPanel() {
                             </span>
                           ))}
                       </div>
-                      {[
-                        c.midtermText,
-                        c.endtermText,
-                        c.quizzesText,
-                        c.projectText,
-                        c.assignmentsText,
-                        ...(c.notes ?? []),
-                      ]
-                        .filter((n) => n && n !== "—" && !/^\d+%$/.test(n))
-                        .map((n, i) => (
-                          <p key={i} className="mt-2 text-xs text-dim">
-                            {n}
-                          </p>
-                        ))}
-                    </details>
+                      <span className="mt-2 flex h-2 overflow-hidden rounded-full bg-surface2">
+                        {parts
+                          .filter((p) => p[1] > 0)
+                          .map(([label, value, color]) => (
+                            <motion.span
+                              key={label}
+                              initial={false}
+                              animate={{ width: value + "%" }}
+                              transition={{ duration: reduced ? 0 : 0.3 }}
+                              style={{ backgroundColor: color }}
+                              title={label + " " + value + "%"}
+                            />
+                          ))}
+                      </span>
+                      <details className="mt-3 text-xs text-dim">
+                        <summary className="cursor-pointer">Details</summary>
+                        {[
+                          c.midtermText,
+                          c.endtermText,
+                          c.quizzesText,
+                          c.projectText,
+                          c.assignmentsText,
+                          ...(c.notes ?? []),
+                        ]
+                          .filter((n) => n && n !== "—" && !/^\d+%$/.test(n))
+                          .map((n, i) => (
+                            <p key={i} className="mt-2 text-xs text-dim">
+                              {n}
+                            </p>
+                          ))}
+                      </details>
+                    </article>
                   );
                 })}
               </div>
@@ -272,9 +275,7 @@ export function GradingPanel() {
           )}
           {view === "targets" && (
             <section className="rounded-xl border border-border bg-surface p-4">
-              <p className="my-3 text-xs text-dim">
-                Planning estimates. Relative grading determines the final result.
-              </p>
+              <p className="my-3 text-xs text-dim">Estimate · final grades are relative.</p>
               <GpaSimulator courses={IPM1_COURSES} />
             </section>
           )}

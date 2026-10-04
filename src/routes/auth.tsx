@@ -8,8 +8,6 @@ import {
   Loader2,
   LockKeyhole,
   Mail,
-  Moon,
-  Sun,
 } from "lucide-react";
 import { toast } from "sonner";
 import { db } from "@/lib/backend";
@@ -19,7 +17,6 @@ import {
   resolveLoginIdentifier,
 } from "@/lib/auth.functions";
 import { IPM_BATCHES, IPM1_BATCH_ID } from "@/lib/roster.data";
-import { useTheme } from "@/hooks/use-theme";
 import { VerificationWelcomeScreen } from "@/components/auth/VerificationWelcomeScreen";
 
 type Mode = "signin" | "signup" | "forgot" | "reset" | "welcome";
@@ -37,7 +34,6 @@ export const Route = createFileRoute("/auth")({
 function AuthPage() {
   const search = Route.useSearch();
   const navigate = useNavigate();
-  const { theme, toggle } = useTheme();
   const [mode, setMode] = useState<Mode>(search.mode ?? "signin");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -140,10 +136,7 @@ function AuthPage() {
             <br />
             Your batch’s deadlines.
           </h1>
-          <p>
-            Check your classroom, track course-wise misses, and find quizzes, assignments and exam
-            dates for your batch.
-          </p>
+          <p>Timetable, attendance and deadlines.</p>
           <div className="auth-orbit" aria-hidden="true">
             <span className="orbit-core">z.</span>
             <span className="orbit-label orbit-label-one">Timetable</span>
@@ -160,9 +153,6 @@ function AuthPage() {
           <Link to="/" className="inline-flex items-center gap-2 text-sm text-dim">
             <ArrowLeft size={15} /> Back home
           </Link>
-          <button type="button" onClick={toggle} aria-label="Toggle theme" className="icon-button">
-            {theme === "dark" ? <Sun size={18} /> : <Moon size={18} />}
-          </button>
         </div>
         <div className="auth-form-wrap">
           {mode === "welcome" && welcome ? (
@@ -184,7 +174,7 @@ function AuthPage() {
                 {mode === "signin"
                   ? "Use your learner email, roll number or MAHE ID."
                   : mode === "signup"
-                    ? "Verify your student record. No signup email code needed."
+                    ? "Use your student details."
                     : mode === "forgot"
                       ? "We'll send a recovery code to your registered learner email."
                       : "Enter your recovery code and choose a new password."}
@@ -369,7 +359,7 @@ function AuthPage() {
                 </button>
               )}
               <p className="auth-assurance">
-                <CheckCircle2 size={14} /> Access follows your verified student record.
+                <CheckCircle2 size={14} />
               </p>
             </>
           )}

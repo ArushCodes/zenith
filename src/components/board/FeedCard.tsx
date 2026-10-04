@@ -364,7 +364,9 @@ export function FeedCard({
                 {deadline.type === "midterm" || deadline.type === "endterm" ? "Syllabus" : "Scope"}
               </span>
             </div>
-            <p className="text-dim font-sans text-xs line-clamp-2">{deadline.notes}</p>
+            <p className="text-dim font-sans text-xs line-clamp-2">
+              {deadline.notes?.split("\nSource:")[0]}
+            </p>
           </div>
         )}
       </div>

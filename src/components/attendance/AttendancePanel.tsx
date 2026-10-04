@@ -343,8 +343,7 @@ export function AttendancePanel({ now, compact = false }: { now: number; compact
   return (
     <section className={compact ? "" : "mt-4"}>
       <p className="text-[10px] text-dim mb-3">
-        Remaining misses use recorded absences. Representative marks take priority; check unmarked
-        classes.
+        Recorded misses · representative marks take priority
       </p>
       {!compact && (
         <div className="mb-4 flex flex-wrap items-center justify-between gap-2.5">

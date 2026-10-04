@@ -274,9 +274,7 @@ export function DeadlineDialog({ open, onOpenChange, deadline }: Props) {
           </div>
 
           {!form.from && (
-            <p className="sm:col-span-2 text-xs text-dim">
-              Time not announced? Leave it blank. Students will see the date and “Time TBA”.
-            </p>
+            <p className="sm:col-span-2 text-xs text-dim">No time yet? Leave blank.</p>
           )}
 
           <div>

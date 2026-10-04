@@ -8,15 +8,12 @@ import {
   ChevronRight,
   Clock3,
   MapPin,
-  Moon,
   Search,
   Sparkles,
-  Sun,
   BookOpen,
   GraduationCap,
 } from "lucide-react";
 import { DashboardSidebar } from "./DashboardSidebar";
-import { useTheme } from "@/hooks/use-theme";
 
 const tasks = [
   {
@@ -80,7 +77,6 @@ export default function DemoBoard() {
   const [filter, setFilter] = useState("All");
   const [query, setQuery] = useState("");
   const [done, setDone] = useState<string[]>([]);
-  const { theme, toggle } = useTheme();
   const shown = tasks.filter(
     (task) =>
       (filter === "All" || task.kind === filter) &&
@@ -108,9 +104,7 @@ export default function DemoBoard() {
         </span>
         <div className="demo-header-actions">
           <span className="demo-pill">SAMPLE DATA</span>
-          <button onClick={toggle} type="button" aria-label="Toggle theme" className="icon-button">
-            {theme === "dark" ? <Sun size={17} /> : <Moon size={17} />}
-          </button>
+
           <Link to="/auth" search={{ mode: "signin" }} className="demo-account">
             Sign in <ArrowUpRight size={14} />
           </Link>

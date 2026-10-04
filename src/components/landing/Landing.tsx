@@ -6,17 +6,14 @@ import {
   CheckCircle2,
   Lock,
   LogIn,
-  Moon,
   Radio,
   ShieldCheck,
   Sparkles,
-  Sun,
   TrendingUp,
   UserCheck,
   UserPlus,
   ListFilter,
 } from "lucide-react";
-import { useTheme } from "@/hooks/use-theme";
 
 const ease = [0.16, 1, 0.3, 1] as const;
 
@@ -25,8 +22,6 @@ interface LandingProps {
 }
 
 export function Landing({ onPreview }: LandingProps = {}) {
-  const { theme, toggle: toggleTheme } = useTheme();
-
   return (
     <div className="relative min-h-screen overflow-x-hidden bg-ground font-body text-ink selection:bg-cyan/30 selection:text-white pb-24 sm:pb-12">
       {/* Dynamic Aurora Ambient Background (Hardware Accelerated, 0 Main-Thread JS) */}
@@ -58,16 +53,6 @@ export function Landing({ onPreview }: LandingProps = {}) {
 
           {/* Prominent Header Action Buttons */}
           <div className="flex items-center gap-2 sm:gap-3">
-            <button
-              type="button"
-              onClick={toggleTheme}
-              aria-label={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
-              title={theme === "dark" ? "Light mode" : "Dark mode"}
-              className="grid size-9 shrink-0 place-items-center rounded-xl border border-border bg-surface text-dim transition-colors hover:border-cyan/40 hover:text-ink cursor-pointer shadow-sm"
-            >
-              {theme === "dark" ? <Sun className="size-4" /> : <Moon className="size-4" />}
-            </button>
-
             {onPreview && (
               <button
                 type="button"
@@ -121,8 +106,7 @@ export function Landing({ onPreview }: LandingProps = {}) {
 
               {/* Subtitle */}
               <p className="mt-5 max-w-xl text-base sm:text-lg leading-relaxed text-dim text-balance">
-                Check today’s classroom and faculty, see your remaining class misses, and keep track
-                of your batch’s quizzes, submissions and exam dates.
+                Classes, attendance and deadlines for your batch.
               </p>
 
               {/* HERO DUAL CALL-TO-ACTION (Sign Up & Log In) */}
@@ -284,9 +268,7 @@ export function Landing({ onPreview }: LandingProps = {}) {
             <h2 className="font-display text-2xl sm:text-3xl font-bold tracking-tight">
               One board for your batch.
             </h2>
-            <p className="mt-2 text-sm text-dim">
-              Timetable feeds and notices maintained by your batch representatives.
-            </p>
+            <p className="mt-2 text-sm text-dim">Updated by your representatives.</p>
           </div>
 
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -294,22 +276,22 @@ export function Landing({ onPreview }: LandingProps = {}) {
               {
                 icon: ListFilter,
                 title: "Deadline Tracker",
-                desc: "Quizzes, assignments, and presentations sorted in real time with urgent countdown timers.",
+                desc: "Upcoming quizzes and submissions.",
               },
               {
                 icon: CalendarClock,
                 title: "Live Timetable",
-                desc: "Instant classroom numbers, session times, and faculty info with automated current-class highlights.",
+                desc: "Current and next classes.",
               },
               {
                 icon: UserCheck,
                 title: "Attendance planning",
-                desc: "Track classes missed and the allowance for your course credits. IPM 1 rules come from the handbook.",
+                desc: "Remaining misses by subject.",
               },
               {
                 icon: ShieldCheck,
                 title: "Batch notices",
-                desc: "Events added by representatives, with reviewed notice imports.",
+                desc: "Notices from your representatives.",
               },
             ].map((feature, i) => (
               <motion.div
@@ -342,8 +324,7 @@ export function Landing({ onPreview }: LandingProps = {}) {
                 Separate boards for each batch.
               </h2>
               <p className="mt-2 text-sm text-dim">
-                Register with your MAHE ID and date of birth. Access follows your verified batch
-                record; representatives maintain notices and deadlines.
+                Access your verified batch with your MAHE ID and date of birth.
               </p>
             </div>
 
@@ -375,8 +356,7 @@ export function Landing({ onPreview }: LandingProps = {}) {
               Join your batch.
             </h2>
             <p className="mt-3 text-sm sm:text-base text-dim">
-              Join your fellow TAPMI batchmates. Sign up in under 60 seconds with your learner
-              email.
+              Use your MAHE ID and learner email.
             </p>
 
             <div className="mt-8 flex flex-col sm:flex-row items-center justify-center gap-3">

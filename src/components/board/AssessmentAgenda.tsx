@@ -52,7 +52,7 @@ export function AssessmentAgenda({
         type="button"
         aria-expanded={open === d.id}
         onClick={() => setOpen(open === d.id ? null : d.id)}
-        className="flex w-full items-center gap-3 px-4 py-3 text-left hover:bg-surface2/50"
+        className="flex w-full items-center gap-3 px-4 py-3 text-left bg-surface2/20 hover:bg-surface2/70 transition-colors"
       >
         <span
           className="h-9 w-1 shrink-0 rounded-full"
@@ -79,12 +79,14 @@ export function AssessmentAgenda({
           className="space-y-3 border-t border-border px-4 py-3"
         >
           {d.notes && (
-            <p className="whitespace-pre-line text-xs leading-relaxed text-dim">{d.notes}</p>
+            <p className="whitespace-pre-line text-xs leading-relaxed text-dim">
+              {d.notes?.split("\nSource:")[0]}
+            </p>
           )}
           <div className="flex flex-wrap items-center gap-3 text-xs">
             {d.location && <span className="text-dim">{d.location}</span>}
             <button type="button" onClick={() => onOpen?.(d)} className="text-cyan">
-              Details & calendar
+              Details
             </button>
             {d.submission_link && (
               <a href={d.submission_link} target="_blank" rel="noreferrer" className="text-cyan">
@@ -137,7 +139,7 @@ export function AssessmentAgenda({
       {upcoming.map(renderRow)}
       {!upcoming.length && (
         <p className="rounded-xl border border-dashed border-border p-4 text-sm text-dim">
-          {search ? "No upcoming matches." : "No upcoming assessments announced."}
+          {search ? "No upcoming matches." : "No upcoming assessments."}
         </p>
       )}
       {past.length > 0 && (

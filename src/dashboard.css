@@ -1,3 +1,38 @@
+/* Shared dark appearance and readable controls. */
+:root {
+  color-scheme: dark;
+}
+.text-xs {
+  font-size: 0.875rem;
+  line-height: 1.4;
+}
+[class*="text-[9px]"],
+[class*="text-[10px]"],
+[class*="text-[11px]"] {
+  font-size: 0.75rem;
+  line-height: 1.4;
+}
+button:not(:disabled),
+summary,
+a {
+  cursor: pointer;
+}
+button:not(:disabled):hover {
+  filter: brightness(1.12);
+}
+button:focus-visible,
+summary:focus-visible,
+a:focus-visible {
+  outline: 2px solid var(--cyan);
+  outline-offset: 3px;
+}
+summary {
+  border-radius: 8px;
+}
+summary:hover {
+  background: var(--surface2);
+}
+
 /* Zenith workspace: graphite, quiet color, generous typography. */
 .zenith-brand {
   display: flex;
@@ -50,7 +85,7 @@
   height: 35px;
   border-radius: 9px;
   background: var(--surface2);
-  font-size: 10px;
+  font-size: 12px;
   font-weight: 700;
   color: var(--cyan);
 }
@@ -59,7 +94,7 @@
   font-size: 13px;
 }
 .sidebar-batch div > span {
-  font-size: 10px;
+  font-size: 12px;
   color: var(--faint);
 }
 .sidebar-batch-dot,
@@ -72,7 +107,7 @@
 }
 .sidebar-section-label,
 .workspace-eyebrow {
-  font-size: 9px;
+  font-size: 12px;
   font-weight: 650;
   letter-spacing: 2px;
   color: var(--faint);
@@ -124,11 +159,11 @@
 }
 .sidebar-note strong {
   display: block;
-  font-size: 11px;
+  font-size: 12px;
 }
 .sidebar-note p {
   color: var(--faint);
-  font-size: 11px;
+  font-size: 12px;
   line-height: 1.7;
   margin-top: 5px;
 }
@@ -136,7 +171,7 @@
   display: flex;
   align-items: center;
   gap: 5px;
-  font-size: 11px;
+  font-size: 12px;
   color: var(--cyan);
   margin-top: 15px;
 }
@@ -145,7 +180,7 @@
   align-items: center;
   gap: 10px;
   color: var(--dim);
-  font-size: 11px;
+  font-size: 12px;
   padding: 20px 10px;
 }
 .sidebar-footer {
@@ -196,7 +231,7 @@
   gap: 8px;
   align-items: center;
   color: var(--dim);
-  font-size: 10px;
+  font-size: 12px;
   white-space: nowrap;
 }
 .workspace-status > span {
@@ -243,7 +278,7 @@
   align-items: center;
   gap: 10px;
   color: var(--faint);
-  font-size: 11px;
+  font-size: 12px;
 }
 .demo-breadcrumb strong {
   color: var(--dim);
@@ -281,14 +316,14 @@
   gap: 8px;
   align-items: center;
   color: var(--ink);
-  font-size: 11px;
+  font-size: 12px;
 }
 .preview-note {
   display: flex;
   align-items: center;
   gap: 8px;
   color: var(--dim);
-  font-size: 10px;
+  font-size: 12px;
   padding: 10px 13px;
   background: var(--surface);
   border: 1px solid var(--hairline);
@@ -325,7 +360,7 @@
   justify-content: space-between;
   align-items: center;
   color: var(--dim);
-  font-size: 11px;
+  font-size: 12px;
 }
 .metric-icon {
   width: 31px;
@@ -342,7 +377,7 @@
   display: block;
 }
 .dashboard-metric > p {
-  font-size: 10px;
+  font-size: 12px;
   color: var(--faint);
 }
 .lilac {
@@ -390,7 +425,7 @@
 }
 .panel-count {
   color: var(--faint);
-  font-size: 10px;
+  font-size: 12px;
   margin-left: 7px;
   padding: 2px 5px;
   border: 1px solid var(--hairline);
@@ -424,7 +459,7 @@
 }
 .focus-card p {
   max-width: 310px;
-  font-size: 11px;
+  font-size: 12px;
   color: var(--dim);
   line-height: 1.8;
 }
@@ -434,7 +469,7 @@
   gap: 8px;
   margin-top: 22px;
   color: var(--cyan);
-  font-size: 11px;
+  font-size: 12px;
 }
 .focus-art {
   position: relative;
@@ -480,7 +515,7 @@
 .task-filters button {
   border-radius: 6px;
   padding: 6px 9px;
-  font-size: 9px;
+  font-size: 12px;
   color: var(--dim);
 }
 .task-filters button[aria-pressed="true"] {
@@ -496,7 +531,7 @@
 .demo-search input {
   background: transparent;
   width: 112px;
-  font-size: 9px;
+  font-size: 12px;
   outline: none;
   color: var(--ink);
 }
@@ -545,7 +580,7 @@
   margin: 9px 0 6px;
 }
 .task-body p {
-  font-size: 9px;
+  font-size: 12px;
   color: var(--faint);
 }
 .task-deadline {
@@ -554,7 +589,7 @@
   flex-shrink: 0;
 }
 .task-deadline strong {
-  font-size: 10px;
+  font-size: 12px;
   font-weight: 500;
   display: block;
   color: var(--dim);
@@ -596,12 +631,12 @@
 }
 .agenda-time {
   display: block;
-  font-size: 9px;
+  font-size: 12px;
   color: var(--faint);
   margin-bottom: 7px;
 }
 .agenda-item strong {
-  font-size: 11px;
+  font-size: 12px;
   display: block;
   font-weight: 500;
   line-height: 1.5;
@@ -619,7 +654,7 @@
   justify-content: space-between;
   align-items: center;
   width: 100%;
-  font-size: 10px;
+  font-size: 12px;
   color: var(--dim);
   border-top: 1px solid var(--hairline);
   padding-top: 15px;
@@ -637,7 +672,7 @@
   letter-spacing: -0.6px;
 }
 .campus-note p {
-  font-size: 10px;
+  font-size: 12px;
   color: var(--faint);
   line-height: 1.8;
   max-width: 170px;
@@ -674,7 +709,7 @@
   padding-left: 9px;
 }
 .demo-week > div > span {
-  font-size: 9px;
+  font-size: 12px;
   color: var(--faint);
 }
 .demo-week strong {
@@ -685,7 +720,7 @@
 }
 .calendar-sample {
   padding: 10px 7px;
-  font-size: 9px;
+  font-size: 12px;
   border-radius: 6px;
   margin-bottom: 9px;
   line-height: 1.5;
@@ -710,7 +745,7 @@
   display: block;
   color: var(--faint);
   margin-top: 8px;
-  font-size: 10px;
+  font-size: 12px;
 }
 .schedule-dot {
   width: 3px;
@@ -722,7 +757,7 @@
   font-weight: 500;
 }
 .demo-schedule-row p {
-  font-size: 11px;
+  font-size: 12px;
   color: var(--dim);
   margin-top: 8px;
 }
@@ -730,7 +765,7 @@
   display: flex;
   align-items: center;
   gap: 5px;
-  font-size: 10px;
+  font-size: 12px;
   color: var(--faint);
   margin-top: 9px;
 }
@@ -747,7 +782,7 @@
   font-weight: 500;
 }
 .demo-attendance p {
-  font-size: 10px;
+  font-size: 12px;
   color: var(--faint);
   margin-top: 8px;
 }
@@ -757,12 +792,12 @@
   text-align: right;
 }
 .attendance-allowance small {
-  font-size: 9px;
+  font-size: 12px;
   display: block;
   color: var(--dim);
 }
 .demo-disclaimer {
-  font-size: 10px;
+  font-size: 12px;
   color: var(--faint);
   line-height: 1.8;
   margin-top: 20px;
@@ -780,7 +815,7 @@
   font-weight: 500;
 }
 .demo-grade small {
-  font-size: 9px;
+  font-size: 12px;
   color: var(--faint);
 }
 .grade-track {
@@ -812,7 +847,7 @@
 }
 .demo-exam p {
   color: var(--faint);
-  font-size: 10px;
+  font-size: 12px;
   margin-top: 7px;
 }
 .demo-exam > span {
@@ -911,7 +946,7 @@
   background: var(--surface2);
   border-radius: 8px;
   padding: 10px 13px;
-  font-size: 9px;
+  font-size: 12px;
   color: var(--dim);
   z-index: 1;
 }
@@ -972,7 +1007,7 @@
 .auth-mode-switch button {
   width: 50%;
   padding: 10px;
-  font-size: 11px;
+  font-size: 12px;
   color: var(--faint);
   border-radius: 7px;
 }
@@ -987,7 +1022,7 @@
 }
 .auth-label {
   display: block;
-  font-size: 11px;
+  font-size: 12px;
   color: var(--dim);
 }
 .auth-input {
@@ -1035,7 +1070,7 @@
 }
 .auth-batches strong {
   display: block;
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 550;
 }
 .auth-batches span {
@@ -1048,7 +1083,7 @@
 }
 .auth-error,
 .auth-notice {
-  font-size: 11px;
+  font-size: 12px;
   line-height: 1.7;
   padding: 12px;
   border-radius: 9px;
@@ -1067,7 +1102,7 @@
   align-items: center;
   gap: 7px;
   color: var(--faint);
-  font-size: 10px;
+  font-size: 12px;
   margin-top: 26px;
 }
 @media (min-width: 1440px) {
@@ -1131,7 +1166,7 @@
     padding-bottom: 5px;
   }
   .demo-mobile-nav button {
-    font-size: 11px;
+    font-size: 12px;
     text-transform: capitalize;
     padding: 9px 12px;
     border-radius: 7px;
@@ -1161,7 +1196,7 @@
     padding: 0 16px;
   }
   .demo-breadcrumb {
-    font-size: 10px;
+    font-size: 12px;
   }
   .demo-header-actions {
     gap: 10px;
@@ -1171,7 +1206,7 @@
   }
   .preview-note {
     align-items: flex-start;
-    font-size: 9px;
+    font-size: 12px;
     line-height: 1.7;
   }
   .preview-note a {
@@ -1188,7 +1223,7 @@
     letter-spacing: -1px;
   }
   .demo-date {
-    font-size: 9px;
+    font-size: 12px;
   }
   .dashboard-metrics {
     gap: 7px;
@@ -1198,7 +1233,7 @@
     border-radius: 10px;
   }
   .dashboard-metric > div {
-    font-size: 9px;
+    font-size: 12px;
     gap: 4px;
     align-items: flex-start;
   }
@@ -1247,10 +1282,10 @@
     max-width: 63px;
   }
   .task-deadline strong {
-    font-size: 9px;
+    font-size: 12px;
   }
   .task-body h3 {
-    font-size: 11px;
+    font-size: 12px;
     line-height: 1.7;
   }
   .task-body p {
@@ -1395,7 +1430,7 @@
   font-variant-numeric: tabular-nums;
 }
 .class-progress-dial span {
-  font-size: 10px;
+  font-size: 12px;
   color: var(--dim);
 }
 .class-inspected {

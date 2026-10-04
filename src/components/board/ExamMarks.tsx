@@ -67,7 +67,7 @@ export function ExamMarks({
     onSuccess: () => {
       invalidate();
       if (!inline) setIsOpen(false);
-      toast.success("Marks saved successfully");
+      toast.success("Marks saved");
     },
     onError: (e: Error) => toast.error(e.message),
   });
@@ -123,9 +123,8 @@ export function ExamMarks({
           </span>
           <div>
             <p className="font-sans text-xs font-bold uppercase tracking-wider text-dim">
-              Score & Marks Tracker
+              My score
             </p>
-            <p className="font-sans text-[11px] text-faint">Private to your account</p>
           </div>
         </div>
 
@@ -178,9 +177,7 @@ export function ExamMarks({
           >
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
               <div>
-                <label className="block font-sans text-xs font-semibold text-dim mb-1">
-                  Marks Scored
-                </label>
+                <label className="block font-sans text-xs font-semibold text-dim mb-1">Score</label>
                 <input
                   type="text"
                   inputMode="decimal"
@@ -193,7 +190,7 @@ export function ExamMarks({
 
               <div>
                 <label className="block font-sans text-xs font-semibold text-dim mb-1">
-                  Total Marks
+                  Max marks
                 </label>
                 <input
                   type="text"

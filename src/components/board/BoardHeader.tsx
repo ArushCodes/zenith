@@ -2,11 +2,10 @@ import { useEffect, useState } from "react";
 import { Link, useNavigate } from "@tanstack/react-router";
 import { useQueryClient } from "@tanstack/react-query";
 import { motion } from "framer-motion";
-import { ChevronDown, LogOut, Moon, ShieldCheck, Sun, UserRound } from "lucide-react";
+import { ChevronDown, LogOut, ShieldCheck, UserRound } from "lucide-react";
 import { db as supabase } from "@/lib/backend";
 import { useAuth } from "@/hooks/use-auth";
 import { useMe } from "@/hooks/use-me";
-import { useTheme } from "@/hooks/use-theme";
 import { BatchSelector } from "@/components/board/BatchSelector";
 import { GlobalSearch } from "@/components/board/GlobalSearch";
 import {
@@ -39,7 +38,6 @@ const LOGO_LETTERS = ["z", "e", "n", "i", "t", "h"];
 export function BoardHeader({ menuItems = [], onMenuSelect, onLogoClick }: Props) {
   const { user, isModerator, isAdmin, isArush } = useAuth();
   const me = useMe();
-  const { theme, toggle } = useTheme();
 
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -171,19 +169,6 @@ export function BoardHeader({ menuItems = [], onMenuSelect, onLogoClick }: Props
               <span>ADMIN</span>
             </div>
           )}
-
-          <button
-            onClick={toggle}
-            aria-label={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
-            title={theme === "dark" ? "Light mode" : "Dark mode"}
-            className="grid size-8 sm:size-9 shrink-0 place-items-center rounded-xl border border-border bg-surface text-dim transition-colors hover:border-cyan/40 hover:text-ink cursor-pointer"
-          >
-            {theme === "dark" ? (
-              <Sun className="size-3.5 sm:size-4" />
-            ) : (
-              <Moon className="size-3.5 sm:size-4" />
-            )}
-          </button>
 
           {user ? (
             <DropdownMenu>

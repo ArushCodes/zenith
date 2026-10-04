@@ -59,9 +59,7 @@ export function FeedAttendanceSummary({ now, onOpen }: { now: number; onOpen: ()
           Full records <ArrowUpRight className="size-3.5" />
         </button>
       </div>
-      <p className="mb-3 text-[10px] text-dim">
-        Based on recorded absences. Check unmarked classes.
-      </p>
+      <p className="mb-3 text-[10px] text-dim">Recorded misses · check unmarked classes</p>
       {focusCourses.size > 0 && (
         <div className="mb-3 flex items-center justify-between text-xs text-dim">
           <span>

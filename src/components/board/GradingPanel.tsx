@@ -43,9 +43,7 @@ export function GradingPanel() {
   return (
     <section className="mt-4">
       <div className="mb-4 flex flex-wrap items-center gap-2">
-        <p className="font-mono text-[10px] uppercase tracking-[0.2em] text-cyan">
-          Grading &amp; weightage
-        </p>
+        <p className="font-mono text-[10px] uppercase tracking-[0.2em] text-cyan">My marks</p>
         {canManage && (
           <button
             onClick={() =>
@@ -68,9 +66,7 @@ export function GradingPanel() {
       )}
 
       {!isLoading && rows.length === 0 && (
-        <p className="mt-6 text-center font-mono text-xs text-faint">
-          No grading breakdown has been added for this batch yet.
-        </p>
+        <p className="mt-6 text-center font-mono text-xs text-faint">No assessments added yet.</p>
       )}
 
       <div className="mt-4 flex flex-col gap-3">
@@ -104,16 +100,9 @@ export function GradingPanel() {
 function PassRuleCard() {
   return (
     <div className="rounded-2xl bg-surface p-4 ring-1 ring-border">
-      <p className="font-display text-sm font-semibold text-ink">How a course score is built</p>
-      <p className="mt-1.5 font-mono text-[11px] leading-relaxed text-dim">
-        Every course is split into pieces of work — exams, quizzes, projects, class participation —
-        and each one is worth a share of 100 marks. Enter what you scored and this page adds it up
-        for you.
-      </p>
-      <p className="mt-2 font-mono text-[11px] leading-relaxed text-dim">
-        To pass you need <span className="text-ink">{PASS_LINE}% overall</span> and, separately,{" "}
-        <span className="text-ink">{PASS_LINE}% in the end-term exam</span>. Miss either one and the
-        course is a fail, no matter how good the other number looks.
+      <p className="font-display text-sm font-semibold text-ink">Course score</p>
+      <p className="mt-2 text-sm text-dim">
+        Pass: {PASS_LINE}% overall and {PASS_LINE}% in the endterm.
       </p>
     </div>
   );
@@ -172,8 +161,8 @@ function CourseCard({
           </span>
           <span className="mt-1 block font-mono text-[10px] text-faint">
             {row.gradedWeight > 0
-              ? `${row.banked} marks banked from ${row.gradedWeight}% of the course · best possible ${row.bestCase}`
-              : "Nothing graded yet — add a score below to see where you stand"}
+              ? `${row.banked} earned · ${row.gradedWeight}% graded`
+              : "Add marks"}
           </span>
         </span>
 
@@ -182,7 +171,7 @@ function CourseCard({
             {headline === null ? "—" : `${headline}`}
           </span>
           <span className="mt-1 block font-mono text-[9px] text-faint">
-            {headline === null ? "no marks yet" : "marks banked / 100"}
+            {headline === null ? "no marks yet" : "earned / 100"}
           </span>
         </span>
         <ChevronDown

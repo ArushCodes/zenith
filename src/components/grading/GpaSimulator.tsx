@@ -163,11 +163,9 @@ export function GpaSimulator({ courses = IPM1_COURSES, batchId }: Props) {
               Interactive "What-If" Calculator
             </span>
             <h2 className="font-display text-xl sm:text-2xl font-bold tracking-tight text-ink">
-              Trimester GPA & Target CGPA Simulator
+              GPA targets
             </h2>
-            <p className="text-xs text-dim">
-              Adjust expected grades for each course to calculate your projected TGPA and check TAPMI honours standing.
-            </p>
+            <p className="text-xs text-dim">Set expected grades.</p>
           </div>
 
           <div className="flex items-center gap-3">
@@ -331,7 +329,8 @@ export function GpaSimulator({ courses = IPM1_COURSES, batchId }: Props) {
             </h4>
           </div>
           <p className="text-xs text-dim">
-            If you are in IPM 2 or IPM 3 (or later trimesters), enter your past completed credits and CGPA.
+            If you are in IPM 2 or IPM 3 (or later trimesters), enter your past completed credits
+            and CGPA.
           </p>
 
           <div className="grid grid-cols-2 gap-3 pt-1">
@@ -370,7 +369,7 @@ export function GpaSimulator({ courses = IPM1_COURSES, batchId }: Props) {
         <div className="rounded-2xl border border-border/80 bg-surface/90 p-5 backdrop-blur-md shadow-sm space-y-3">
           <div className="flex items-center gap-2">
             <TrendingUp className="size-4 text-emerald-500" />
-            <h4 className="font-display text-sm font-bold text-ink">Target CGPA Goal Solver</h4>
+            <h4 className="font-display text-sm font-bold text-ink">Target CGPA</h4>
           </div>
           <p className="text-xs text-dim">
             What average grade point do you need this trimester to hit your target CGPA?
