@@ -259,41 +259,50 @@ export function LiveClassHero({
       />
       {minimal && (
         <div className="class-progress-dial" style={{ color: activeThemeColor }}>
-          <svg viewBox="0 0 112 112" aria-hidden="true">
-            <circle
-              cx="56"
-              cy="56"
-              r="48"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="3"
-              opacity="0.15"
-            />
-            <motion.circle
-              cx="56"
-              cy="56"
-              r="48"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="4"
-              strokeLinecap="round"
-              strokeDasharray="301.6"
-              animate={{ strokeDashoffset: 301.6 * (1 - liveProgress.pct / 100) }}
-              transition={{ duration: reducedMotion ? 0 : 1 }}
-              style={{ rotate: -90, transformOrigin: "56px 56px" }}
-            />
-            {featured && (
+          {liveClass ? (
+            <svg viewBox="0 0 112 112" aria-hidden="true">
+              <circle
+                cx="56"
+                cy="56"
+                r="48"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="3"
+                opacity="0.15"
+              />
               <motion.circle
                 cx="56"
-                cy="8"
-                r="4"
-                fill="currentColor"
-                animate={reducedMotion ? {} : { rotate: 360 }}
-                transition={{ duration: 12, repeat: Infinity, ease: "linear" }}
-                style={{ transformOrigin: "56px 56px" }}
+                cy="56"
+                r="48"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="4"
+                strokeLinecap="round"
+                strokeDasharray="301.6"
+                animate={{ strokeDashoffset: 301.6 * (1 - liveProgress.pct / 100) }}
+                transition={{ duration: reducedMotion ? 0 : 1 }}
+                style={{ rotate: -90, transformOrigin: "56px 56px" }}
               />
-            )}
-          </svg>
+              {featured && (
+                <motion.circle
+                  cx="56"
+                  cy="8"
+                  r="4"
+                  fill="currentColor"
+                  animate={reducedMotion ? {} : { rotate: 360 }}
+                  transition={{ duration: 12, repeat: Infinity, ease: "linear" }}
+                  style={{ transformOrigin: "56px 56px" }}
+                />
+              )}
+            </svg>
+          ) : (
+            <div className="countdown-launch" aria-hidden="true">
+              <i />
+              <i />
+              <i />
+              <i />
+            </div>
+          )}
           <div>
             <strong>{dialValue}</strong>
             <span>
@@ -679,47 +688,58 @@ export function LiveClassHero({
                   </div>
 
                   <div className="mt-3 flex items-center gap-2">
-                    <svg
-                      className="size-8 shrink-0 -rotate-90"
-                      viewBox="0 0 36 36"
-                      aria-hidden="true"
-                    >
-                      <circle
-                        cx="18"
-                        cy="18"
-                        r="15"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth="3"
-                        className="text-border"
-                      />
-                      <motion.circle
-                        cx="18"
-                        cy="18"
-                        r="15"
-                        fill="none"
-                        stroke={color}
-                        strokeWidth="3"
-                        strokeLinecap="round"
-                        strokeDasharray="94.25"
-                        initial={false}
-                        animate={{
-                          strokeDashoffset:
-                            94.25 *
-                            (1 -
-                              (isPast
-                                ? 0
-                                : isLive
-                                  ? Math.max(
-                                      0,
-                                      (new Date(s.end_at).getTime() - now) /
-                                        (new Date(s.end_at).getTime() -
-                                          new Date(s.start_at).getTime()),
-                                    )
-                                  : 1)),
-                        }}
-                      />
-                    </svg>
+                    {isLive ? (
+                      <svg
+                        className="size-8 shrink-0 -rotate-90"
+                        viewBox="0 0 36 36"
+                        aria-hidden="true"
+                      >
+                        <circle
+                          cx="18"
+                          cy="18"
+                          r="15"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="3"
+                          className="text-border"
+                        />
+                        <motion.circle
+                          cx="18"
+                          cy="18"
+                          r="15"
+                          fill="none"
+                          stroke={color}
+                          strokeWidth="3"
+                          strokeLinecap="round"
+                          strokeDasharray="94.25"
+                          initial={false}
+                          animate={{
+                            strokeDashoffset:
+                              94.25 *
+                              (1 -
+                                (isPast
+                                  ? 0
+                                  : isLive
+                                    ? Math.max(
+                                        0,
+                                        (new Date(s.end_at).getTime() - now) /
+                                          (new Date(s.end_at).getTime() -
+                                            new Date(s.start_at).getTime()),
+                                      )
+                                    : 1)),
+                          }}
+                        />
+                      </svg>
+                    ) : !isPast ? (
+                      <span className="countdown-beat" style={{ color }} aria-hidden="true">
+                        <i />
+                        <i />
+                        <i />
+                        <i />
+                      </span>
+                    ) : (
+                      <Check className="size-5 text-dim" />
+                    )}
                     <span className="text-sm font-semibold tabular-nums">
                       {isPast
                         ? "Finished"

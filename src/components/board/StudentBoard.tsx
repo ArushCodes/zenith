@@ -47,7 +47,6 @@ import { EventDrawer } from "@/components/board/EventDrawer";
 import { ApprovalsPanel } from "@/components/board/ApprovalsPanel";
 import { AnnouncementsPanel } from "@/components/board/AnnouncementsPanel";
 import { LiveClassHero } from "@/components/board/LiveClassHero";
-import { FeedAttendanceSummary } from "@/components/board/FeedAttendanceSummary";
 import { LiveClassHud } from "@/components/board/LiveClassHud";
 import { FeedCard, FeedCompactRow } from "@/components/board/FeedCard";
 import { usePersonalChecklist } from "@/hooks/use-personal-checklist";
@@ -662,7 +661,7 @@ export default function StudentBoard({ guestPreview }: { guestPreview?: boolean 
           >
             {tab === "feed" && (
               <div className="flex flex-col gap-5 sm:gap-6">
-                <div className="grid items-start gap-3 xl:grid-cols-[minmax(0,1fr)_340px]">
+                <div>
                   <LiveClassHero
                     now={now}
                     onSeeFullTimetable={() => setTab("timetable")}
@@ -670,7 +669,6 @@ export default function StudentBoard({ guestPreview }: { guestPreview?: boolean 
                     canManage={isMod}
                     minimal
                   />
-                  <FeedAttendanceSummary now={now} onOpen={() => setTab("attendance")} />
                 </div>
                 {/* ── Mobile View Switcher (Feed Timeline vs Batch Announcements) ── */}
                 {nextAcademic && (
