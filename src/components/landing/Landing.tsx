@@ -68,7 +68,7 @@ export function Landing({ onPreview }: LandingProps = {}) {
               search={{ mode: "signin" }}
               className="rounded-xl border border-border bg-surface/80 hover:bg-surface px-3 sm:px-4 py-2 text-xs sm:text-sm font-semibold text-ink shadow-sm hover:scale-[1.02] active:translate-y-0.5 transition-all cursor-pointer"
             >
-              Log In
+              Sign In
             </Link>
 
             <Link
@@ -106,7 +106,7 @@ export function Landing({ onPreview }: LandingProps = {}) {
 
               {/* Subtitle */}
               <p className="mt-5 max-w-xl text-base sm:text-lg leading-relaxed text-dim text-balance">
-                Classes, attendance and deadlines for your batch.
+                Your TAPMI batch, in one place.
               </p>
 
               {/* HERO DUAL CALL-TO-ACTION (Sign Up & Log In) */}
@@ -136,7 +136,7 @@ export function Landing({ onPreview }: LandingProps = {}) {
               {/* Anti-confusion helper & trust info */}
               <div className="mt-4 flex flex-wrap items-center justify-center lg:justify-start gap-3 font-mono text-[11px] text-faint">
                 <span className="flex items-center gap-1.5 text-cyan/90">
-                  <CheckCircle2 className="size-3.5 text-cyan" /> Free for all students
+                  <CheckCircle2 className="size-3.5 text-cyan" /> Free for TAPMI students
                 </span>
                 <span className="text-border">•</span>
                 <span className="flex items-center gap-1.5">
@@ -156,12 +156,12 @@ export function Landing({ onPreview }: LandingProps = {}) {
                     <span className="size-2.5 rounded-full bg-amber-500/80" />
                     <span className="size-2.5 rounded-full bg-emerald-500/80" />
                     <span className="ml-2 font-mono text-[11px] font-medium text-dim">
-                      TAPMI · Zenith Board
+                      Example · IPM 1
                     </span>
                   </div>
                   <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-500/10 px-2.5 py-0.5 font-mono text-[10px] font-semibold text-emerald-400 border border-emerald-500/20">
                     <span className="size-1.5 rounded-full bg-emerald-400 animate-ping" />
-                    Live Sync
+                    Preview
                   </span>
                 </div>
 
@@ -198,7 +198,7 @@ export function Landing({ onPreview }: LandingProps = {}) {
                       </span>
                       <div className="truncate">
                         <p className="font-display text-xs font-semibold truncate">
-                          Financial Accounting Quiz 2
+                          Mathematics Quiz 2
                         </p>
                         <p className="font-mono text-[10px] text-faint">Tomorrow • 09:30 AM</p>
                       </div>
@@ -213,7 +213,7 @@ export function Landing({ onPreview }: LandingProps = {}) {
                       <span className="size-2 rounded-full bg-cyan shrink-0" />
                       <div className="truncate">
                         <p className="font-display text-xs font-semibold truncate">
-                          Marketing Strategy Deck
+                          Statistics Assignment
                         </p>
                         <p className="font-mono text-[10px] text-faint">Friday • 23:59</p>
                       </div>
@@ -228,7 +228,7 @@ export function Landing({ onPreview }: LandingProps = {}) {
                       <span className="size-2 rounded-full bg-violet-400 shrink-0" />
                       <div className="truncate">
                         <p className="font-display text-xs font-semibold truncate">
-                          Macroeconomics Midterm Exam
+                          Psychology Midterm
                         </p>
                         <p className="font-mono text-[10px] text-faint">Next Mon • 10:00 AM</p>
                       </div>
@@ -366,7 +366,7 @@ export function Landing({ onPreview }: LandingProps = {}) {
                 className="w-full sm:w-auto inline-flex items-center justify-center gap-2 rounded-xl bg-cyan px-7 py-3.5 text-sm font-bold text-ground border-b-2 border-cyan-600 shadow-lg shadow-cyan/25 hover:bg-cyan/95 active:translate-y-0.5 active:border-b-0 transition-all cursor-pointer"
               >
                 <UserPlus className="size-4" />
-                <span>Create Student Account</span>
+                <span>Create Account</span>
               </Link>
               <Link
                 to="/auth"
@@ -383,7 +383,7 @@ export function Landing({ onPreview }: LandingProps = {}) {
 
       {/* FOOTER */}
       <footer className="relative z-10 border-t border-border/60 py-8 px-4 text-center font-mono text-[11px] text-faint">
-        <p>Zenith · TAPMI Manipal · Created by students for students</p>
+        <p>Zenith · TAPMI Manipal</p>
       </footer>
 
       {/* MOBILE STICKY FLOATING BOTTOM BAR (Never miss Sign Up or Log In) */}

@@ -503,7 +503,7 @@ function EventPill({
         size={9}
         className={`${m.dot} ${critical && deadline.is_major ? "pulse-dot" : ""}`}
       />
-      {showTime && (
+      {showTime && !deadline.all_day && (
         <span className="shrink-0 opacity-80">{timeFmt.format(new Date(deadline.due_at))}</span>
       )}
       <span className="truncate">{deadlineShortLabel(deadline, abbrevSubject)}</span>
@@ -823,6 +823,17 @@ function MonthGrid({
 }
 
 const HOURS = Array.from({ length: 15 }, (_, i) => i + 8); // 08:00 → 22:00
+const indiaHourFmt = new Intl.DateTimeFormat("en-GB", {
+  hour: "2-digit",
+  hourCycle: "h23",
+  timeZone: "Asia/Kolkata",
+});
+function indiaHour(at: string) {
+  return Number(indiaHourFmt.format(new Date(at)));
+}
+function outsideTimeline(deadline: Deadline) {
+  return deadline.all_day || !HOURS.includes(indiaHour(deadline.due_at));
+}
 
 function WeekTimeline({
   onPickDay,
@@ -894,6 +905,19 @@ function WeekTimeline({
           ))}
         </div>
 
+        {days.some((d) => (byDay.get(dayKey(d)) ?? []).some(outsideTimeline)) && (
+          <div className="grid grid-cols-[52px_repeat(7,minmax(0,1fr))] gap-1 pb-2">
+            <span className="py-1 text-right text-xs text-dim">Other</span>
+            {days.map((d) => (
+              <div key={`all-day-${dayKey(d)}`} className="flex flex-col gap-1">
+                {(byDay.get(dayKey(d)) ?? []).filter(outsideTimeline).map((e) => (
+                  <EventPill key={e.id} deadline={e} now={now} onSelect={onSelect} showTime />
+                ))}
+              </div>
+            ))}
+          </div>
+        )}
+
         <div className="grid grid-cols-[52px_repeat(7,minmax(0,1fr))] gap-1">
           {HOURS.map((hour) => (
             <div key={hour} className="contents">
@@ -902,10 +926,10 @@ function WeekTimeline({
               </span>
               {days.map((d) => {
                 const events = (byDay.get(dayKey(d)) ?? []).filter(
-                  (e) => new Date(e.due_at).getHours() === hour,
+                  (e) => !e.all_day && indiaHour(e.due_at) === hour,
                 );
                 const classes = (classesByDay.get(dayKey(d)) ?? []).filter(
-                  (s) => new Date(s.start_at).getHours() === hour,
+                  (s) => indiaHour(s.start_at) === hour,
                 );
                 const mark = marks.get(dayKey(d)) ?? null;
                 return (
@@ -1114,9 +1138,11 @@ function Agenda({
                         className="flex min-w-0 flex-1 items-center gap-3 text-left"
                       >
                         <span className={`h-8 w-0.5 shrink-0 rounded-full ${m.bar}`} />
-                        <span className="font-mono text-[11px] text-dim">
-                          {timeFmt.format(new Date(d.due_at))}
-                        </span>
+                        {!d.all_day && (
+                          <span className="font-mono text-[11px] text-dim">
+                            {timeFmt.format(new Date(d.due_at))}
+                          </span>
+                        )}
                         <span className="min-w-0 flex-1">
                           <span className="block truncate font-display text-sm font-semibold">
                             {displayTitle(d.subject, d.title)}

@@ -108,7 +108,12 @@ export default function StudentBoard({ guestPreview }: { guestPreview?: boolean 
   const { batchId, batch, canManage, loading: batchLoading } = useBatch();
   const isMod = canManage;
   const queryClient = useQueryClient();
-  const { data: deadlines = [], isLoading } = useQuery(deadlinesQueryFor(batchId));
+  const {
+    data: deadlines = [],
+    isLoading,
+    isError: deadlinesError,
+    refetch: retryDeadlines,
+  } = useQuery(deadlinesQueryFor(batchId));
   const { data: sessions = [] } = useQuery(sessionsQuery(batchId));
   const { data: courses = [] } = useQuery(coursesQuery(batchId));
   const isFeedLoading = isLoading || (!batchId && batchLoading);
@@ -118,9 +123,13 @@ export default function StudentBoard({ guestPreview }: { guestPreview?: boolean 
   const [filter, setFilter] = useState<FilterKey>("all");
   const { doneMap, isDone, toggleDone } = usePersonalChecklist(batchId);
   const [feedDensity, setFeedDensity] = useState<"comfortable" | "compact">(() => {
-    if (typeof window !== "undefined") {
-      const saved = window.localStorage.getItem("zenith.feed_density");
-      if (saved === "compact") return saved;
+    try {
+      if (typeof window !== "undefined") {
+        const saved = window.localStorage.getItem("zenith.feed_density");
+        if (saved === "compact" || saved === "comfortable") return saved;
+      }
+    } catch {
+      /* Storage may be unavailable. */
     }
     return "compact";
   });
@@ -870,6 +879,16 @@ export default function StudentBoard({ guestPreview }: { guestPreview?: boolean 
                           className="h-32 rounded-2xl shimmer-sweep border border-border/40"
                         />
                       ))}
+                    </div>
+                  ) : deadlinesError ? (
+                    <div className="rounded-2xl border border-border bg-surface p-5 text-center">
+                      <p className="text-sm text-ink">Couldn't load deadlines.</p>
+                      <button
+                        onClick={() => void retryDeadlines()}
+                        className="mt-3 rounded-lg bg-cyan px-4 py-2 text-sm font-semibold text-primary-foreground"
+                      >
+                        Retry
+                      </button>
                     </div>
                   ) : filteredUpcoming.length === 0 ? (
                     <div className="rounded-2xl border border-dashed border-border/80 bg-surface/30 p-5 text-center">

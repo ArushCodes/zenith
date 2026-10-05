@@ -67,7 +67,7 @@ export function GradingPanel() {
       <div className="mt-4 flex flex-col gap-3">
         {rows.map((row) => (
           <CourseCard
-            key={row.code}
+            key={`${user?.id ?? "guest"}:${batchId}:${row.code}`}
             row={row}
             open={open === row.code || (open === null && row === rows[0])}
             onToggle={() =>
@@ -110,8 +110,50 @@ function CourseCard({
   batchId: string;
   userId: string | undefined;
 }) {
-  const [expected, setExpected] = useState<Record<string, number>>({});
-  const [target, setTarget] = useState(70);
+  const storageKey = userId ? `zenith.grade-plan:${userId}:${batchId}:${row.code}` : null;
+  const [plan, setPlan] = useState<{
+    key: string | null;
+    expected: Record<string, number>;
+    target: number;
+  }>({ key: null, expected: {}, target: 70 });
+  const { expected, target } = plan;
+
+  useEffect(() => {
+    const defaults = { key: storageKey, expected: {}, target: 70 };
+    try {
+      const stored: unknown = storageKey
+        ? JSON.parse(sessionStorage.getItem(storageKey) ?? "null")
+        : null;
+      if (!stored || typeof stored !== "object" || Array.isArray(stored)) {
+        setPlan(defaults);
+        return;
+      }
+      const draft = stored as { expected?: unknown; target?: unknown };
+      const validPercent = (value: unknown): value is number =>
+        typeof value === "number" && Number.isFinite(value) && value >= 0 && value <= 100;
+      const values = draft.expected;
+      const restored =
+        values && typeof values === "object" && !Array.isArray(values)
+          ? Object.fromEntries(Object.entries(values).filter(([, value]) => validPercent(value)))
+          : {};
+      setPlan({
+        key: storageKey,
+        expected: restored,
+        target: validPercent(draft.target) ? draft.target : 70,
+      });
+    } catch {
+      setPlan(defaults);
+    }
+  }, [storageKey]);
+
+  useEffect(() => {
+    if (!storageKey || plan.key !== storageKey) return;
+    try {
+      sessionStorage.setItem(storageKey, JSON.stringify({ expected, target }));
+    } catch {
+      // Planning still works when browser storage is unavailable.
+    }
+  }, [storageKey, plan.key, expected, target]);
   const planned =
     row.banked +
     row.components.reduce(
@@ -185,19 +227,14 @@ function CourseCard({
         <div className="flex flex-col gap-1 border-t border-border px-4 py-2">
           {row.endTermAtRisk && (
             <Warning>
-              Your end-term is under {PASS_LINE}% — that alone fails the course, even with a good
-              overall score.
+              End-term below {PASS_LINE}%: course fail, regardless of overall score.
             </Warning>
           )}
           {row.overallAtRisk && row.gradedWeight >= 100 && (
-            <Warning>
-              At this rate the course lands under {PASS_LINE}% overall, which is a fail.
-            </Warning>
+            <Warning>Overall below {PASS_LINE}%: course fail.</Warning>
           )}
           {round1(row.weightSum) !== 100 && (
-            <Warning>
-              These components add up to {row.weightSum}%, not 100% — the breakdown is incomplete.
-            </Warning>
+            <Warning>Weights total {row.weightSum}% · should be 100%.</Warning>
           )}
         </div>
       )}
@@ -239,7 +276,14 @@ function CourseCard({
                 min={0}
                 max={100}
                 value={target}
-                onChange={(e) => setTarget(Math.min(100, Math.max(0, Number(e.target.value))))}
+                onChange={(e) => {
+                  const value = Number(e.target.value);
+                  if (Number.isFinite(value))
+                    setPlan((current) => ({
+                      ...current,
+                      target: Math.min(100, Math.max(0, value)),
+                    }));
+                }}
                 className="mt-1 block w-full max-w-24 rounded-lg border border-border bg-surface2 px-2 py-1 text-lg font-bold text-ink"
               />
             </label>
@@ -252,7 +296,7 @@ function CourseCard({
             />
           </div>
           <p className="px-4 pb-3 text-xs text-dim">
-            Expected sliders apply only to ungraded work · final grades are relative.
+            Predictions for ungraded work · final grades are relative.
           </p>
           {row.components.map((c) => (
             <Fragment key={c.component.id}>
@@ -269,7 +313,10 @@ function CourseCard({
                 userId={userId}
                 expected={expected[c.component.id] ?? 0}
                 onExpected={(value) =>
-                  setExpected((current) => ({ ...current, [c.component.id]: value }))
+                  setPlan((current) => ({
+                    ...current,
+                    expected: { ...current.expected, [c.component.id]: value },
+                  }))
                 }
               />
             </Fragment>
@@ -415,7 +462,8 @@ function ComponentRow({
         />
         <button
           onClick={() => save.mutate()}
-          className="rounded-lg bg-cyan px-2.5 py-1 font-mono text-[11px] text-primary-foreground hover:opacity-90"
+          disabled={save.isPending || clear.isPending}
+          className="rounded-lg bg-cyan px-2.5 py-1 font-mono text-[11px] text-primary-foreground hover:opacity-90 disabled:opacity-50"
         >
           Save
         </button>
@@ -423,7 +471,9 @@ function ComponentRow({
           <button
             onClick={() => clear.mutate()}
             title="Clear my marks"
-            className="rounded-lg p-1.5 text-faint ring-1 ring-border hover:text-rose"
+            aria-label={`Clear my marks for ${component.name}`}
+            disabled={save.isPending || clear.isPending}
+            className="rounded-lg p-1.5 text-faint ring-1 ring-border hover:text-rose disabled:opacity-50"
           >
             <Trash2 className="size-3.5" />
           </button>

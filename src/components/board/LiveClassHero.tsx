@@ -776,8 +776,8 @@ export function LiveClassHero({
                       user &&
                       !attendanceLoading &&
                       !attendanceError
-                        ? `${record?.absent ?? 0} missed`
-                        : s.course_code || "Class"}
+                        ? `${record?.absent ?? 0} missed${mark === "absent" && !isPast ? " · 1 pending" : ""}`
+                        : "Class"}
                     </span>
                     {(isMember || canManage) && user && (
                       <button
@@ -921,9 +921,7 @@ export function LiveClassHero({
                           )}
                         </div>
                         <p className="font-sans text-xs text-ink/90 line-clamp-2 leading-relaxed">
-                          {hasSyllabus
-                            ? exam.notes
-                            : "No syllabus details posted yet. Course Reps can add syllabus below."}
+                          {hasSyllabus ? exam.notes : "Syllabus not added yet."}
                         </p>
                       </div>
                     </div>

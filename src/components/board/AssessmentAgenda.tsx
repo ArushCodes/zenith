@@ -85,12 +85,18 @@ export function AssessmentAgenda({
           )}
           <div className="flex flex-wrap items-center gap-3 text-xs">
             {d.location && <span className="text-dim">{d.location}</span>}
-            <button type="button" onClick={() => onOpen?.(d)} className="text-cyan">
-              Details
-            </button>
+            {onOpen && (
+              <button
+                type="button"
+                onClick={() => onOpen(d)}
+                className="rounded-md border border-cyan/25 px-2.5 py-1.5 text-cyan hover:bg-cyan/10"
+              >
+                Details
+              </button>
+            )}
             {d.submission_link && (
               <a href={d.submission_link} target="_blank" rel="noreferrer" className="text-cyan">
-                Open submission
+                Submit
               </a>
             )}
             {canManage && (

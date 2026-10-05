@@ -273,10 +273,6 @@ export function DeadlineDialog({ open, onOpenChange, deadline }: Props) {
             </div>
           </div>
 
-          {!form.from && (
-            <p className="sm:col-span-2 text-xs text-dim">No time yet? Leave blank.</p>
-          )}
-
           <div>
             <label className={labelClass} htmlFor="mode">
               Work

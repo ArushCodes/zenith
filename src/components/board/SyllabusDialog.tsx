@@ -1,26 +1,9 @@
 import { useEffect, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import {
-  BookOpen,
-  Calendar,
-  Check,
-  Clock,
-  ExternalLink,
-  GraduationCap,
-  MapPin,
-  Pencil,
-  Save,
-  Sparkles,
-  X,
-} from "lucide-react";
+import { BookOpen, Calendar, Clock, ExternalLink, MapPin, Pencil, Save } from "lucide-react";
 import { toast } from "sonner";
 import { db as supabase } from "@/lib/backend";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import {
   cleanExamTitle,
   displayTitle,
@@ -62,10 +45,10 @@ export function SyllabusDialog({ deadline, isOpen, onClose, canManage }: Props) 
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["deadlines"] });
       queryClient.invalidateQueries({ queryKey: ["batch-deadlines"] });
-      toast.success("Syllabus & scope saved successfully");
+      toast.success("Scope saved");
       setIsEditing(false);
     },
-    onError: (err: any) => {
+    onError: (err: Error) => {
       toast.error(err.message || "Failed to save syllabus");
     },
   });
@@ -84,10 +67,7 @@ export function SyllabusDialog({ deadline, isOpen, onClose, canManage }: Props) 
     <Dialog open={isOpen} onOpenChange={(v) => !v && onClose()}>
       <DialogContent className="max-w-xl rounded-3xl border border-border/80 bg-surface p-0 shadow-2xl overflow-hidden sm:max-w-2xl">
         {/* Header Color Accent Stripe */}
-        <div
-          className="h-2 w-full"
-          style={{ backgroundColor: color }}
-        />
+        <div className="h-2 w-full" style={{ backgroundColor: color }} />
 
         <div className="p-6 sm:p-8 space-y-6">
           <DialogHeader className="space-y-3 text-left">
@@ -101,9 +81,11 @@ export function SyllabusDialog({ deadline, isOpen, onClose, canManage }: Props) 
                     border: `1px solid ${color}35`,
                   }}
                 >
-                  {deadline.subject_code || deadline.subject || "Academic Event"}
+                  {deadline.subject || "Assessment"}
                 </span>
-                <span className={`rounded-md px-2.5 py-1 font-mono text-[11px] uppercase tracking-wide ${m.chip}`}>
+                <span
+                  className={`rounded-md px-2.5 py-1 font-mono text-[11px] uppercase tracking-wide ${m.chip}`}
+                >
                   {m.label}
                 </span>
                 {deadline.is_major && (
@@ -120,7 +102,7 @@ export function SyllabusDialog({ deadline, isOpen, onClose, canManage }: Props) 
                   className="inline-flex items-center gap-1.5 rounded-xl border border-border bg-surface2 px-3 py-1.5 text-xs font-medium text-ink hover:border-cyan/40 hover:text-cyan transition-all"
                 >
                   <Pencil className="size-3.5" />
-                  {isEditing ? "Cancel Edit" : "Edit Syllabus"}
+                  {isEditing ? "Cancel" : "Edit scope"}
                 </button>
               )}
             </div>
@@ -153,26 +135,24 @@ export function SyllabusDialog({ deadline, isOpen, onClose, canManage }: Props) 
             <div className="flex items-center justify-between">
               <h4 className="font-display text-sm font-bold uppercase tracking-wider text-ink flex items-center gap-2">
                 <BookOpen className="size-4 text-cyan" />
-                <span>Syllabus, Topics & Exam Scope</span>
+                <span>Topics & scope</span>
               </h4>
             </div>
 
             {isEditing ? (
               <div className="space-y-4 rounded-2xl border border-border bg-surface2/50 p-4 sm:p-5">
                 <div className="space-y-2">
-                  <label className="text-xs font-semibold text-ink">
-                    Course Syllabus / Chapters / Assessment Guidelines:
+                  <label htmlFor="assessment-scope" className="text-xs font-semibold text-ink">
+                    Topics & instructions
                   </label>
                   <textarea
+                    id="assessment-scope"
                     rows={7}
                     value={notes}
                     onChange={(e) => setNotes(e.target.value)}
-                    placeholder="Enter exam syllabus, modules covered, open/closed book rules, formula sheet allowance, or study links..."
+                    placeholder="Chapters, exam rules or study links…"
                     className="w-full rounded-xl border border-border bg-surface p-3.5 font-sans text-sm leading-relaxed text-ink placeholder:text-faint focus:border-cyan focus:outline-none focus:ring-2 focus:ring-cyan/20"
                   />
-                  <p className="text-[11px] text-faint">
-                    Pro-tip: Include module numbers, specific chapters, whether calculators are allowed, and format (MCQ, case study, descriptive).
-                  </p>
                 </div>
 
                 <div className="flex items-center justify-end gap-3 pt-2">
@@ -190,7 +170,7 @@ export function SyllabusDialog({ deadline, isOpen, onClose, canManage }: Props) 
                     className="inline-flex items-center gap-2 rounded-xl bg-cyan px-4 py-2 text-xs font-semibold text-white shadow-md shadow-cyan/20 hover:bg-cyan/90 transition-all disabled:opacity-50"
                   >
                     <Save className="size-3.5" />
-                    {saveMutation.isPending ? "Saving..." : "Save Syllabus"}
+                    {saveMutation.isPending ? "Saving…" : "Save"}
                   </button>
                 </div>
               </div>
@@ -209,10 +189,7 @@ export function SyllabusDialog({ deadline, isOpen, onClose, canManage }: Props) 
                     </div>
                     <div className="space-y-1">
                       <p className="font-display text-sm font-semibold text-ink">
-                        Syllabus not yet published
-                      </p>
-                      <p className="text-xs text-dim max-w-sm mx-auto">
-                        Your Course Representative (CR) or Faculty has not posted the syllabus for this exam yet.
+                        No scope added yet
                       </p>
                     </div>
                     {canManage && (
@@ -222,7 +199,7 @@ export function SyllabusDialog({ deadline, isOpen, onClose, canManage }: Props) 
                         className="mt-2 inline-flex items-center gap-2 rounded-xl bg-cyan/15 border border-cyan/30 px-3.5 py-1.5 text-xs font-semibold text-cyan hover:bg-cyan/25 transition-all"
                       >
                         <Pencil className="size-3.5" />
-                        Enter Syllabus Now
+                        Add scope
                       </button>
                     )}
                   </div>
@@ -241,7 +218,7 @@ export function SyllabusDialog({ deadline, isOpen, onClose, canManage }: Props) 
                 className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-cyan px-4 py-3 text-xs sm:text-sm font-semibold text-white shadow-lg shadow-cyan/15 hover:bg-cyan/90 transition-all"
               >
                 <ExternalLink className="size-4" />
-                Open Official Portal / Submission Link
+                Open submission
               </a>
             </div>
           )}

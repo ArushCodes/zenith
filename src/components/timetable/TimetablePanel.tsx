@@ -278,6 +278,7 @@ export function TimetablePanel() {
         </button>
         <button
           onClick={() => {
+            scrolled.current = false;
             setMonthStart(startOfMonth(new Date()));
             setDayFocus(null);
           }}
