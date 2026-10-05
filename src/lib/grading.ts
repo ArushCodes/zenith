@@ -133,8 +133,7 @@ export function buildCourseRows(
 
     const runningPct = gradedWeight > 0 ? round1((banked / gradedWeight) * 100) : null;
     const remaining = Math.max(0, weightSum - gradedWeight);
-    const projected =
-      runningPct === null ? null : round1(banked + (remaining * runningPct) / 100);
+    const projected = runningPct === null ? null : round1(banked + (remaining * runningPct) / 100);
 
     rows.push({
       code,
@@ -155,5 +154,5 @@ export function buildCourseRows(
     });
   }
 
-  return rows.sort((a, b) => a.name.localeCompare(b.name));
+  return rows.sort((a, b) => b.credits - a.credits || a.name.localeCompare(b.name));
 }

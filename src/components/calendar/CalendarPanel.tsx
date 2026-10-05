@@ -68,7 +68,11 @@ function addDays(d: Date, n: number) {
 
 const monthFmt = new Intl.DateTimeFormat("en-GB", { month: "long", year: "numeric" });
 const rangeFmt = new Intl.DateTimeFormat("en-GB", { day: "2-digit", month: "short" });
-const timeFmt = new Intl.DateTimeFormat("en-GB", { hour: "2-digit", minute: "2-digit", hour12: false });
+const timeFmt = new Intl.DateTimeFormat("en-GB", {
+  hour: "2-digit",
+  minute: "2-digit",
+  hour12: false,
+});
 const agendaFmt = new Intl.DateTimeFormat("en-GB", {
   weekday: "long",
   day: "2-digit",
@@ -116,11 +120,8 @@ export function CalendarPanel({
     setSubView("agenda");
   }
 
-
   const { data: dayMarks = [] } = useQuery(dayMarksQuery(batchId));
   const marks = useMemo(() => dayMarkMap(dayMarks), [dayMarks]);
-
-
 
   const colorMap = useMemo(() => buildColorMap(courses, sessions), [courses, sessions]);
 
@@ -161,8 +162,7 @@ export function CalendarPanel({
       const k = dayKey(d.due_at);
       map.set(k, [...(map.get(k) ?? []), d]);
     }
-    for (const list of map.values())
-      list.sort((a, b) => a.due_at.localeCompare(b.due_at));
+    for (const list of map.values()) list.sort((a, b) => a.due_at.localeCompare(b.due_at));
     return map;
   }, [deadlines]);
 
@@ -172,8 +172,7 @@ export function CalendarPanel({
       const k = dayKey(s.start_at);
       map.set(k, [...(map.get(k) ?? []), s]);
     }
-    for (const list of map.values())
-      list.sort((a, b) => a.start_at.localeCompare(b.start_at));
+    for (const list of map.values()) list.sort((a, b) => a.start_at.localeCompare(b.start_at));
     return map;
   }, [visibleClasses]);
 
@@ -249,23 +248,23 @@ export function CalendarPanel({
 
         <div className="ml-auto flex items-center gap-2">
           <div className="flex rounded-lg bg-surface2/70 p-0.5 ring-1 ring-border">
-          {SUB_VIEWS.map((v) => (
-            <button
-              key={v.key}
-              onClick={() => {
-                setSubView(v.key);
-                if (v.key !== "agenda") setFocusDay(null);
-              }}
-              className={
-                subView === v.key
-                  ? "flex items-center gap-1.5 rounded-md bg-surface px-2.5 py-1 font-mono text-[11px] text-ink"
-                  : "flex items-center gap-1.5 rounded-md px-2.5 py-1 font-mono text-[11px] text-dim hover:text-ink"
-              }
-            >
-              {v.icon}
-              {v.label}
-            </button>
-          ))}
+            {SUB_VIEWS.map((v) => (
+              <button
+                key={v.key}
+                onClick={() => {
+                  setSubView(v.key);
+                  if (v.key !== "agenda") setFocusDay(null);
+                }}
+                className={
+                  subView === v.key
+                    ? "flex items-center gap-1.5 rounded-md bg-surface px-2.5 py-1 font-mono text-[11px] text-ink"
+                    : "flex items-center gap-1.5 rounded-md px-2.5 py-1 font-mono text-[11px] text-dim hover:text-ink"
+                }
+              >
+                {v.icon}
+                {v.label}
+              </button>
+            ))}
           </div>
 
           {canManage && (
@@ -333,7 +332,6 @@ export function CalendarPanel({
                 }}
                 backLabel={returnView === "week" ? "the week" : "the whole month"}
 
-
                 cursor={cursor}
                 deadlines={deadlines}
                 classes={visibleClasses}
@@ -374,7 +372,6 @@ export function CalendarPanel({
         onClose={() => setMarkDay(null)}
       />
 
-
       <Legend />
     </section>
   );
@@ -409,7 +406,9 @@ function SubjectLegend({
           <button
             onClick={onToggleClasses}
             className={`rounded-lg px-2.5 py-1 font-mono text-[10px] ring-1 transition-colors ${
-              showClasses ? "bg-cyan/10 text-cyan ring-cyan/30" : "bg-surface text-faint ring-border"
+              showClasses
+                ? "bg-cyan/10 text-cyan ring-cyan/30"
+                : "bg-surface text-faint ring-border"
             }`}
           >
             {showClasses ? "Classes: Visible" : "Classes: Hidden"}
@@ -504,9 +503,10 @@ function EventPill({
         size={9}
         className={`${m.dot} ${critical && deadline.is_major ? "pulse-dot" : ""}`}
       />
-      {showTime && <span className="shrink-0 opacity-80">{timeFmt.format(new Date(deadline.due_at))}</span>}
+      {showTime && (
+        <span className="shrink-0 opacity-80">{timeFmt.format(new Date(deadline.due_at))}</span>
+      )}
       <span className="truncate">{deadlineShortLabel(deadline, abbrevSubject)}</span>
-
     </motion.button>
   );
 }
@@ -574,7 +574,10 @@ function ClassDots({
         {slotMap.map((s, idx) => {
           if (!s) {
             return (
-              <div key={idx} className="flex items-center gap-1.5 font-mono text-[9px] text-faint/40">
+              <div
+                key={idx}
+                className="flex items-center gap-1.5 font-mono text-[9px] text-faint/40"
+              >
                 <span className="size-1.5 rounded-full border border-border/40" />
                 <span className="w-3 font-mono text-[8px] opacity-40">{idx + 1}</span>
                 <span>—</span>
@@ -596,7 +599,9 @@ function ClassDots({
               }
               title={`${timeFmt.format(new Date(s.start_at))} · ${sessionLabel(s)}${s.faculty_name ? ` · ${s.faculty_name}` : ""}${s.classroom ? ` · ${s.classroom}` : ""}${canManage ? " (Click to edit)" : ""}`}
               className={`flex items-center gap-1.5 font-mono text-[10px] truncate ${
-                canManage && onEditSession ? "cursor-pointer hover:bg-surface2/80 rounded px-0.5 -mx-0.5 transition-colors" : ""
+                canManage && onEditSession
+                  ? "cursor-pointer hover:bg-surface2/80 rounded px-0.5 -mx-0.5 transition-colors"
+                  : ""
               }`}
             >
               <span
@@ -692,7 +697,6 @@ function MonthGrid({
   onEditSession?: (s: ClassSession) => void;
   onEditDeadline?: (d: Deadline) => void;
 }) {
-
   const first = new Date(cursor.getFullYear(), cursor.getMonth(), 1);
   const gridStart = startOfWeek(first);
   const cells = Array.from({ length: 42 }, (_, i) => addDays(gridStart, i));
@@ -736,14 +740,18 @@ function MonthGrid({
               style={mark ? markTint(mark.color) : {}}
               className={`group relative min-h-[74px] cursor-pointer rounded-lg p-1.5 text-left ring-1 transition-shadow sm:min-h-[118px] ${
                 inMonth ? "bg-surface ring-border" : "bg-surface/40 ring-transparent"
-              } ${isToday ? "ring-cyan/50" : ""} ${
+              } ${isToday ? "!ring-2 !ring-cyan !bg-cyan/10 shadow-lg shadow-cyan/20" : ""} ${
                 !mark && isDayOff(date) ? "bg-amber/8" : ""
               } hover:shadow-lg hover:shadow-black/30`}
             >
               <div className="flex items-center justify-between">
                 <span
                   className={`font-mono text-sm ${
-                    isToday ? "text-cyan" : inMonth ? "text-dim" : "text-faint"
+                    isToday
+                      ? "rounded-full bg-cyan px-2 py-1 font-bold text-background"
+                      : inMonth
+                        ? "text-dim"
+                        : "text-faint"
                   }`}
                   style={mark ? { color: mark.color } : undefined}
                 >
@@ -861,20 +869,14 @@ function WeekTimeline({
                 title={mark?.label ?? "Open this day"}
                 style={mark ? { color: mark.color } : undefined}
                 className={`rounded-md px-1 py-1.5 text-center font-mono text-xs uppercase tracking-[0.14em] ring-1 ring-transparent transition-colors hover:bg-surface2 hover:text-ink hover:ring-cyan/40 ${
-                  dayKey(d) === todayKey
-                    ? "text-cyan"
-                    : isDayOff(d)
-                      ? "text-amber"
-                      : "text-faint"
+                  dayKey(d) === todayKey ? "text-cyan" : isDayOff(d) ? "text-amber" : "text-faint"
                 }`}
               >
                 {WEEKDAYS[(d.getDay() + 6) % 7]} {d.getDate()}
               </button>
             );
           })}
-
         </div>
-
 
         <div className="grid grid-cols-[52px_repeat(7,minmax(0,1fr))] gap-1 pb-1">
           <span />
@@ -920,8 +922,6 @@ function WeekTimeline({
                       mark ? "" : isDayOff(d) ? "bg-amber/8" : "bg-surface/60"
                     }`}
                   >
-
-
                     <div className="flex flex-col gap-1">
                       {classes.map((s) => {
                         const color = sessionColor(s, colorMap) ?? FALLBACK_COURSE_COLOR;
@@ -945,7 +945,9 @@ function WeekTimeline({
                               .filter(Boolean)
                               .join(" · ")}
                             className={`flex items-center gap-1 truncate rounded-md px-1.5 py-1 font-mono text-[10px] ${
-                              canManage && onEditSession ? "cursor-pointer hover:brightness-125 transition-all" : ""
+                              canManage && onEditSession
+                                ? "cursor-pointer hover:brightness-125 transition-all"
+                                : ""
                             }`}
                             style={{ color, backgroundColor: `${color}1a` }}
                           >
@@ -1008,7 +1010,6 @@ function Agenda({
   onStyleDay: (dayKey: string) => void;
   onAddOnDay: (dayKey: string) => void;
 }) {
-
   const inMonth = (iso: string) => {
     if (focusDay) return dayKey(iso) === focusDay;
     const d = new Date(iso);
@@ -1021,8 +1022,12 @@ function Agenda({
     | { kind: "academic"; at: string; session: ClassSession };
 
   const rows: Row[] = [
-    ...deadlines.filter((d) => inMonth(d.due_at)).map((d) => ({ kind: "deadline" as const, at: d.due_at, deadline: d })),
-    ...classes.filter((s) => inMonth(s.start_at)).map((s) => ({ kind: "class" as const, at: s.start_at, session: s })),
+    ...deadlines
+      .filter((d) => inMonth(d.due_at))
+      .map((d) => ({ kind: "deadline" as const, at: d.due_at, deadline: d })),
+    ...classes
+      .filter((s) => inMonth(s.start_at))
+      .map((s) => ({ kind: "class" as const, at: s.start_at, session: s })),
     ...academic
       .filter((s) => inMonth(s.start_at) || inMonth(s.end_at))
       .map((s) => ({ kind: "academic" as const, at: s.start_at, session: s })),
@@ -1044,7 +1049,6 @@ function Agenda({
       ← Back to {backLabel}
     </motion.button>
   ) : null;
-
 
   if (rows.length === 0)
     return (
@@ -1070,127 +1074,131 @@ function Agenda({
       {[...groups.entries()].map(([key, list]) => {
         const mark = marks.get(key) ?? null;
         return (
-        <div key={key}>
-          <div className="mb-2 flex flex-wrap items-center gap-2">
-            <p className="font-mono text-[10px] uppercase tracking-[0.2em] text-cyan">
-              {agendaFmt.format(new Date(list[0]!.at))}
-            </p>
-            {mark && (
-              <span
-                className="rounded-md px-2 py-0.5 font-mono text-[10px]"
-                style={{ color: mark.color, backgroundColor: `${mark.color}1f` }}
-                title={mark.note ?? undefined}
-              >
-                {mark.label ?? (mark.is_off ? "Day off" : "Marked")}
-              </span>
-            )}
-            {canManage && (
-              <DayModBar
-                dayKey={key}
-                mark={mark}
-                onStyleDay={onStyleDay}
-                onAddOnDay={onAddOnDay}
-              />
-            )}
-          </div>
-          <div className="flex flex-col gap-2">
-
-            {list.map((row) => {
-              if (row.kind === "deadline") {
-                const d = row.deadline;
-                const m = eventMeta(d.type);
-                const critical = urgencyOf(d.due_at, now) === "critical";
-                return (
-                  <div
-                    key={d.id}
-                    className="flex items-center gap-3 rounded-xl bg-surface px-3 py-3 text-left ring-1 ring-border transition-shadow hover:shadow-lg hover:shadow-black/30"
-                  >
-                    <button
-                      type="button"
-                      onClick={() => onSelect(d)}
-                      className="flex min-w-0 flex-1 items-center gap-3 text-left"
-                    >
-                      <span className={`h-8 w-0.5 shrink-0 rounded-full ${m.bar}`} />
-                      <span className="font-mono text-[11px] text-dim">
-                        {timeFmt.format(new Date(d.due_at))}
-                      </span>
-                      <span className="min-w-0 flex-1">
-                        <span className="block truncate font-display text-sm font-semibold">
-                          {displayTitle(d.subject, d.title)}
-                        </span>
-                        <span className="block truncate font-mono text-[11px] text-dim">
-                          {[d.subject_code, d.subject].filter(Boolean).join(" · ")}
-                        </span>
-                      </span>
-                      <span className={`shrink-0 rounded-md px-2 py-1 font-mono text-[10px] ${m.chip}`}>
-                        {m.label}
-                      </span>
-                      {critical && <span className={`size-2 shrink-0 rounded-full ${m.dot} pulse-dot`} />}
-                    </button>
-                    {canManage && (
-                      <motion.button
-                        whileHover={{ scale: 1.08 }}
-                        whileTap={{ scale: 0.94 }}
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          if (onEditDeadline) onEditDeadline(d);
-                          else onSelect(d);
-                        }}
-                        aria-label="Edit event"
-                        className="shrink-0 rounded-md px-2 py-1 font-mono text-[10px] text-dim ring-1 ring-border transition-colors hover:text-amber hover:ring-amber/40"
-                      >
-                        Edit
-                      </motion.button>
-                    )}
-                  </div>
-                );
-              }
-
-              const s = row.session;
-              if (row.kind === "academic")
-                return (
-                  <div
-                    key={`${s.id}-acad`}
-                    className={`rounded-xl px-3 py-2.5 ring-1 ${
-                      s.is_holiday
-                        ? "bg-evt-present/10 ring-evt-present/30"
-                        : "bg-cyan/10 ring-cyan/30"
-                    }`}
-                  >
-                    <p className="font-display text-sm font-semibold">{sessionLabel(s)}</p>
-                    <div className="flex items-center gap-2">
-                      <p className="min-w-0 flex-1 font-mono text-[10px] text-dim">
-                        Academic calendar ·{" "}
-                        {rangeFmt.format(new Date(s.start_at))} —{" "}
-                        {rangeFmt.format(new Date(s.end_at))}
-                      </p>
-                      {canManage && <EditSessionButton onClick={() => onEditSession(s)} />}
-                    </div>
-                  </div>
-                );
-
-              const color = sessionColor(s, colorMap) ?? FALLBACK_COURSE_COLOR;
-              return (
-                <div
-                  key={s.id}
-                  className="flex items-start gap-3 rounded-xl bg-surface/70 px-3 py-2.5 ring-1 ring-border"
+          <div key={key}>
+            <div className="mb-2 flex flex-wrap items-center gap-2">
+              <p className="font-mono text-[10px] uppercase tracking-[0.2em] text-cyan">
+                {agendaFmt.format(new Date(list[0]!.at))}
+              </p>
+              {mark && (
+                <span
+                  className="rounded-md px-2 py-0.5 font-mono text-[10px]"
+                  style={{ color: mark.color, backgroundColor: `${mark.color}1f` }}
+                  title={mark.note ?? undefined}
                 >
-                  <span className="mt-1.5 size-2 shrink-0 rounded-full" style={{ backgroundColor: color }} />
-                  <span className="mt-0.5 font-mono text-[11px] text-dim">
-                    {timeFmt.format(new Date(s.start_at))}–{timeFmt.format(new Date(s.end_at))}
-                  </span>
-                  <span className="min-w-0 flex-1">
-                    <span className="block truncate font-display text-sm">{sessionLabel(s)}</span>
-                    <SessionMeta session={s} />
-                  </span>
-                  {canManage && <EditSessionButton onClick={() => onEditSession(s)} />}
+                  {mark.label ?? (mark.is_off ? "Day off" : "Marked")}
+                </span>
+              )}
+              {canManage && (
+                <DayModBar
+                  dayKey={key}
+                  mark={mark}
+                  onStyleDay={onStyleDay}
+                  onAddOnDay={onAddOnDay}
+                />
+              )}
+            </div>
+            <div className="flex flex-col gap-2">
+              {list.map((row) => {
+                if (row.kind === "deadline") {
+                  const d = row.deadline;
+                  const m = eventMeta(d.type);
+                  const critical = urgencyOf(d.due_at, now) === "critical";
+                  return (
+                    <div
+                      key={d.id}
+                      className="flex items-center gap-3 rounded-xl bg-surface px-3 py-3 text-left ring-1 ring-border transition-shadow hover:shadow-lg hover:shadow-black/30"
+                    >
+                      <button
+                        type="button"
+                        onClick={() => onSelect(d)}
+                        className="flex min-w-0 flex-1 items-center gap-3 text-left"
+                      >
+                        <span className={`h-8 w-0.5 shrink-0 rounded-full ${m.bar}`} />
+                        <span className="font-mono text-[11px] text-dim">
+                          {timeFmt.format(new Date(d.due_at))}
+                        </span>
+                        <span className="min-w-0 flex-1">
+                          <span className="block truncate font-display text-sm font-semibold">
+                            {displayTitle(d.subject, d.title)}
+                          </span>
+                          <span className="block truncate font-mono text-[11px] text-dim">
+                            {[d.subject_code, d.subject].filter(Boolean).join(" · ")}
+                          </span>
+                        </span>
+                        <span
+                          className={`shrink-0 rounded-md px-2 py-1 font-mono text-[10px] ${m.chip}`}
+                        >
+                          {m.label}
+                        </span>
+                        {critical && (
+                          <span className={`size-2 shrink-0 rounded-full ${m.dot} pulse-dot`} />
+                        )}
+                      </button>
+                      {canManage && (
+                        <motion.button
+                          whileHover={{ scale: 1.08 }}
+                          whileTap={{ scale: 0.94 }}
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (onEditDeadline) onEditDeadline(d);
+                            else onSelect(d);
+                          }}
+                          aria-label="Edit event"
+                          className="shrink-0 rounded-md px-2 py-1 font-mono text-[10px] text-dim ring-1 ring-border transition-colors hover:text-amber hover:ring-amber/40"
+                        >
+                          Edit
+                        </motion.button>
+                      )}
+                    </div>
+                  );
+                }
 
-                </div>
-              );
-            })}
+                const s = row.session;
+                if (row.kind === "academic")
+                  return (
+                    <div
+                      key={`${s.id}-acad`}
+                      className={`rounded-xl px-3 py-2.5 ring-1 ${
+                        s.is_holiday
+                          ? "bg-evt-present/10 ring-evt-present/30"
+                          : "bg-cyan/10 ring-cyan/30"
+                      }`}
+                    >
+                      <p className="font-display text-sm font-semibold">{sessionLabel(s)}</p>
+                      <div className="flex items-center gap-2">
+                        <p className="min-w-0 flex-1 font-mono text-[10px] text-dim">
+                          Academic calendar · {rangeFmt.format(new Date(s.start_at))} —{" "}
+                          {rangeFmt.format(new Date(s.end_at))}
+                        </p>
+                        {canManage && <EditSessionButton onClick={() => onEditSession(s)} />}
+                      </div>
+                    </div>
+                  );
+
+                const color = sessionColor(s, colorMap) ?? FALLBACK_COURSE_COLOR;
+                return (
+                  <div
+                    key={s.id}
+                    className="flex items-start gap-3 rounded-xl bg-surface/70 px-3 py-2.5 ring-1 ring-border"
+                  >
+                    <span
+                      className="mt-1.5 size-2 shrink-0 rounded-full"
+                      style={{ backgroundColor: color }}
+                    />
+                    <span className="mt-0.5 font-mono text-[11px] text-dim">
+                      {timeFmt.format(new Date(s.start_at))}–{timeFmt.format(new Date(s.end_at))}
+                    </span>
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate font-display text-sm">{sessionLabel(s)}</span>
+                      <SessionMeta session={s} />
+                    </span>
+                    {canManage && <EditSessionButton onClick={() => onEditSession(s)} />}
+                  </div>
+                );
+              })}
+            </div>
           </div>
-        </div>
         );
       })}
     </div>
@@ -1225,7 +1233,6 @@ function DayModBar({
     </span>
   );
 }
-
 
 function EditSessionButton({ onClick }: { onClick: () => void }) {
   return (

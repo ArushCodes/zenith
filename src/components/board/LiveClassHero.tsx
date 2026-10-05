@@ -44,7 +44,7 @@ import { cleanExamTitle, dayKey, eventMeta, timeLeft, type Deadline } from "@/li
 import { TimetableSyncStatus } from "./TimetableSyncStatus";
 import { SyllabusDialog } from "@/components/board/SyllabusDialog";
 import { courseAttendance, defaultClassDay } from "@/lib/course-attendance";
-import { getBunkStatus, sessionSubject } from "@/lib/attendance";
+import { sessionSubject } from "@/lib/attendance";
 import { IPM1_BATCH_ID } from "@/lib/roster.data";
 import { MissAllowance } from "@/components/attendance/MissAllowance";
 
@@ -75,7 +75,6 @@ const shortDayFmt = new Intl.DateTimeFormat("en-GB", {
 export function LiveClassHero({
   now,
   onSeeFullTimetable,
-  onSeeAttendance,
   onSeeExams,
   deadlines = [],
   canManage = false,
@@ -145,7 +144,6 @@ export function LiveClassHero({
   const setOffset = (value: number | ((current: number) => number)) =>
     setManualDay({ day: todayKey, offset: typeof value === "function" ? value(offset) : value });
   const [inspectedId, setInspectedId] = useState<string | null>(null);
-  const [showCompleted, setShowCompleted] = useState(false);
   const attendanceByCourse = useMemo(
     () => courseAttendance(sessions, marks, user?.id, now),
     [sessions, marks, user?.id, now],
@@ -203,12 +201,11 @@ export function LiveClassHero({
     const a = new Date(liveClass.start_at).getTime();
     const b = new Date(liveClass.end_at).getTime();
     const totalMs = Math.max(1, b - a);
-    const elapsedMs = Math.max(0, now - a);
     const remainingMs = Math.max(0, b - now);
-    const pct = Math.min(100, Math.round((elapsedMs / totalMs) * 100));
+    const pct = Math.min(100, (remainingMs / totalMs) * 100);
     return {
       pct,
-      remainingMin: Math.round(remainingMs / 60000),
+      remainingMin: Math.ceil(remainingMs / 60000),
     };
   }, [liveClass, now]);
 
@@ -231,20 +228,17 @@ export function LiveClassHero({
 
   const inspected = classes.find((s) => s.id === inspectedId);
   const featured = offset === 0 ? liveClass || nextClassToday || nextUpcomingAnyDay : classes[0];
-  const attendanceClass = inspected || (offset === 0 ? liveClass || nextClassToday : featured);
-  const courseRecord = attendanceClass
-    ? attendanceByCourse.get(sessionSubject(attendanceClass))
-    : null;
-  const allowance =
-    attendanceClass && batchId === IPM1_BATCH_ID
-      ? getBunkStatus(sessionSubject(attendanceClass), courseRecord?.absent ?? 0)
-      : null;
-  const completedCount = classes.filter((s) => new Date(s.end_at).getTime() <= now).length;
-  const visibleClasses =
-    minimal && offset === 0 && !showCompleted
-      ? classes.filter((s) => new Date(s.end_at).getTime() > now)
-      : classes;
-  const dialValue = liveClass ? liveProgress.remainingMin : offset !== 0 ? classes.length : "↗";
+  const visibleClasses = classes;
+  const untilStart = featured
+    ? Math.max(0, Math.ceil((new Date(featured.start_at).getTime() - now) / 60000))
+    : 0;
+  const dialValue = liveClass
+    ? liveProgress.remainingMin
+    : untilStart >= 1440
+      ? Math.floor(untilStart / 1440)
+      : untilStart >= 60
+        ? Math.floor(untilStart / 60)
+        : untilStart;
 
   return (
     <motion.section
@@ -305,11 +299,13 @@ export function LiveClassHero({
             <span>
               {liveClass
                 ? "min left"
-                : offset !== 0
-                  ? "classes"
-                  : featured
-                    ? "up next"
-                    : "all clear"}
+                : featured && untilStart > 0
+                  ? untilStart >= 1440
+                    ? "days to go"
+                    : untilStart >= 60
+                      ? "hours to go"
+                      : "min to go"
+                  : "all clear"}
             </span>
           </div>
         </div>
@@ -518,16 +514,18 @@ export function LiveClassHero({
             <div className="space-y-1.5 pt-2">
               <div className="flex justify-between text-xs font-mono font-bold text-dim">
                 <span>{liveProgress.remainingMin} min left</span>
-                <span>{liveProgress.pct}%</span>
+                <span>Ends {clockTimeFmt.format(new Date(liveClass.end_at))}</span>
               </div>
               <div className="h-2.5 w-full overflow-hidden rounded-full bg-surface2 border border-border">
                 <motion.div
-                  className="h-full rounded-full transition-all duration-700"
+                  className="class-time-remaining relative h-full overflow-hidden rounded-full transition-all duration-700"
                   style={{
                     width: `${liveProgress.pct}%`,
                     backgroundColor: activeThemeColor,
                   }}
-                />
+                >
+                  <span className="class-time-shimmer" aria-hidden="true" />
+                </motion.div>
               </div>
             </div>
           </motion.div>
@@ -602,49 +600,14 @@ export function LiveClassHero({
                   ) || sessionFullName(nextUpcomingAnyDay)}
                 </strong>{" "}
                 ({shortDayFmt.format(new Date(nextUpcomingAnyDay.start_at))})
+                <span className="block mt-2 font-semibold text-cyan">
+                  Starts in {timeLeft(nextUpcomingAnyDay.start_at, now)}
+                </span>
               </p>
             )}
           </motion.div>
         )}
       </AnimatePresence>
-
-      {minimal && (isMember || canManage) && user && attendanceClass && (
-        <button
-          type="button"
-          onClick={onSeeAttendance}
-          className="relative z-10 mt-4 flex w-full flex-wrap items-center justify-between gap-3 rounded-xl border border-border/70 bg-surface2/50 px-4 py-3 text-left transition-colors hover:border-cyan/40"
-          aria-label={`View attendance for ${sessionSubject(attendanceClass)}`}
-        >
-          <div className="min-w-0">
-            <p className="text-[10px] font-semibold uppercase tracking-wider text-dim">
-              Your attendance · {sessionPeriodLabel(attendanceClass)}
-            </p>
-            <p className="mt-1 text-sm font-semibold text-ink">
-              {attendanceError
-                ? "Attendance unavailable"
-                : attendanceLoading
-                  ? "Loading attendance…"
-                  : courseRecord?.held
-                    ? `${courseRecord.present} present · ${courseRecord.absent} missed`
-                    : "No completed classes yet"}
-              {!attendanceLoading && !attendanceError && !!courseRecord?.unmarked && (
-                <span className="ml-2 text-xs font-normal text-dim">
-                  {courseRecord.unmarked} unmarked
-                </span>
-              )}
-            </p>
-          </div>
-          <div className="flex items-center gap-3 text-xs">
-            {allowance && !attendanceLoading && !attendanceError && (
-              <MissAllowance
-                course={sessionSubject(attendanceClass)}
-                missed={courseRecord?.absent ?? 0}
-              />
-            )}
-            <ArrowRight className="size-4 text-dim" />
-          </div>
-        </button>
-      )}
 
       {/* Today's remaining classes stay visible; completed periods are optional. */}
       {classes.length > 0 && (
@@ -653,18 +616,9 @@ export function LiveClassHero({
             <span className="font-mono text-xs font-bold uppercase tracking-wider text-dim">
               {offset === 0 ? "Today" : shortDayFmt.format(selectedDate)} · {classes.length} classes
             </span>
-            {minimal && offset === 0 && completedCount > 0 && (
-              <button
-                type="button"
-                onClick={() => setShowCompleted((value) => !value)}
-                className="text-xs text-dim hover:text-ink"
-              >
-                {showCompleted ? "Hide completed" : `${completedCount} completed`}
-              </button>
-            )}
           </div>
 
-          <div className="flex items-stretch gap-2.5 sm:gap-3 overflow-x-auto pb-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+          <div className="flex items-stretch gap-2.5 sm:gap-3 overflow-x-auto pt-2 pb-3 px-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
             {visibleClasses.map((s) => {
               const color = sessionColor(s, colorMap) ?? FALLBACK_COURSE_COLOR;
               const isLive = liveClass?.id === s.id;
@@ -674,18 +628,15 @@ export function LiveClassHero({
               const record = attendanceByCourse.get(sessionSubject(s));
 
               return (
-                <motion.button
-                  type="button"
+                <motion.article
                   key={s.id}
-                  aria-pressed={inspectedId === s.id}
-                  onClick={() => setInspectedId((id) => (id === s.id ? null : s.id))}
                   whileHover={{ y: -3 }}
                   whileTap={{ scale: 0.97 }}
                   className={`relative flex flex-col justify-between rounded-xl sm:rounded-2xl p-3 sm:p-4 min-w-[170px] sm:min-w-[220px] shrink-0 border transition-all ${
                     isLive
                       ? "border-cyan/80 bg-cyan/[0.08] shadow-lg shadow-cyan/10 ring-1 ring-cyan/40"
                       : isPast
-                        ? "border-border/60 bg-surface2/30 opacity-75"
+                        ? "border-border/60 bg-surface2/30 opacity-60 grayscale"
                         : "border-border bg-surface hover:border-border/90 hover:shadow-xs"
                   }`}
                 >
@@ -705,12 +656,21 @@ export function LiveClassHero({
                         </span>
                       ) : isPast ? (
                         <span className="font-mono text-[10px] text-faint">Done</span>
-                      ) : null}
+                      ) : (
+                        <span className="font-mono text-xs text-dim">
+                          in {timeLeft(s.start_at, now)}
+                        </span>
+                      )}
                     </div>
 
-                    <p className="font-display text-sm font-bold text-ink whitespace-nowrap pt-0.5">
+                    <button
+                      type="button"
+                      aria-expanded={inspectedId === s.id}
+                      onClick={() => setInspectedId((id) => (id === s.id ? null : s.id))}
+                      className="text-left font-display text-sm font-bold text-ink whitespace-nowrap pt-0.5 hover:text-cyan"
+                    >
                       {periodSubject}
-                    </p>
+                    </button>
 
                     <div className="flex items-center gap-2 text-[11px] text-dim pt-1">
                       {s.classroom && <span>Room {s.classroom}</span>}
@@ -718,25 +678,96 @@ export function LiveClassHero({
                     </div>
                   </div>
 
-                  <div className="mt-3 pt-2 border-t border-border/50 flex items-center justify-between text-xs">
+                  <div className="mt-3 flex items-center gap-2">
+                    <svg
+                      className="size-8 shrink-0 -rotate-90"
+                      viewBox="0 0 36 36"
+                      aria-hidden="true"
+                    >
+                      <circle
+                        cx="18"
+                        cy="18"
+                        r="15"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="3"
+                        className="text-border"
+                      />
+                      <motion.circle
+                        cx="18"
+                        cy="18"
+                        r="15"
+                        fill="none"
+                        stroke={color}
+                        strokeWidth="3"
+                        strokeLinecap="round"
+                        strokeDasharray="94.25"
+                        initial={false}
+                        animate={{
+                          strokeDashoffset:
+                            94.25 *
+                            (1 -
+                              (isPast
+                                ? 0
+                                : isLive
+                                  ? Math.max(
+                                      0,
+                                      (new Date(s.end_at).getTime() - now) /
+                                        (new Date(s.end_at).getTime() -
+                                          new Date(s.start_at).getTime()),
+                                    )
+                                  : 1)),
+                        }}
+                      />
+                    </svg>
+                    <span className="text-sm font-semibold tabular-nums">
+                      {isPast
+                        ? "Finished"
+                        : isLive
+                          ? `${Math.ceil((new Date(s.end_at).getTime() - now) / 60000)} min left`
+                          : `Starts in ${timeLeft(s.start_at, now)}`}
+                    </span>
+                  </div>
+                  {isLive && (
+                    <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-surface2">
+                      <motion.div
+                        className="class-time-remaining relative h-full overflow-hidden rounded-full"
+                        style={{ backgroundColor: color }}
+                        initial={false}
+                        animate={{ width: `${liveProgress.pct}%` }}
+                      >
+                        <span className="class-time-shimmer" aria-hidden="true" />
+                      </motion.div>
+                    </div>
+                  )}
+                  <div className="mt-3 pt-2 border-t border-border/50 flex items-center justify-between gap-2 text-xs">
                     <span className="font-mono text-[10px] text-faint">
                       {minimal &&
                       (isMember || canManage) &&
                       user &&
                       !attendanceLoading &&
                       !attendanceError
-                        ? `${record?.absent ?? 0} missed${record?.unmarked ? ` · ${record.unmarked} unmarked` : ""}`
+                        ? `${record?.absent ?? 0} missed`
                         : s.course_code || "Class"}
                     </span>
-                    {mark === "absent" ? (
-                      <span className="font-mono text-[10px] font-bold text-rose">Absent</span>
-                    ) : mark === "present" ? (
-                      <span className="font-mono text-[10px] font-bold text-emerald-500">
-                        Present
-                      </span>
-                    ) : null}
+                    {(isMember || canManage) && user && (
+                      <button
+                        type="button"
+                        disabled={toggleAbsent.isPending || attendanceLoading || attendanceError}
+                        onClick={() => toggleAbsent.mutate(s)}
+                        className={`rounded-lg border px-3 py-2 text-xs font-semibold transition-colors ${mark === "absent" ? "border-rose/50 bg-rose/15 text-rose" : "border-emerald-400/30 bg-emerald-400/10 text-emerald-400"}`}
+                        aria-label={`${mark === "absent" ? "Undo absence" : "Mark absent"}: ${periodSubject}`}
+                      >
+                        {mark === "absent" ? "Absent · undo" : "Mark absent"}
+                      </button>
+                    )}
                   </div>
-                </motion.button>
+                  {batchId === IPM1_BATCH_ID && !attendanceLoading && !attendanceError && (
+                    <div className="mt-2">
+                      <MissAllowance course={sessionSubject(s)} missed={record?.absent ?? 0} />
+                    </div>
+                  )}
+                </motion.article>
               );
             })}
           </div>

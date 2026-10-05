@@ -61,7 +61,17 @@ const completedClass = {
   end_at: "2026-10-05T04:30:00Z",
 } as ClassSession;
 assert.equal(defaultClassDay([completedClass], Date.parse("2026-10-05T04:29:59Z")), 0);
-assert.equal(defaultClassDay([completedClass], Date.parse("2026-10-05T04:30:00Z")), 1);
+assert.equal(defaultClassDay([completedClass], Date.parse("2026-10-05T04:30:00Z")), 0);
+const nextScheduledClass = {
+  ...completedClass,
+  start_at: "2026-10-08T03:30:00Z",
+  end_at: "2026-10-08T04:30:00Z",
+};
+assert.equal(
+  defaultClassDay([completedClass, nextScheduledClass], Date.parse("2026-10-05T04:30:00Z")),
+  3,
+);
+assert.equal(defaultClassDay([nextScheduledClass], Date.parse("2026-10-05T05:00:00Z")), 3);
 assert.equal(defaultClassDay([], Date.parse("2026-10-05T05:00:00Z")), 0);
 assert.equal(
   defaultClassDay(
@@ -82,9 +92,9 @@ const courseRows = courseAttendance(
 );
 assert.deepEqual(courseRows.get(sessionSubject(completedClass)), {
   held: 2,
-  present: 0,
+  present: 1,
   absent: 1,
-  unmarked: 1,
+  unmarked: 0,
 });
 assert.equal(
   courseAttendance(
@@ -93,7 +103,7 @@ assert.equal(
     "other",
     Date.parse("2026-10-05T05:00:00Z"),
   ).get(sessionSubject(completedClass))?.unmarked,
-  1,
+  0,
 );
 for (const url of [
   "http://example.com/calendar",

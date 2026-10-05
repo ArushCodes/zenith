@@ -56,11 +56,6 @@ export function GradingPanel() {
         )}
       </div>
 
-      <details className="text-xs text-dim">
-        <summary className="cursor-pointer py-2">How grading works</summary>
-        <PassRuleCard />
-      </details>
-
       {isLoading && (
         <p className="mt-6 text-center font-mono text-xs text-faint">Loading courses…</p>
       )}
@@ -74,8 +69,10 @@ export function GradingPanel() {
           <CourseCard
             key={row.code}
             row={row}
-            open={open === row.code}
-            onToggle={() => setOpen(open === row.code ? null : row.code)}
+            open={open === row.code || (open === null && row === rows[0])}
+            onToggle={() =>
+              setOpen(open === row.code || (open === null && row === rows[0]) ? "" : row.code)
+            }
             canManage={canManage}
             onEdit={(c) => setEditing(c)}
             batchId={batchId!}
@@ -96,18 +93,6 @@ export function GradingPanel() {
   );
 }
 
-/** The 40% rule, spelled out. */
-function PassRuleCard() {
-  return (
-    <div className="rounded-2xl bg-surface p-4 ring-1 ring-border">
-      <p className="font-display text-sm font-semibold text-ink">Course score</p>
-      <p className="mt-2 text-sm text-dim">
-        Pass: {PASS_LINE}% overall and {PASS_LINE}% in the endterm.
-      </p>
-    </div>
-  );
-}
-
 function CourseCard({
   row,
   open,
@@ -125,6 +110,16 @@ function CourseCard({
   batchId: string;
   userId: string | undefined;
 }) {
+  const [expected, setExpected] = useState<Record<string, number>>({});
+  const [target, setTarget] = useState(70);
+  const planned =
+    row.banked +
+    row.components.reduce(
+      (sum, c) =>
+        sum +
+        (c.mark ? 0 : ((expected[c.component.id] ?? 0) * Number(c.component.weightage)) / 100),
+      0,
+    );
   const headline = row.gradedWeight > 0 ? row.banked : null;
   const tone =
     (row.overallAtRisk && row.gradedWeight >= 100) || row.endTermAtRisk
@@ -144,6 +139,11 @@ function CourseCard({
         <span className="min-w-0 flex-1">
           <span className="flex flex-wrap items-center gap-2">
             <span className="font-display text-sm font-semibold">{row.name}</span>
+            {batchId === "ee4a435d-4003-4a22-940b-0ee0e676b6f5" && row.code === "HRM 1103" && (
+              <span className="rounded-md bg-surface2 px-2 py-1 text-xs text-dim">
+                Course finished
+              </span>
+            )}
             <span className="font-mono text-[10px] text-faint">{row.code}</span>
             <span className="rounded-md px-1.5 py-0.5 font-mono text-[9px] text-dim ring-1 ring-border">
               {row.credits} {row.credits === 1 ? "credit" : "credits"}
@@ -214,6 +214,46 @@ function CourseCard({
       </div>
       {open && (
         <div className="border-t border-border">
+          <div className="grid grid-cols-3 gap-3 p-4">
+            <div>
+              <p className="text-xs text-dim">Earned so far</p>
+              <p className="text-2xl font-bold">
+                {row.banked}
+                <span className="text-xs text-dim"> / 100</span>
+              </p>
+            </div>
+            <div>
+              <p className="text-xs text-dim">Expected total</p>
+              <p
+                className={`text-2xl font-bold ${planned >= target ? "text-emerald-400" : "text-cyan"}`}
+              >
+                {round1(planned)}
+                <span className="text-xs text-dim"> / 100</span>
+              </p>
+            </div>
+            <label className="text-xs text-dim">
+              Your target
+              <input
+                aria-label={`Target for ${row.name}`}
+                type="number"
+                min={0}
+                max={100}
+                value={target}
+                onChange={(e) => setTarget(Math.min(100, Math.max(0, Number(e.target.value))))}
+                className="mt-1 block w-full max-w-24 rounded-lg border border-border bg-surface2 px-2 py-1 text-lg font-bold text-ink"
+              />
+            </label>
+          </div>
+          <div className="mx-4 mb-4 h-2 rounded-full bg-surface2 overflow-hidden">
+            <motion.div
+              initial={false}
+              animate={{ width: `${Math.min(100, planned)}%` }}
+              className="h-full rounded-full bg-cyan"
+            />
+          </div>
+          <p className="px-4 pb-3 text-xs text-dim">
+            Expected sliders apply only to ungraded work · final grades are relative.
+          </p>
           {row.components.map((c) => (
             <Fragment key={c.component.id}>
               <ComponentRow
@@ -227,6 +267,10 @@ function CourseCard({
                 onEdit={() => onEdit(c.component)}
                 batchId={batchId}
                 userId={userId}
+                expected={expected[c.component.id] ?? 0}
+                onExpected={(value) =>
+                  setExpected((current) => ({ ...current, [c.component.id]: value }))
+                }
               />
             </Fragment>
           ))}
@@ -256,6 +300,8 @@ function ComponentRow({
   onEdit,
   batchId,
   userId,
+  expected,
+  onExpected,
 }: {
   component: CourseComponent;
   pct: number | null;
@@ -267,6 +313,8 @@ function ComponentRow({
   onEdit: () => void;
   batchId: string;
   userId: string | undefined;
+  expected: number;
+  onExpected: (value: number) => void;
 }) {
   const queryClient = useQueryClient();
   const [s, setS] = useState(score === null ? "" : String(score));
@@ -284,7 +332,7 @@ function ComponentRow({
     mutationFn: async () => {
       const ns = Number(s);
       const nt = Number(t);
-      if (!Number.isFinite(ns) || !Number.isFinite(nt) || nt <= 0)
+      if (!s.trim() || !t.trim() || !Number.isFinite(ns) || !Number.isFinite(nt) || nt <= 0)
         throw new Error("Enter your score and the total it was marked out of.");
       if (ns < 0 || ns > nt) throw new Error("Score has to be between 0 and the total.");
       const { error } = await supabase
@@ -316,7 +364,11 @@ function ComponentRow({
 
   const weightage = Number(component.weightage);
   const preview =
-    Number(t) > 0 && Number.isFinite(Number(s))
+    s.trim() &&
+    Number(t) > 0 &&
+    Number.isFinite(Number(s)) &&
+    Number(s) >= 0 &&
+    Number(s) <= Number(t)
       ? earnedPoints(Number(s), Number(t), weightage)
       : null;
 
@@ -346,6 +398,7 @@ function ComponentRow({
       <span className="flex items-center gap-1.5">
         <input
           value={s}
+          aria-label={`My marks for ${component.name}`}
           onChange={(e) => setS(e.target.value)}
           placeholder="score"
           inputMode="decimal"
@@ -354,6 +407,7 @@ function ComponentRow({
         <span className="font-mono text-[10px] text-faint">/</span>
         <input
           value={t}
+          aria-label={`Maximum marks for ${component.name}`}
           onChange={(e) => setT(e.target.value)}
           placeholder="out of"
           inputMode="decimal"
@@ -386,8 +440,30 @@ function ComponentRow({
       </span>
 
       <span className="w-full font-mono text-[10px] text-dim sm:w-auto sm:min-w-[140px] sm:text-right">
-        {pct === null && preview === null ? "—" : `${earned ?? preview} / ${weightage}`}
+        <span className="block text-xs">Contribution</span>
+        {pct === null && preview === null ? "—" : `${preview ?? earned} / ${weightage}`}
       </span>
+      {!markId && (
+        <div className="flex w-full items-center gap-3 rounded-lg bg-cyan/5 px-3 py-2">
+          <label className="text-xs text-cyan shrink-0" htmlFor={`expected-${component.id}`}>
+            Expected
+          </label>
+          <input
+            id={`expected-${component.id}`}
+            type="range"
+            min={0}
+            max={100}
+            step={0.5}
+            value={expected}
+            onChange={(e) => onExpected(Number(e.target.value))}
+            className="min-w-0 flex-1 accent-cyan"
+          />
+          <span className="w-12 text-right text-sm tabular-nums">{expected}%</span>
+          <span className="w-20 text-right text-sm tabular-nums text-cyan">
+            {round1((expected * weightage) / 100)} / {weightage}
+          </span>
+        </div>
+      )}
     </div>
   );
 }

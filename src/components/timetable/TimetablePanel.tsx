@@ -1,4 +1,4 @@
-import { Fragment, useMemo, useState } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { AnimatePresence, motion } from "framer-motion";
@@ -77,6 +77,9 @@ const monthFmt = new Intl.DateTimeFormat("en-GB", { month: "long", year: "numeri
 type ViewFilter = "all" | "classes" | "events" | "holidays";
 
 export function TimetablePanel() {
+  const todayKey = new Date().toDateString();
+  const todayRef = useRef<HTMLDivElement>(null);
+  const scrolled = useRef(false);
   const { batchId, batch, canManage, isMember } = useBatch();
   const { user } = useAuth();
   const queryClient = useQueryClient();
@@ -225,15 +228,26 @@ export function TimetablePanel() {
       }
     }
 
+    if (new Date() >= monthStart && new Date() < monthEnd && !selectedSubject)
+      bucket(new Date().toDateString());
     for (const v of map.values()) {
       v.sessions.sort((a, b) => a.start_at.localeCompare(b.start_at));
       v.events.sort((a, b) => a.due_at.localeCompare(b.due_at));
     }
 
     return [...map.entries()]
-      .filter(([_, v]) => v.sessions.length > 0 || v.events.length > 0)
+      .filter(([day, v]) => day === todayKey || v.sessions.length > 0 || v.events.length > 0)
       .sort(([a], [b]) => new Date(a).getTime() - new Date(b).getTime());
-  }, [sessions, deadlines, monthStart, monthEnd, selectedSubject, viewFilter]);
+  }, [sessions, deadlines, monthStart, monthEnd, selectedSubject, viewFilter, todayKey]);
+
+  useEffect(() => {
+    if (scrolled.current || !todayRef.current) return;
+    const frame = requestAnimationFrame(() => {
+      todayRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+      scrolled.current = true;
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [grouped]);
 
   return (
     <section className="mt-4">
@@ -454,11 +468,14 @@ export function TimetablePanel() {
               return (
                 <motion.div
                   key={day}
+                  ref={day === todayKey ? todayRef : undefined}
                   layout
                   className={
-                    isDayOff(day)
-                      ? "rounded-2xl bg-amber/8 p-3.5 ring-1 ring-amber/20"
-                      : "rounded-2xl bg-surface/40 p-3.5 ring-1 ring-border/50"
+                    day === todayKey
+                      ? "today-timetable rounded-2xl bg-cyan/10 p-3.5 ring-2 ring-cyan/70 shadow-lg shadow-cyan/15 scroll-mt-24"
+                      : isDayOff(day)
+                        ? "rounded-2xl bg-amber/8 p-3.5 ring-1 ring-amber/20"
+                        : "rounded-2xl bg-surface/40 p-3.5 ring-1 ring-border/50"
                   }
                 >
                   <div className="mb-2.5 flex items-center justify-between gap-3">
@@ -469,6 +486,11 @@ export function TimetablePanel() {
                       }`}
                     >
                       <span className="font-semibold">{dayFmt.format(new Date(day))}</span>
+                      {day === todayKey && (
+                        <span className="rounded-full bg-cyan px-2 py-1 text-xs font-bold text-background tracking-normal">
+                          Today
+                        </span>
+                      )}
                       {isDayOff(day) && (
                         <span className="rounded-md bg-amber/15 px-2 py-0.5 text-[10px] normal-case tracking-normal text-amber font-mono font-medium">
                           Sunday

@@ -1,5 +1,6 @@
 import { db as supabase } from "@/lib/backend";
 import type { Tables } from "@/integrations/supabase/types";
+import { IPM_BATCHES } from "@/lib/roster.data";
 
 export type Batch = Tables<"batches">;
 export type Membership = Tables<"batch_memberships">;
@@ -30,7 +31,10 @@ export function formatBatchLabel(batch: {
   const match = cleaned.match(/^((?:IPM|MBA)\s*\d+)(?:\s*\((.*?)\))?/i);
   const code = match?.[1] ? match[1].toUpperCase() : cleaned;
   const years =
-    batch.start_year && batch.end_year ? `${batch.start_year}–${batch.end_year}` : match?.[2] || "";
+    IPM_BATCHES.find((item) => item.code === code && code.startsWith("MBA"))?.years ??
+    (batch.start_year && batch.end_year
+      ? `${batch.start_year}–${batch.end_year}`
+      : match?.[2] || "");
   const full = years ? `${code} (${years})` : code;
   return { code, full, years };
 }

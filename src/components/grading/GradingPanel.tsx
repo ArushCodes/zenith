@@ -1,9 +1,4 @@
-import { useState } from "react";
 import { GradingPanel as PersonalGradingPanel } from "@/components/board/GradingPanel";
-import { useBatch } from "@/hooks/use-batch";
-import { IPM1_BATCH_ID } from "@/lib/roster.data";
-import { ScoreTargets } from "./ScoreTargets";
-import { motion, useReducedMotion } from "framer-motion";
 export type CourseGradingInfo = {
   code: string;
   name: string;
@@ -75,11 +70,11 @@ export const IPM1_COURSES: CourseGradingInfo[] = [
     endtermText: "40%",
     quizzesVal: 20,
     quizzesText: "20% (Quiz 1 at Session 7: 10%, Quiz 2 at Session 18: 10%)",
-    projectVal: 20,
-    projectText: "20% (Applied Project at Session 24)",
-    assignmentsVal: 0,
-    assignmentsText: "—",
-    notes: ["Quiz 1 (10%): Session 7; Quiz 2 (10%): Session 18."],
+    projectVal: 10,
+    projectText: "10% (Group project, sessions 23–24)",
+    assignmentsVal: 10,
+    assignmentsText: "10% (Class participation)",
+    notes: ["Quiz 1 (10%): After session 7; Quiz 2 (10%): After session 17."],
   },
   {
     code: "HRM 1101",
@@ -177,109 +172,5 @@ export const IPM1_COURSES: CourseGradingInfo[] = [
 ];
 
 export function GradingPanel() {
-  const { batchId } = useBatch();
-  const reduced = useReducedMotion();
-  const [view, setView] = useState("marks");
-  return (
-    <div className="space-y-4">
-      <nav
-        aria-label="Grading views"
-        className="sticky top-16 z-20 flex gap-1 rounded-xl border border-border bg-surface p-1"
-      >
-        {(
-          [
-            ["marks", "My marks"],
-            ["weights", "Weightages"],
-            ["targets", "Targets"],
-          ] as const
-        )
-          .filter(([key]) => key === "marks" || batchId === IPM1_BATCH_ID)
-          .map(([key, label]) => (
-            <button
-              type="button"
-              key={key}
-              aria-pressed={view === key}
-              onClick={() => setView(key)}
-              className={`flex-1 rounded-lg px-3 py-2 text-xs font-semibold transition-colors ${view === key ? "bg-cyan/15 text-cyan" : "text-dim hover:bg-surface2"}`}
-            >
-              {label}
-            </button>
-          ))}
-      </nav>
-      <div hidden={view !== "marks" && batchId === IPM1_BATCH_ID}>
-        <PersonalGradingPanel />
-      </div>
-      {batchId === IPM1_BATCH_ID && (
-        <>
-          {view === "weights" && (
-            <section className="rounded-xl border border-border bg-surface p-4">
-              <div className="mt-4 grid gap-3 md:grid-cols-2">
-                {IPM1_COURSES.map((c) => {
-                  const parts = [
-                    ["Mid", c.midtermVal, "#fb7185"],
-                    ["End", c.endtermVal, "#22d3ee"],
-                    ["Quizzes", c.quizzesVal, "#c084fc"],
-                    ["Project", c.projectVal, "#fbbf24"],
-                    ["Other", c.assignmentsVal, "#34d399"],
-                  ] as const;
-                  return (
-                    <article key={c.code} className="rounded-lg border border-border p-4">
-                      <div className="text-sm font-semibold">
-                        {c.name} <span className="text-dim">· {c.credits} credits</span>
-                      </div>
-                      <div className="mt-2 flex flex-wrap gap-3 text-xs">
-                        {parts
-                          .filter((p) => p[1] > 0)
-                          .map(([label, value, color]) => (
-                            <span key={label} style={{ color }}>
-                              {label} {value}%
-                            </span>
-                          ))}
-                      </div>
-                      <span className="mt-2 flex h-2 overflow-hidden rounded-full bg-surface2">
-                        {parts
-                          .filter((p) => p[1] > 0)
-                          .map(([label, value, color]) => (
-                            <motion.span
-                              key={label}
-                              initial={false}
-                              animate={{ width: value + "%" }}
-                              transition={{ duration: reduced ? 0 : 0.3 }}
-                              style={{ backgroundColor: color }}
-                              title={label + " " + value + "%"}
-                            />
-                          ))}
-                      </span>
-                      <details className="mt-3 text-xs text-dim">
-                        <summary className="cursor-pointer">Details</summary>
-                        {[
-                          c.midtermText,
-                          c.endtermText,
-                          c.quizzesText,
-                          c.projectText,
-                          c.assignmentsText,
-                          ...(c.notes ?? []),
-                        ]
-                          .filter((n) => n && n !== "—" && !/^\d+%$/.test(n))
-                          .map((n, i) => (
-                            <p key={i} className="mt-2 text-xs text-dim">
-                              {n}
-                            </p>
-                          ))}
-                      </details>
-                    </article>
-                  );
-                })}
-              </div>
-            </section>
-          )}
-          {view === "targets" && (
-            <section className="rounded-xl border border-border bg-surface p-4">
-              <ScoreTargets />
-            </section>
-          )}
-        </>
-      )}
-    </div>
-  );
+  return <PersonalGradingPanel />;
 }
