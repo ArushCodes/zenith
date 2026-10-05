@@ -252,6 +252,15 @@ export function LiveClassHero({
         pointerY.set(((event.clientY - rect.top) / rect.height) * 100);
       }}
     >
+      {liveClass && (
+        <div className="live-class-signal" style={{ color: activeThemeColor }} aria-hidden="true">
+          <i />
+          <i />
+          <i />
+          <i />
+          <i />
+        </div>
+      )}
       <motion.div
         aria-hidden="true"
         className="absolute inset-0 pointer-events-none"

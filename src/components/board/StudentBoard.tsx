@@ -120,9 +120,9 @@ export default function StudentBoard({ guestPreview }: { guestPreview?: boolean 
   const [feedDensity, setFeedDensity] = useState<"comfortable" | "compact">(() => {
     if (typeof window !== "undefined") {
       const saved = window.localStorage.getItem("zenith.feed_density");
-      if (saved === "compact" || saved === "comfortable") return saved;
+      if (saved === "compact") return saved;
     }
-    return "comfortable";
+    return "compact";
   });
   const [showPastFeed, setShowPastFeed] = useState(false);
 
@@ -651,568 +651,554 @@ export default function StudentBoard({ guestPreview }: { guestPreview?: boolean 
           </div>
         )}
 
-        <AnimatePresence mode="wait" initial={false}>
-          <motion.div
-            key={tab}
-            initial={false}
-            animate={{ y: 0 }}
-            exit={{ y: -6 }}
-            transition={{ duration: 0.26, ease: [0.22, 1, 0.36, 1] }}
-          >
-            {tab === "feed" && (
-              <div className="flex flex-col gap-5 sm:gap-6">
-                <div>
-                  <LiveClassHero
-                    now={now}
-                    onSeeFullTimetable={() => setTab("timetable")}
-                    onSeeAttendance={() => setTab("attendance")}
-                    canManage={isMod}
-                    minimal
-                  />
-                </div>
-                {/* ── Mobile View Switcher (Feed Timeline vs Batch Announcements) ── */}
-                {nextAcademic && (
-                  <button
-                    type="button"
-                    onClick={() => setTab("calendar")}
-                    className="flex flex-wrap items-center gap-2 rounded-xl border border-border/60 bg-surface/60 px-4 py-2 text-left text-xs text-dim"
-                  >
-                    <CalendarClock className="size-3.5 text-cyan" />
-                    <span className="text-ink">{nextAcademic.title}</span>
-                    <span>
-                      ·{" "}
-                      {new Date(nextAcademic.start_at).toLocaleDateString("en-GB", {
-                        timeZone: "Asia/Kolkata",
-                        day: "numeric",
-                        month: "short",
-                      })}
-                    </span>
-                  </button>
-                )}
-                <div className="lg:hidden flex rounded-2xl bg-surface2/70 p-1 border border-border/80">
-                  <button
-                    type="button"
-                    onClick={() => setMobileTab("timeline")}
-                    className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-                      mobileTab === "timeline"
-                        ? "bg-surface text-ink shadow-xs"
-                        : "text-dim hover:text-ink"
-                    }`}
-                  >
-                    <ListFilter className="size-3.5" />
-                    <span>Feed ({filteredUpcoming.length})</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setMobileTab("sidebar")}
-                    className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-                      mobileTab === "sidebar"
-                        ? "bg-surface text-ink shadow-xs"
-                        : "text-dim hover:text-ink"
-                    }`}
-                  >
-                    <Megaphone className="size-3.5 text-cyan" />
-                    <span>Updates</span>
-                  </button>
-                </div>
+        <div key={tab}>
+          {tab === "feed" && (
+            <div className="flex flex-col gap-5 sm:gap-6">
+              <div>
+                <LiveClassHero
+                  now={now}
+                  onSeeFullTimetable={() => setTab("timetable")}
+                  onSeeAttendance={() => setTab("attendance")}
+                  canManage={isMod}
+                  minimal
+                />
+              </div>
+              {/* ── Mobile View Switcher (Feed Timeline vs Batch Announcements) ── */}
+              {nextAcademic && (
+                <button
+                  type="button"
+                  onClick={() => setTab("calendar")}
+                  className="flex flex-wrap items-center gap-2 rounded-xl border border-border/60 bg-surface/60 px-4 py-2 text-left text-xs text-dim"
+                >
+                  <CalendarClock className="size-3.5 text-cyan" />
+                  <span className="text-ink">{nextAcademic.title}</span>
+                  <span>
+                    ·{" "}
+                    {new Date(nextAcademic.start_at).toLocaleDateString("en-GB", {
+                      timeZone: "Asia/Kolkata",
+                      day: "numeric",
+                      month: "short",
+                    })}
+                  </span>
+                </button>
+              )}
+              <div className="lg:hidden flex rounded-2xl bg-surface2/70 p-1 border border-border/80">
+                <button
+                  type="button"
+                  onClick={() => setMobileTab("timeline")}
+                  className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                    mobileTab === "timeline"
+                      ? "bg-surface text-ink shadow-xs"
+                      : "text-dim hover:text-ink"
+                  }`}
+                >
+                  <ListFilter className="size-3.5" />
+                  <span>Feed ({filteredUpcoming.length})</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setMobileTab("sidebar")}
+                  className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                    mobileTab === "sidebar"
+                      ? "bg-surface text-ink shadow-xs"
+                      : "text-dim hover:text-ink"
+                  }`}
+                >
+                  <Megaphone className="size-3.5 text-cyan" />
+                  <span>Updates</span>
+                </button>
+              </div>
 
-                {/* ── Main Feed & Sidebar Grid ── */}
-                <div className="grid grid-cols-1 items-start gap-5 lg:grid-cols-[minmax(0,1fr)_290px] xl:grid-cols-[minmax(0,1fr)_310px]">
-                  {/* Left Column: Feed Timeline */}
-                  <div
-                    className={`min-w-0 flex flex-col gap-3.5 ${mobileTab === "sidebar" ? "hidden lg:flex" : "flex"}`}
-                  >
-                    {/* Modern Feed Command Bar */}
-                    <div className="rounded-2xl border border-border/80 bg-surface/90 p-2.5 sm:p-3 backdrop-blur-md shadow-xs space-y-2.5">
-                      {/* Search Bar + Quick Actions */}
-                      <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
-                        <div className="relative flex-1">
-                          <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-3.5 text-faint pointer-events-none" />
-                          <input
-                            ref={searchInputRef}
-                            type="text"
-                            value={feedSearch}
-                            onChange={(e) => setFeedSearch(e.target.value)}
-                            onKeyDown={(e) => {
-                              if (e.key === "Escape") {
-                                setFeedSearch("");
-                                searchInputRef.current?.blur();
-                              }
-                            }}
-                            aria-label="Search deadlines"
-                            placeholder="Search deadlines…"
-                            className="w-full rounded-xl bg-surface2/60 pl-8 pr-16 py-1.5 text-xs text-ink placeholder:text-faint border border-border/60 outline-none focus:border-cyan/50 focus:ring-1 focus:ring-cyan/30"
-                          />
-                          <div className="absolute right-2.5 top-1/2 -translate-y-1/2 flex items-center gap-1">
-                            {feedSearch ? (
-                              <button
-                                type="button"
-                                onClick={() => setFeedSearch("")}
-                                className="text-faint hover:text-ink cursor-pointer p-0.5"
-                              >
-                                <X className="size-3" />
-                              </button>
-                            ) : (
-                              <kbd className="hidden sm:inline-block rounded px-1.5 py-0.2 text-[10px] font-mono bg-surface border border-border/70 text-faint">
-                                /
-                              </kbd>
-                            )}
-                          </div>
-                        </div>
-
-                        {/* Density Switcher: Comfortable Cards vs Compact Linear Rows */}
-                        <div className="inline-flex items-center justify-end rounded-xl bg-surface2/60 border border-border/60 p-0.5 shrink-0 self-end sm:self-auto">
-                          <button
-                            type="button"
-                            onClick={() => handleDensityChange("comfortable")}
-                            className={`inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-medium transition-all cursor-pointer ${
-                              feedDensity === "comfortable"
-                                ? "bg-surface text-ink shadow-xs font-semibold border border-border/80"
-                                : "text-faint hover:text-ink"
-                            }`}
-                            title="Cards"
-                          >
-                            <LayoutGrid className="size-3.5" />
-                            <span className="hidden sm:inline">Cards</span>
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => handleDensityChange("compact")}
-                            className={`inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-medium transition-all cursor-pointer ${
-                              feedDensity === "compact"
-                                ? "bg-surface text-ink shadow-xs font-semibold border border-border/80"
-                                : "text-faint hover:text-ink"
-                            }`}
-                            title="Compact rows"
-                          >
-                            <List className="size-3.5" />
-                            <span className="hidden sm:inline">Compact</span>
-                          </button>
+              {/* ── Main Feed & Sidebar Grid ── */}
+              <div className="grid grid-cols-1 items-start gap-5 lg:grid-cols-[minmax(0,1fr)_290px] xl:grid-cols-[minmax(0,1fr)_310px]">
+                {/* Left Column: Feed Timeline */}
+                <div
+                  className={`min-w-0 flex flex-col gap-3.5 ${mobileTab === "sidebar" ? "hidden lg:flex" : "flex"}`}
+                >
+                  {/* Modern Feed Command Bar */}
+                  <div className="rounded-2xl border border-border/80 bg-surface/90 p-2.5 sm:p-3 backdrop-blur-md shadow-xs space-y-2.5">
+                    {/* Search Bar + Quick Actions */}
+                    <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+                      <div className="relative flex-1">
+                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-3.5 text-faint pointer-events-none" />
+                        <input
+                          ref={searchInputRef}
+                          type="text"
+                          value={feedSearch}
+                          onChange={(e) => setFeedSearch(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === "Escape") {
+                              setFeedSearch("");
+                              searchInputRef.current?.blur();
+                            }
+                          }}
+                          aria-label="Search deadlines"
+                          placeholder="Search deadlines…"
+                          className="w-full rounded-xl bg-surface2/60 pl-8 pr-16 py-1.5 text-xs text-ink placeholder:text-faint border border-border/60 outline-none focus:border-cyan/50 focus:ring-1 focus:ring-cyan/30"
+                        />
+                        <div className="absolute right-2.5 top-1/2 -translate-y-1/2 flex items-center gap-1">
+                          {feedSearch ? (
+                            <button
+                              type="button"
+                              onClick={() => setFeedSearch("")}
+                              className="text-faint hover:text-ink cursor-pointer p-0.5"
+                            >
+                              <X className="size-3" />
+                            </button>
+                          ) : (
+                            <kbd className="hidden sm:inline-block rounded px-1.5 py-0.2 text-[10px] font-mono bg-surface border border-border/70 text-faint">
+                              /
+                            </kbd>
+                          )}
                         </div>
                       </div>
 
-                      {/* Category Pills & Checklist Counter */}
-                      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 pt-1 border-t border-border/50">
-                        {/* Category Pills (Horizontal scrollable) */}
-                        <div className="flex items-center gap-1.5 overflow-x-auto pb-1 sm:pb-0 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-                          {FEED_CATEGORIES.filter(
-                            (cat) => cat.count > 0 || cat.key === feedCategory || cat.key === "all",
-                          ).map((cat) => {
-                            const active = feedCategory === cat.key;
-                            return (
-                              <motion.button
-                                key={cat.key}
-                                type="button"
-                                whileHover={{ y: -2, scale: 1.03 }}
-                                whileTap={{ scale: 0.95 }}
-                                animate={
-                                  active ? { scale: [1, 1.12, 0.97, 1.04, 1] } : { scale: 1 }
-                                }
-                                transition={{ type: "spring", stiffness: 500, damping: 22 }}
-                                onClick={() => setFeedCategory(cat.key)}
-                                className={`group relative inline-flex shrink-0 items-center gap-1.5 rounded-xl px-2.5 sm:px-3 py-1 text-xs font-medium transition-colors cursor-pointer ${
-                                  active
-                                    ? "bg-cyan/15 text-cyan border border-cyan/30 shadow-xs shadow-cyan/10 font-bold"
-                                    : "text-dim hover:text-ink hover:bg-surface2/60 border border-transparent"
-                                }`}
-                              >
-                                <span
-                                  className={
-                                    active ? "text-cyan" : "text-faint group-hover:text-dim"
-                                  }
-                                >
-                                  {cat.icon}
-                                </span>
-                                <span>{cat.label}</span>
-                                <span
-                                  className={`ml-0.5 rounded-full px-1.5 py-0.2 text-[10px] font-mono ${
-                                    active
-                                      ? "bg-cyan/20 text-cyan font-bold"
-                                      : "bg-surface2 text-faint group-hover:text-dim"
-                                  }`}
-                                >
-                                  {cat.count}
-                                </span>
-                              </motion.button>
-                            );
-                          })}
-                        </div>
-
-                        {/* Personal Checklist Preparation Progress */}
-                        {totalUpcomingCount > 0 && (
-                          <div
-                            className="inline-flex items-center gap-2 rounded-xl bg-surface2/60 border border-border/60 px-2.5 py-1 text-xs text-dim shrink-0 self-end sm:self-auto cursor-pointer hover:bg-surface2 transition-all"
-                            onClick={() => setPendingOnly((v) => !v)}
-                            title={`${completedUpcomingCount} of ${totalUpcomingCount} upcoming events marked as prepared. Click to toggle pending only.`}
-                          >
-                            <CheckCircle2
-                              className={`size-3.5 ${
-                                progressPercent === 100
-                                  ? "text-emerald-400 animate-pulse"
-                                  : progressPercent > 0
-                                    ? "text-cyan"
-                                    : "text-faint"
-                              }`}
-                            />
-                            <span className="font-mono text-[11px] font-medium text-ink">
-                              {completedUpcomingCount}/{totalUpcomingCount}
-                            </span>
-                            <span className="hidden md:inline text-[11px] text-faint">
-                              prepared
-                            </span>
-                            <div className="w-12 h-1.5 rounded-full bg-surface overflow-hidden border border-border/40">
-                              <motion.div
-                                className="h-full bg-gradient-to-r from-cyan to-emerald-400 rounded-full"
-                                animate={{ width: `${progressPercent}%` }}
-                                transition={{ type: "spring", stiffness: 120, damping: 22 }}
-                              />
-                            </div>
-                            <span className="font-mono text-[10px] text-cyan font-bold">
-                              {progressPercent}%
-                            </span>
-                          </div>
-                        )}
+                      {/* Density Switcher: Comfortable Cards vs Compact Linear Rows */}
+                      <div className="inline-flex items-center justify-end rounded-xl bg-surface2/60 border border-border/60 p-0.5 shrink-0 self-end sm:self-auto">
+                        <button
+                          type="button"
+                          onClick={() => handleDensityChange("comfortable")}
+                          className={`inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-medium transition-all cursor-pointer ${
+                            feedDensity === "comfortable"
+                              ? "bg-surface text-ink shadow-xs font-semibold border border-border/80"
+                              : "text-faint hover:text-ink"
+                          }`}
+                          title="Cards"
+                        >
+                          <LayoutGrid className="size-3.5" />
+                          <span className="hidden sm:inline">Cards</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleDensityChange("compact")}
+                          className={`inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-medium transition-all cursor-pointer ${
+                            feedDensity === "compact"
+                              ? "bg-surface text-ink shadow-xs font-semibold border border-border/80"
+                              : "text-faint hover:text-ink"
+                          }`}
+                          title="Compact rows"
+                        >
+                          <List className="size-3.5" />
+                          <span className="hidden sm:inline">Compact</span>
+                        </button>
                       </div>
                     </div>
 
-                    {isFeedLoading ? (
-                      <div className="flex flex-col gap-4">
-                        {Array.from({ length: 3 }).map((_, i) => (
-                          <div
-                            key={i}
-                            className="h-32 rounded-2xl shimmer-sweep border border-border/40"
+                    {/* Category Pills & Checklist Counter */}
+                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 pt-1 border-t border-border/50">
+                      {/* Category Pills (Horizontal scrollable) */}
+                      <div className="flex items-center gap-1.5 overflow-x-auto pb-1 sm:pb-0 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                        {FEED_CATEGORIES.filter(
+                          (cat) => cat.count > 0 || cat.key === feedCategory || cat.key === "all",
+                        ).map((cat) => {
+                          const active = feedCategory === cat.key;
+                          return (
+                            <motion.button
+                              key={cat.key}
+                              type="button"
+                              whileHover={{ y: -2, scale: 1.03 }}
+                              whileTap={{ scale: 0.95 }}
+                              animate={active ? { scale: [1, 1.12, 0.97, 1.04, 1] } : { scale: 1 }}
+                              transition={{ type: "spring", stiffness: 500, damping: 22 }}
+                              onClick={() => setFeedCategory(cat.key)}
+                              className={`group relative inline-flex shrink-0 items-center gap-1.5 rounded-xl px-2.5 sm:px-3 py-1 text-xs font-medium transition-colors cursor-pointer ${
+                                active
+                                  ? "bg-cyan/15 text-cyan border border-cyan/30 shadow-xs shadow-cyan/10 font-bold"
+                                  : "text-dim hover:text-ink hover:bg-surface2/60 border border-transparent"
+                              }`}
+                            >
+                              <span
+                                className={active ? "text-cyan" : "text-faint group-hover:text-dim"}
+                              >
+                                {cat.icon}
+                              </span>
+                              <span>{cat.label}</span>
+                              <span
+                                className={`ml-0.5 rounded-full px-1.5 py-0.2 text-[10px] font-mono ${
+                                  active
+                                    ? "bg-cyan/20 text-cyan font-bold"
+                                    : "bg-surface2 text-faint group-hover:text-dim"
+                                }`}
+                              >
+                                {cat.count}
+                              </span>
+                            </motion.button>
+                          );
+                        })}
+                      </div>
+
+                      {/* Personal Checklist Preparation Progress */}
+                      {totalUpcomingCount > 0 && (
+                        <div
+                          className="inline-flex items-center gap-2 rounded-xl bg-surface2/60 border border-border/60 px-2.5 py-1 text-xs text-dim shrink-0 self-end sm:self-auto cursor-pointer hover:bg-surface2 transition-all"
+                          onClick={() => setPendingOnly((v) => !v)}
+                          title={`${completedUpcomingCount} of ${totalUpcomingCount} upcoming events marked as prepared. Click to toggle pending only.`}
+                        >
+                          <CheckCircle2
+                            className={`size-3.5 ${
+                              progressPercent === 100
+                                ? "text-emerald-400 animate-pulse"
+                                : progressPercent > 0
+                                  ? "text-cyan"
+                                  : "text-faint"
+                            }`}
                           />
-                        ))}
-                      </div>
-                    ) : filteredUpcoming.length === 0 ? (
-                      <div className="rounded-2xl border border-dashed border-border/80 bg-surface/30 p-5 text-center">
-                        <motion.div
-                          animate={{
-                            rotate: [0, -10, 10, -5, 5, 0],
-                            scale: [1, 1.1, 0.95, 1.05, 1],
-                          }}
-                          transition={{ duration: 2, repeat: Infinity, repeatDelay: 3 }}
-                          className="mx-auto flex size-9 items-center justify-center rounded-xl bg-cyan/10 text-cyan mb-2"
-                        >
-                          <Sparkles className="size-6" />
-                        </motion.div>
-                        <h3 className="text-sm font-semibold text-ink">No events found</h3>
-                        <p className="mt-1 text-xs text-dim max-w-xs mx-auto">
-                          {feedSearch
-                            ? `No deadlines or exams matching "${feedSearch}".`
-                            : urgentOnly
-                              ? "No deadlines due in the next 48 hours."
-                              : pendingOnly
-                                ? "All upcoming deadlines are marked as done!"
-                                : feedCategory === "all"
-                                  ? "No upcoming deadlines or exams scheduled."
-                                  : `No upcoming events in ${feedCategory}.`}
-                        </p>
-                        {(feedCategory !== "all" || feedSearch || urgentOnly || pendingOnly) && (
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setFeedCategory("all");
-                              setFeedSearch("");
-                              setUrgentOnly(false);
-                              setPendingOnly(false);
-                            }}
-                            className="mt-3 inline-flex items-center gap-1.5 rounded-lg bg-surface2 border border-border px-3 py-1.5 text-xs font-semibold text-ink hover:text-cyan transition-all cursor-pointer"
-                          >
-                            Reset filters
-                          </button>
-                        )}
-                      </div>
-                    ) : (
-                      <div className="relative pl-4 sm:pl-7 border-l-2 border-border/70 ml-3.5 sm:ml-5 flex flex-col gap-6">
-                        {/* Bucket 1: Due soon / Ongoing */}
-                        {recencyBuckets.critical.length > 0 && (
-                          <div className="relative">
-                            {/* Spine Anchor Dot */}
-                            <div className="absolute -left-[29px] sm:-left-[43px] top-0 size-6 sm:size-7 rounded-full bg-surface border-2 border-rose flex items-center justify-center text-rose shadow-lg shadow-rose/20">
-                              <Flame className="size-3.5 fill-rose/30 animate-pulse" />
-                            </div>
-
-                            <div
-                              onClick={() =>
-                                setCollapsedBuckets((prev) => ({
-                                  ...prev,
-                                  critical: !prev.critical,
-                                }))
-                              }
-                              className="mb-3 flex items-center justify-between gap-2 cursor-pointer select-none group"
-                            >
-                              <div className="flex items-center gap-2">
-                                <h3 className="font-body text-[12px] font-semibold text-rose">
-                                  Due in 48 Hours
-                                </h3>
-                                <span className="rounded-full bg-rose/15 border border-rose/30 px-2 py-0.5 font-mono text-[10px] font-bold text-rose">
-                                  {recencyBuckets.critical.length}
-                                </span>
-                              </div>
-                              <span className="font-mono text-[10px] text-faint group-hover:text-ink flex items-center gap-1">
-                                {collapsedBuckets.critical ? (
-                                  <>
-                                    <span>Expand</span>
-                                    <ChevronDown className="size-3.5" />
-                                  </>
-                                ) : (
-                                  <>
-                                    <span>Collapse</span>
-                                    <ChevronUp className="size-3.5" />
-                                  </>
-                                )}
-                              </span>
-                            </div>
-
-                            {!collapsedBuckets.critical && (
-                              <FeedList
-                                items={recencyBuckets.critical}
-                                empty="Nothing due in 48 hours."
-                                now={now}
-                                isMod={isMod}
-                                onEdit={openEdit}
-                                onDelete={(x) => remove.mutate(x)}
-                                onOpen={setSelected}
-                                density={feedDensity}
-                                isDone={isDone}
-                                onToggleDone={toggleDone}
-                              />
-                            )}
-                          </div>
-                        )}
-
-                        {/* Bucket 2: This Week (3-7 Days) */}
-                        {recencyBuckets.thisWeek.length > 0 && (
-                          <div className="relative">
-                            {/* Spine Anchor Dot */}
-                            <div className="absolute -left-[29px] sm:-left-[43px] top-0 size-6 sm:size-7 rounded-full bg-surface border-2 border-cyan flex items-center justify-center text-cyan shadow-lg shadow-cyan/20">
-                              <Clock className="size-3.5" />
-                            </div>
-
-                            <div
-                              onClick={() =>
-                                setCollapsedBuckets((prev) => ({
-                                  ...prev,
-                                  thisWeek: !prev.thisWeek,
-                                }))
-                              }
-                              className="mb-3 flex items-center justify-between gap-2 cursor-pointer select-none group"
-                            >
-                              <div className="flex items-center gap-2">
-                                <h3 className="font-body text-[12px] font-semibold text-cyan">
-                                  This Week
-                                </h3>
-                                <span className="rounded-full bg-cyan/15 border border-cyan/30 px-2 py-0.5 font-mono text-[10px] font-bold text-cyan">
-                                  {recencyBuckets.thisWeek.length}
-                                </span>
-                              </div>
-                              <span className="font-mono text-[10px] text-faint group-hover:text-ink flex items-center gap-1">
-                                {collapsedBuckets.thisWeek ? (
-                                  <>
-                                    <span>Expand</span>
-                                    <ChevronDown className="size-3.5" />
-                                  </>
-                                ) : (
-                                  <>
-                                    <span>Collapse</span>
-                                    <ChevronUp className="size-3.5" />
-                                  </>
-                                )}
-                              </span>
-                            </div>
-
-                            {!collapsedBuckets.thisWeek && (
-                              <FeedList
-                                items={recencyBuckets.thisWeek}
-                                empty="No events this week."
-                                now={now}
-                                isMod={isMod}
-                                onEdit={openEdit}
-                                onDelete={(x) => remove.mutate(x)}
-                                onOpen={setSelected}
-                                density={feedDensity}
-                                isDone={isDone}
-                                onToggleDone={toggleDone}
-                              />
-                            )}
-                          </div>
-                        )}
-
-                        {/* Bucket 3: Coming Up Later */}
-                        {recencyBuckets.later.length > 0 && (
-                          <div className="relative">
-                            {/* Spine Anchor Dot */}
-                            <div className="absolute -left-[29px] sm:-left-[43px] top-0 size-6 sm:size-7 rounded-full bg-surface border-2 border-violet flex items-center justify-center text-violet shadow-lg shadow-violet/20">
-                              <Sparkles className="size-3.5" />
-                            </div>
-
-                            <div
-                              onClick={() =>
-                                setCollapsedBuckets((prev) => ({ ...prev, later: !prev.later }))
-                              }
-                              className="mb-3 flex items-center justify-between gap-2 cursor-pointer select-none group"
-                            >
-                              <div className="flex items-center gap-2">
-                                <h3 className="font-body text-[12px] font-semibold text-violet">
-                                  Later
-                                </h3>
-                                <span className="rounded-full bg-violet/15 border border-violet/30 px-2 py-0.5 font-mono text-[10px] font-bold text-violet">
-                                  {recencyBuckets.later.length}
-                                </span>
-                              </div>
-                              <span className="font-mono text-[10px] text-faint group-hover:text-ink flex items-center gap-1">
-                                {collapsedBuckets.later ? (
-                                  <>
-                                    <span>Expand</span>
-                                    <ChevronDown className="size-3.5" />
-                                  </>
-                                ) : (
-                                  <>
-                                    <span>Collapse</span>
-                                    <ChevronUp className="size-3.5" />
-                                  </>
-                                )}
-                              </span>
-                            </div>
-
-                            {!collapsedBuckets.later && (
-                              <FeedList
-                                items={recencyBuckets.later}
-                                empty="No later events."
-                                now={now}
-                                isMod={isMod}
-                                onEdit={openEdit}
-                                onDelete={(x) => remove.mutate(x)}
-                                onOpen={setSelected}
-                                density={feedDensity}
-                                isDone={isDone}
-                                onToggleDone={toggleDone}
-                              />
-                            )}
-                          </div>
-                        )}
-                      </div>
-                    )}
-
-                    {/* Collapsible Past & Completed Events */}
-                    {allCompleted.length > 0 && (
-                      <div className="mt-4 rounded-2xl border border-border/60 bg-surface/30 p-4 transition-all">
-                        <button
-                          type="button"
-                          onClick={() => setShowPastFeed((prev) => !prev)}
-                          className="flex w-full items-center justify-between text-left group cursor-pointer"
-                        >
-                          <div className="flex items-center gap-2.5">
-                            <CheckCircle2 className="size-4 text-emerald-400" />
-                            <span className="text-xs font-semibold text-ink group-hover:text-cyan transition-colors">
-                              Past & Completed Events
-                            </span>
-                            <span className="rounded-full bg-surface2 border border-border/80 px-2 py-0.5 font-mono text-[10px] text-faint">
-                              {allCompleted.length}
-                            </span>
-                          </div>
-                          <div className="flex items-center gap-1.5 text-xs text-dim group-hover:text-ink transition-colors">
-                            <span className="font-mono text-[11px]">
-                              {showPastFeed ? "Hide archive" : "Show archive"}
-                            </span>
-                            {showPastFeed ? (
-                              <ChevronUp className="size-4" />
-                            ) : (
-                              <ChevronDown className="size-4" />
-                            )}
-                          </div>
-                        </button>
-
-                        <AnimatePresence>
-                          {showPastFeed && (
+                          <span className="font-mono text-[11px] font-medium text-ink">
+                            {completedUpcomingCount}/{totalUpcomingCount}
+                          </span>
+                          <span className="hidden md:inline text-[11px] text-faint">prepared</span>
+                          <div className="w-12 h-1.5 rounded-full bg-surface overflow-hidden border border-border/40">
                             <motion.div
-                              initial={{ height: 0, opacity: 0 }}
-                              animate={{ height: "auto", opacity: 1 }}
-                              exit={{ height: 0, opacity: 0 }}
-                              transition={{ duration: 0.25 }}
-                              className="overflow-hidden pt-4"
-                            >
-                              <FeedList
-                                items={allCompleted}
-                                empty="No completed events found."
-                                now={now}
-                                isMod={isMod}
-                                onEdit={openEdit}
-                                onDelete={(x) => remove.mutate(x)}
-                                onOpen={setSelected}
-                                density="compact"
-                                isDone={isDone}
-                                onToggleDone={toggleDone}
-                              />
-                            </motion.div>
-                          )}
-                        </AnimatePresence>
-                      </div>
-                    )}
+                              className="h-full bg-gradient-to-r from-cyan to-emerald-400 rounded-full"
+                              animate={{ width: `${progressPercent}%` }}
+                              transition={{ type: "spring", stiffness: 120, damping: 22 }}
+                            />
+                          </div>
+                          <span className="font-mono text-[10px] text-cyan font-bold">
+                            {progressPercent}%
+                          </span>
+                        </div>
+                      )}
+                    </div>
                   </div>
 
-                  {/* Right Column: Announcements, Attendance, Activity Sidebar */}
-                  <aside
-                    className={`min-w-0 flex-col gap-6 lg:sticky lg:top-24 ${mobileTab === "sidebar" ? "flex" : "hidden lg:flex"}`}
-                  >
-                    <AnnouncementsPanel compact />
-                  </aside>
+                  {isFeedLoading ? (
+                    <div className="flex flex-col gap-4">
+                      {Array.from({ length: 3 }).map((_, i) => (
+                        <div
+                          key={i}
+                          className="h-32 rounded-2xl shimmer-sweep border border-border/40"
+                        />
+                      ))}
+                    </div>
+                  ) : filteredUpcoming.length === 0 ? (
+                    <div className="rounded-2xl border border-dashed border-border/80 bg-surface/30 p-5 text-center">
+                      <motion.div
+                        animate={{
+                          rotate: [0, -10, 10, -5, 5, 0],
+                          scale: [1, 1.1, 0.95, 1.05, 1],
+                        }}
+                        transition={{ duration: 2, repeat: Infinity, repeatDelay: 3 }}
+                        className="mx-auto flex size-9 items-center justify-center rounded-xl bg-cyan/10 text-cyan mb-2"
+                      >
+                        <Sparkles className="size-6" />
+                      </motion.div>
+                      <h3 className="text-sm font-semibold text-ink">No events found</h3>
+                      <p className="mt-1 text-xs text-dim max-w-xs mx-auto">
+                        {feedSearch
+                          ? `No deadlines or exams matching "${feedSearch}".`
+                          : urgentOnly
+                            ? "No deadlines due in the next 48 hours."
+                            : pendingOnly
+                              ? "All upcoming deadlines are marked as done!"
+                              : feedCategory === "all"
+                                ? "No upcoming deadlines or exams scheduled."
+                                : `No upcoming events in ${feedCategory}.`}
+                      </p>
+                      {(feedCategory !== "all" || feedSearch || urgentOnly || pendingOnly) && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setFeedCategory("all");
+                            setFeedSearch("");
+                            setUrgentOnly(false);
+                            setPendingOnly(false);
+                          }}
+                          className="mt-3 inline-flex items-center gap-1.5 rounded-lg bg-surface2 border border-border px-3 py-1.5 text-xs font-semibold text-ink hover:text-cyan transition-all cursor-pointer"
+                        >
+                          Reset filters
+                        </button>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="relative pl-4 sm:pl-7 border-l-2 border-border/70 ml-3.5 sm:ml-5 flex flex-col gap-6">
+                      {/* Bucket 1: Due soon / Ongoing */}
+                      {recencyBuckets.critical.length > 0 && (
+                        <div className="relative">
+                          {/* Spine Anchor Dot */}
+                          <div className="absolute -left-[29px] sm:-left-[43px] top-0 size-6 sm:size-7 rounded-full bg-surface border-2 border-rose flex items-center justify-center text-rose shadow-lg shadow-rose/20">
+                            <Flame className="size-3.5 fill-rose/30 animate-pulse" />
+                          </div>
+
+                          <div
+                            onClick={() =>
+                              setCollapsedBuckets((prev) => ({
+                                ...prev,
+                                critical: !prev.critical,
+                              }))
+                            }
+                            className="mb-3 flex items-center justify-between gap-2 cursor-pointer select-none group"
+                          >
+                            <div className="flex items-center gap-2">
+                              <h3 className="font-body text-[12px] font-semibold text-rose">
+                                Due in 48 Hours
+                              </h3>
+                              <span className="rounded-full bg-rose/15 border border-rose/30 px-2 py-0.5 font-mono text-[10px] font-bold text-rose">
+                                {recencyBuckets.critical.length}
+                              </span>
+                            </div>
+                            <span className="font-mono text-[10px] text-faint group-hover:text-ink flex items-center gap-1">
+                              {collapsedBuckets.critical ? (
+                                <>
+                                  <span>Expand</span>
+                                  <ChevronDown className="size-3.5" />
+                                </>
+                              ) : (
+                                <>
+                                  <span>Collapse</span>
+                                  <ChevronUp className="size-3.5" />
+                                </>
+                              )}
+                            </span>
+                          </div>
+
+                          {!collapsedBuckets.critical && (
+                            <FeedList
+                              items={recencyBuckets.critical}
+                              empty="Nothing due in 48 hours."
+                              now={now}
+                              isMod={isMod}
+                              onEdit={openEdit}
+                              onDelete={(x) => remove.mutate(x)}
+                              onOpen={setSelected}
+                              density={feedDensity}
+                              isDone={isDone}
+                              onToggleDone={toggleDone}
+                            />
+                          )}
+                        </div>
+                      )}
+
+                      {/* Bucket 2: This Week (3-7 Days) */}
+                      {recencyBuckets.thisWeek.length > 0 && (
+                        <div className="relative">
+                          {/* Spine Anchor Dot */}
+                          <div className="absolute -left-[29px] sm:-left-[43px] top-0 size-6 sm:size-7 rounded-full bg-surface border-2 border-cyan flex items-center justify-center text-cyan shadow-lg shadow-cyan/20">
+                            <Clock className="size-3.5" />
+                          </div>
+
+                          <div
+                            onClick={() =>
+                              setCollapsedBuckets((prev) => ({
+                                ...prev,
+                                thisWeek: !prev.thisWeek,
+                              }))
+                            }
+                            className="mb-3 flex items-center justify-between gap-2 cursor-pointer select-none group"
+                          >
+                            <div className="flex items-center gap-2">
+                              <h3 className="font-body text-[12px] font-semibold text-cyan">
+                                This Week
+                              </h3>
+                              <span className="rounded-full bg-cyan/15 border border-cyan/30 px-2 py-0.5 font-mono text-[10px] font-bold text-cyan">
+                                {recencyBuckets.thisWeek.length}
+                              </span>
+                            </div>
+                            <span className="font-mono text-[10px] text-faint group-hover:text-ink flex items-center gap-1">
+                              {collapsedBuckets.thisWeek ? (
+                                <>
+                                  <span>Expand</span>
+                                  <ChevronDown className="size-3.5" />
+                                </>
+                              ) : (
+                                <>
+                                  <span>Collapse</span>
+                                  <ChevronUp className="size-3.5" />
+                                </>
+                              )}
+                            </span>
+                          </div>
+
+                          {!collapsedBuckets.thisWeek && (
+                            <FeedList
+                              items={recencyBuckets.thisWeek}
+                              empty="No events this week."
+                              now={now}
+                              isMod={isMod}
+                              onEdit={openEdit}
+                              onDelete={(x) => remove.mutate(x)}
+                              onOpen={setSelected}
+                              density={feedDensity}
+                              isDone={isDone}
+                              onToggleDone={toggleDone}
+                            />
+                          )}
+                        </div>
+                      )}
+
+                      {/* Bucket 3: Coming Up Later */}
+                      {recencyBuckets.later.length > 0 && (
+                        <div className="relative">
+                          {/* Spine Anchor Dot */}
+                          <div className="absolute -left-[29px] sm:-left-[43px] top-0 size-6 sm:size-7 rounded-full bg-surface border-2 border-violet flex items-center justify-center text-violet shadow-lg shadow-violet/20">
+                            <Sparkles className="size-3.5" />
+                          </div>
+
+                          <div
+                            onClick={() =>
+                              setCollapsedBuckets((prev) => ({ ...prev, later: !prev.later }))
+                            }
+                            className="mb-3 flex items-center justify-between gap-2 cursor-pointer select-none group"
+                          >
+                            <div className="flex items-center gap-2">
+                              <h3 className="font-body text-[12px] font-semibold text-violet">
+                                Later
+                              </h3>
+                              <span className="rounded-full bg-violet/15 border border-violet/30 px-2 py-0.5 font-mono text-[10px] font-bold text-violet">
+                                {recencyBuckets.later.length}
+                              </span>
+                            </div>
+                            <span className="font-mono text-[10px] text-faint group-hover:text-ink flex items-center gap-1">
+                              {collapsedBuckets.later ? (
+                                <>
+                                  <span>Expand</span>
+                                  <ChevronDown className="size-3.5" />
+                                </>
+                              ) : (
+                                <>
+                                  <span>Collapse</span>
+                                  <ChevronUp className="size-3.5" />
+                                </>
+                              )}
+                            </span>
+                          </div>
+
+                          {!collapsedBuckets.later && (
+                            <FeedList
+                              items={recencyBuckets.later}
+                              empty="No later events."
+                              now={now}
+                              isMod={isMod}
+                              onEdit={openEdit}
+                              onDelete={(x) => remove.mutate(x)}
+                              onOpen={setSelected}
+                              density={feedDensity}
+                              isDone={isDone}
+                              onToggleDone={toggleDone}
+                            />
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Collapsible Past & Completed Events */}
+                  {allCompleted.length > 0 && (
+                    <div className="mt-4 rounded-2xl border border-border/60 bg-surface/30 p-4 transition-all">
+                      <button
+                        type="button"
+                        onClick={() => setShowPastFeed((prev) => !prev)}
+                        className="flex w-full items-center justify-between text-left group cursor-pointer"
+                      >
+                        <div className="flex items-center gap-2.5">
+                          <CheckCircle2 className="size-4 text-emerald-400" />
+                          <span className="text-xs font-semibold text-ink group-hover:text-cyan transition-colors">
+                            Past & Completed Events
+                          </span>
+                          <span className="rounded-full bg-surface2 border border-border/80 px-2 py-0.5 font-mono text-[10px] text-faint">
+                            {allCompleted.length}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-1.5 text-xs text-dim group-hover:text-ink transition-colors">
+                          <span className="font-mono text-[11px]">
+                            {showPastFeed ? "Hide archive" : "Show archive"}
+                          </span>
+                          {showPastFeed ? (
+                            <ChevronUp className="size-4" />
+                          ) : (
+                            <ChevronDown className="size-4" />
+                          )}
+                        </div>
+                      </button>
+
+                      <AnimatePresence>
+                        {showPastFeed && (
+                          <motion.div
+                            initial={{ height: 0, opacity: 0 }}
+                            animate={{ height: "auto", opacity: 1 }}
+                            exit={{ height: 0, opacity: 0 }}
+                            transition={{ duration: 0.25 }}
+                            className="overflow-hidden pt-4"
+                          >
+                            <FeedList
+                              items={allCompleted}
+                              empty="No completed events found."
+                              now={now}
+                              isMod={isMod}
+                              onEdit={openEdit}
+                              onDelete={(x) => remove.mutate(x)}
+                              onOpen={setSelected}
+                              density="compact"
+                              isDone={isDone}
+                              onToggleDone={toggleDone}
+                            />
+                          </motion.div>
+                        )}
+                      </AnimatePresence>
+                    </div>
+                  )}
                 </div>
+
+                {/* Right Column: Announcements, Attendance, Activity Sidebar */}
+                <aside
+                  className={`min-w-0 flex-col gap-6 lg:sticky lg:top-24 ${mobileTab === "sidebar" ? "flex" : "hidden lg:flex"}`}
+                >
+                  <AnnouncementsPanel compact />
+                </aside>
               </div>
-            )}
+            </div>
+          )}
 
-            {tab === "calendar" && (
-              <CalendarPanel
-                canManage={isMod}
-                batchId={batchId}
+          {tab === "calendar" && (
+            <CalendarPanel
+              canManage={isMod}
+              batchId={batchId}
 
-                deadlines={filtered}
-                sessions={filter === "all" ? sessions : []}
-                courses={courses}
-                now={now}
-                onSelect={setSelected}
-                onEditDeadline={openEdit}
-              />
-            )}
+              deadlines={filtered}
+              sessions={filter === "all" ? sessions : []}
+              courses={courses}
+              now={now}
+              onSelect={setSelected}
+              onEditDeadline={openEdit}
+            />
+          )}
 
-            {tab === "timetable" && <TimetablePanel />}
+          {tab === "timetable" && <TimetablePanel />}
 
-            {tab === "quizzes" && (
-              <AssessmentAgenda
-                items={quizzes}
-                now={now}
-                canManage={isMod}
-                onEdit={openEdit}
-                onDelete={(x) => remove.mutate(x)}
-                onOpen={setSelected}
-              />
-            )}
+          {tab === "quizzes" && (
+            <AssessmentAgenda
+              items={quizzes}
+              now={now}
+              canManage={isMod}
+              onEdit={openEdit}
+              onDelete={(x) => remove.mutate(x)}
+              onOpen={setSelected}
+            />
+          )}
 
-            {tab === "exams" && (
-              <ExamsPanel
-                deadlines={deadlines}
-                now={now}
-                canManage={isMod}
-                initialSubTab={examSubTab}
-                onEdit={openEdit}
-                onDelete={(x) => remove.mutate(x)}
-                onOpen={setSelected}
-                onAddExam={() => {
-                  setEditing(null);
-                  setDialogOpen(true);
-                }}
-              />
-            )}
+          {tab === "exams" && (
+            <ExamsPanel
+              deadlines={deadlines}
+              now={now}
+              canManage={isMod}
+              initialSubTab={examSubTab}
+              onEdit={openEdit}
+              onDelete={(x) => remove.mutate(x)}
+              onOpen={setSelected}
+              onAddExam={() => {
+                setEditing(null);
+                setDialogOpen(true);
+              }}
+            />
+          )}
 
-            {tab === "grading" && <GradingPanel />}
+          {tab === "grading" && <GradingPanel />}
 
-            {tab === "attendance" && <AttendancePanel now={now} />}
+          {tab === "attendance" && <AttendancePanel now={now} />}
 
-            {tab === "notices" && isMod && <NoticeImportPanel />}
-            {tab === "admin" && <AdminConsolePanel />}
-          </motion.div>
-        </AnimatePresence>
+          {tab === "notices" && isMod && <NoticeImportPanel />}
+          {tab === "admin" && <AdminConsolePanel />}
+        </div>
       </main>
 
       <EventDrawer
