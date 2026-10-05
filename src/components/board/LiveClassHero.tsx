@@ -384,7 +384,7 @@ export function LiveClassHero({
             </button>
           </div>
 
-          {offset !== 1 && (
+          {!minimal && offset !== 1 && (
             <button
               type="button"
               onClick={() => {
@@ -630,9 +630,9 @@ export function LiveClassHero({
       {/* Today's remaining classes stay visible; completed periods are optional. */}
       {classes.length > 0 && (
         <div className="class-tracker-schedule relative z-10 border-t border-border/60 pt-5 mt-4">
-          <div className="mb-3 flex items-center justify-between">
+          <div className="mb-2 flex items-center justify-between">
             <span className="font-mono text-xs font-bold uppercase tracking-wider text-dim">
-              {offset === 0 ? "Today" : shortDayFmt.format(selectedDate)} · {classes.length} classes
+              {classes.length} classes
             </span>
           </div>
 

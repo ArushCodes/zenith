@@ -1342,7 +1342,8 @@ summary:hover {
   }
 }
 .class-tracker-minimal {
-  min-height: 230px;
+  min-height: 0;
+  padding: 12px 16px;
   overflow: clip;
 }
 .live-class-signal {
@@ -1419,16 +1420,16 @@ summary:hover {
   }
 }
 .class-tracker-minimal .class-tracker-feature {
-  min-height: 112px;
-  padding: 10px 145px 10px 0 !important;
+  min-height: 88px;
+  padding: 6px 115px 6px 0 !important;
 }
 .class-tracker-minimal .class-tracker-toolbar {
-  padding-bottom: 12px;
-  margin-bottom: 8px;
+  padding-bottom: 8px;
+  margin-bottom: 4px;
 }
 .class-tracker-minimal .class-tracker-schedule {
-  padding-top: 12px;
-  margin-top: 8px;
+  padding-top: 8px;
+  margin-top: 4px;
 }
 .class-tracker-minimal .class-tracker-feature h2 {
   padding-right: 0;
@@ -1449,11 +1450,22 @@ summary:hover {
   padding-top: 10px;
 }
 .class-tracker-minimal > .relative.z-10 + div > .relative.z-10 {
-  padding: 12px 0;
-  padding-right: 145px;
+  padding: 6px 0;
+  padding-right: 115px;
 }
 .class-tracker-minimal h2 {
   font-size: clamp(20px, 2.3vw, 30px);
+}
+.class-tracker-minimal .class-tracker-schedule article {
+  min-width: 190px;
+  padding: 10px 12px;
+}
+.class-tracker-minimal .class-tracker-schedule article > div.mt-3 {
+  margin-top: 8px;
+}
+.class-tracker-minimal .class-tracker-schedule article button {
+  padding-top: 6px;
+  padding-bottom: 6px;
 }
 .class-tracker-minimal .text-center {
   text-align: left;
@@ -1483,8 +1495,8 @@ summary:hover {
   position: absolute;
   right: 25px;
   top: 84px;
-  width: 112px;
-  height: 112px;
+  width: 88px;
+  height: 88px;
 }
 .class-progress-dial svg {
   width: 100%;
