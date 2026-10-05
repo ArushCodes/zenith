@@ -1311,7 +1311,7 @@ function FeedList({
   return (
     <motion.div
       variants={feedContainerVariants}
-      initial="hidden"
+      initial={false}
       animate="show"
       className={density === "compact" ? "flex flex-col gap-2" : "flex flex-col gap-2.5"}
     >
@@ -1320,6 +1320,8 @@ function FeedList({
           <motion.div
             key={d.id}
             variants={feedItemVariants}
+            initial={false}
+            animate="show"
             layout="position"
             exit={{ opacity: 0, x: -20, scale: 0.95, transition: { duration: 0.18 } }}
             transition={{

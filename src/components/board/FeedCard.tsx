@@ -253,11 +253,7 @@ export function FeedCard({
               className="size-1.5 rounded-full shrink-0"
               style={{ backgroundColor: subjectColor }}
             />
-            <span>
-              {deadline.subject_code && shortSubject
-                ? `${deadline.subject_code} · ${shortSubject}`
-                : deadline.subject_code || shortSubject || deadline.subject || "Academic"}
-            </span>
+            <span>{shortSubject || deadline.subject || "Academic"}</span>
           </span>
 
           <span
@@ -526,16 +522,14 @@ export function FeedCompactRow({
 
         {/* Short Subject Pill */}
         <span
-          className="rounded-md px-2 py-0.5 font-mono text-[11px] font-bold shrink-0 max-w-[55%] truncate"
+          className="rounded-md px-2 py-0.5 text-sm font-bold shrink-0"
           style={{
             backgroundColor: `${subjectColor}18`,
             color: subjectColor,
             border: `1px solid ${subjectColor}30`,
           }}
         >
-          {deadline.subject_code && shortSubject
-            ? `${deadline.subject_code} · ${shortSubject}`
-            : deadline.subject_code || shortSubject || "Academic"}
+          {shortSubject || deadline.subject || "Academic"}
         </span>
 
         {/* Type Icon */}
@@ -544,11 +538,11 @@ export function FeedCompactRow({
         {/* Title — Takes available space, no aggressive clipping */}
         <span
           title={title}
-          className={`font-display text-sm font-semibold truncate min-w-0 transition-colors group-hover:text-cyan ${
+          className={`font-display text-sm font-semibold whitespace-normal break-words min-w-0 transition-colors group-hover:text-cyan ${
             isDone ? "line-through text-dim" : "text-ink"
           }`}
         >
-          {title}
+          {deadline.title}
         </span>
       </div>
 
