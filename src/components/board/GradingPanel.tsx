@@ -180,17 +180,15 @@ function CourseCard({
           <span className="flex flex-wrap items-center gap-2">
             <span className="font-display text-sm font-semibold">{row.name}</span>
             {batchId === "ee4a435d-4003-4a22-940b-0ee0e676b6f5" && row.code === "HRM 1103" && (
-              <span className="rounded-md bg-surface2 px-2 py-1 text-xs text-dim">
-                Course finished
-              </span>
+              <span className="rounded-md bg-surface2 px-2 py-1 text-xs text-dim">Finished</span>
             )}
-            <span className="font-mono text-[10px] text-faint">{row.code}</span>
+
             <span className="rounded-md px-1.5 py-0.5 font-mono text-[9px] text-dim ring-1 ring-border">
               {row.credits} {row.credits === 1 ? "credit" : "credits"}
             </span>
             {row.isMlc && (
               <span className="rounded-md bg-violet/12 px-1.5 py-0.5 font-mono text-[9px] text-violet ring-1 ring-violet/30">
-                Pass / fail only — no CGPA
+                Pass / fail
               </span>
             )}
             {row.isProvisional && (
@@ -200,9 +198,7 @@ function CourseCard({
             )}
           </span>
           <span className="mt-1 block font-mono text-[10px] text-faint">
-            {row.gradedWeight > 0
-              ? `${row.banked} earned · ${row.gradedWeight}% graded`
-              : "Add marks"}
+            {row.gradedWeight > 0 ? `${row.gradedWeight}% graded` : "Add marks"}
           </span>
         </span>
 

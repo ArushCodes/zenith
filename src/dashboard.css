@@ -200,7 +200,7 @@ summary:hover {
   margin-left: 238px;
   width: calc(100% - 238px);
   max-width: 1600px;
-  padding: 30px 38px 28px;
+  padding: 20px 24px 24px;
 }
 .zenith-workspace .header-brand {
   display: none;
@@ -1120,8 +1120,8 @@ summary:hover {
   .zenith-workspace > .workspace-main {
     margin-left: 260px;
     width: calc(100% - 260px);
-    padding-left: 45px;
-    padding-right: 45px;
+    padding-left: 28px;
+    padding-right: 28px;
   }
 }
 @media (max-width: 1150px) {
@@ -1139,7 +1139,7 @@ summary:hover {
     flex-wrap: wrap;
   }
 }
-@media (max-width: 900px) {
+@media (max-width: 1023px) {
   .dashboard-sidebar {
     display: none;
   }
@@ -1149,7 +1149,7 @@ summary:hover {
   .zenith-workspace > .workspace-main {
     margin-left: 0;
     width: 100%;
-    padding: 24px;
+    padding: 20px;
   }
   .zenith-workspace .header-brand {
     display: flex;
@@ -1336,7 +1336,7 @@ summary:hover {
 .zenith-workspace .board-header-search {
   margin-right: auto;
 }
-@media (min-width: 901px) {
+@media (min-width: 1024px) {
   .zenith-workspace .board-header-search input {
     width: min(32vw, 380px);
   }
@@ -1463,6 +1463,34 @@ summary:hover {
   width: 100%;
   min-width: 0;
   isolation: isolate;
+}
+.zenith-workspace .workspace-main input,
+.zenith-workspace .workspace-main select,
+.zenith-workspace .workspace-main textarea {
+  max-width: 100%;
+}
+@media (max-width: 600px) {
+  .zenith-workspace > .workspace-main {
+    padding: 14px 12px 24px;
+  }
+  .class-tracker-minimal {
+    padding: 12px;
+  }
+  .class-tracker-toolbar > div {
+    min-width: 0;
+    flex-wrap: wrap;
+  }
+  .class-card-grid {
+    gap: 10px;
+  }
+  .class-tracker-minimal .class-tracker-schedule article {
+    padding: 12px;
+  }
+  .zenith-workspace .workspace-main input,
+  .zenith-workspace .workspace-main select,
+  .zenith-workspace .workspace-main textarea {
+    font-size: 16px;
+  }
 }
 .class-progress-dial {
   position: absolute;
@@ -1656,7 +1684,7 @@ summary:hover {
   outline: 1px solid var(--cyan);
   outline-offset: 2px;
 }
-@media (min-width: 901px) {
+@media (min-width: 1024px) {
   .workspace-navigation {
     display: none;
   }

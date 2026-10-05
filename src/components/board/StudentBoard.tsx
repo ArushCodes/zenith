@@ -532,7 +532,7 @@ export default function StudentBoard({ guestPreview }: { guestPreview?: boolean 
         className={`workspace-main ${tab === "feed" ? "feed-page" : ""} relative z-10 mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 pt-4 sm:pt-6 pb-20`}
       >
         {/* ── Best Practice Workspace Control Deck: Editorial Context + Flat Navigation ── */}
-        <div className="mb-4 flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between border-b border-border/70 pb-3">
+        <div className="mb-3 flex flex-col gap-2 lg:flex-row lg:items-end lg:justify-between border-b border-border/70 pb-3">
           <div className="min-w-0">
             <h1 className="font-display text-2xl font-black tracking-tight text-ink">
               {tab === "feed" ? "Feed" : (tabs.find((item) => item.key === tab)?.label ?? "Board")}
@@ -662,7 +662,7 @@ export default function StudentBoard({ guestPreview }: { guestPreview?: boolean 
 
         <div key={tab}>
           {tab === "feed" && (
-            <div className="flex flex-col gap-5 sm:gap-6">
+            <div className="flex flex-col gap-4">
               <div>
                 <LiveClassHero
                   now={now}
@@ -691,7 +691,7 @@ export default function StudentBoard({ guestPreview }: { guestPreview?: boolean 
                   </span>
                 </button>
               )}
-              <div className="lg:hidden flex rounded-2xl bg-surface2/70 p-1 border border-border/80">
+              <div className="xl:hidden flex rounded-2xl bg-surface2/70 p-1 border border-border/80">
                 <button
                   type="button"
                   onClick={() => setMobileTab("timeline")}
@@ -719,10 +719,10 @@ export default function StudentBoard({ guestPreview }: { guestPreview?: boolean 
               </div>
 
               {/* ── Main Feed & Sidebar Grid ── */}
-              <div className="grid grid-cols-1 items-start gap-5 lg:grid-cols-[minmax(0,1fr)_290px] xl:grid-cols-[minmax(0,1fr)_310px]">
+              <div className="grid grid-cols-1 items-start gap-5 xl:grid-cols-[minmax(0,1fr)_280px]">
                 {/* Left Column: Feed Timeline */}
                 <div
-                  className={`min-w-0 flex flex-col gap-3.5 ${mobileTab === "sidebar" ? "hidden lg:flex" : "flex"}`}
+                  className={`min-w-0 flex flex-col gap-3.5 ${mobileTab === "sidebar" ? "hidden xl:flex" : "flex"}`}
                 >
                   {/* Modern Feed Command Bar */}
                   <div className="rounded-2xl border border-border/80 bg-surface/90 p-2.5 sm:p-3 backdrop-blur-md shadow-xs space-y-2.5">
@@ -1160,7 +1160,7 @@ export default function StudentBoard({ guestPreview }: { guestPreview?: boolean 
 
                 {/* Right Column: Announcements, Attendance, Activity Sidebar */}
                 <aside
-                  className={`min-w-0 flex-col gap-6 lg:sticky lg:top-24 ${mobileTab === "sidebar" ? "flex" : "hidden lg:flex"}`}
+                  className={`min-w-0 flex-col gap-4 xl:sticky xl:top-24 ${mobileTab === "sidebar" ? "flex" : "hidden xl:flex"}`}
                 >
                   <AnnouncementsPanel compact />
                 </aside>
