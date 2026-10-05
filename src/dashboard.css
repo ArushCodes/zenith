@@ -1420,52 +1420,30 @@ summary:hover {
   }
 }
 .class-tracker-minimal .class-tracker-feature {
-  min-height: 88px;
-  padding: 6px 115px 6px 0 !important;
+  min-height: 110px;
+  padding: 12px 110px 12px 0 !important;
 }
 .class-tracker-minimal .class-tracker-toolbar {
-  padding-bottom: 8px;
+  flex-wrap: wrap;
+  gap: 10px;
+  padding-bottom: 10px;
   margin-bottom: 4px;
 }
 .class-tracker-minimal .class-tracker-schedule {
-  padding-top: 8px;
-  margin-top: 4px;
+  padding-top: 12px;
+  margin-top: 8px;
+  min-width: 0;
 }
-.class-tracker-minimal .class-tracker-feature h2 {
-  padding-right: 0;
-}
-.class-tracker-minimal .class-tracker-feature button {
-  padding: 10px 14px;
-  font-size: 12px;
-}
-.class-tracker-minimal > div:first-of-type {
-  z-index: 0;
-}
-.class-tracker-minimal > .relative.z-10 {
-  padding-bottom: 10px;
-  margin-bottom: 10px;
-}
-.class-tracker-minimal > .relative.z-10:not(:first-of-type) {
-  margin-top: 10px;
-  padding-top: 10px;
-}
-.class-tracker-minimal > .relative.z-10 + div > .relative.z-10 {
-  padding: 6px 0;
-  padding-right: 115px;
-}
-.class-tracker-minimal h2 {
-  font-size: clamp(20px, 2.3vw, 30px);
+.class-card-grid {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 230px), 1fr));
 }
 .class-tracker-minimal .class-tracker-schedule article {
-  min-width: 190px;
-  padding: 10px 12px;
+  min-width: 0;
+  width: 100%;
+  padding: 14px;
 }
-.class-tracker-minimal .class-tracker-schedule article > div.mt-3 {
-  margin-top: 8px;
-}
-.class-tracker-minimal .class-tracker-schedule article button {
-  padding-top: 6px;
-  padding-bottom: 6px;
+.class-tracker-minimal h2 {
+  font-size: clamp(22px, 2.3vw, 30px);
 }
 .class-tracker-minimal .text-center {
   text-align: left;
@@ -1473,23 +1451,18 @@ summary:hover {
 .class-tracker-minimal .text-center > div {
   display: none;
 }
-.class-tracker-minimal .text-center > p {
-  max-width: 80%;
+.zenith-workspace .workspace-main,
+.zenith-workspace .workspace-main > div,
+.zenith-workspace .workspace-main section {
+  min-width: 0;
 }
-.class-tracker-minimal [aria-pressed] {
-  min-width: 145px;
-  padding: 10px 14px;
-  text-align: left;
+.zenith-workspace .workspace-main {
+  box-sizing: border-box;
 }
-.class-tracker-minimal [aria-pressed="true"] {
-  border-color: var(--cyan);
-  background: color-mix(in srgb, var(--cyan) 10%, var(--surface));
-}
-.class-tracker-minimal [aria-pressed] > div:last-child {
-  display: flex;
-}
-.class-tracker-minimal [aria-pressed] > div:first-of-type > div:last-child {
-  display: none;
+.class-tracker {
+  width: 100%;
+  min-width: 0;
+  isolation: isolate;
 }
 .class-progress-dial {
   position: absolute;
@@ -1636,7 +1609,7 @@ summary:hover {
     padding-right: 82px;
   }
   .class-tracker-minimal h2 {
-    padding-right: 75px;
+    padding-right: 0;
   }
 }
 .zenith-workspace > .workspace-main.feed-page {

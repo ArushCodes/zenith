@@ -165,7 +165,6 @@ export function FeedCard({
 
   return (
     <motion.article
-      layout="position"
       onPointerMove={(event) => {
         if (reducedMotion || event.pointerType !== "mouse") return;
         const rect = event.currentTarget.getBoundingClientRect();
@@ -483,7 +482,6 @@ export function FeedCompactRow({
 
   return (
     <motion.div
-      layout="position"
       whileHover={{ x: 2 }}
       transition={{ duration: 0.15 }}
       onClick={() => onOpen?.(deadline)}

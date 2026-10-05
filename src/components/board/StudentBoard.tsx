@@ -1327,7 +1327,7 @@ function FeedList({
             variants={feedItemVariants}
             initial={false}
             animate="show"
-            layout="position"
+
             exit={{ opacity: 0, x: -20, scale: 0.95, transition: { duration: 0.18 } }}
             transition={{
               type: "spring",

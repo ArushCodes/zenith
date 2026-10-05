@@ -41,7 +41,7 @@ import {
   FALLBACK_COURSE_COLOR,
 } from "@/lib/courses";
 import { cleanExamTitle, dayKey, eventMeta, timeLeft, type Deadline } from "@/lib/deadlines";
-import { TimetableSyncStatus } from "./TimetableSyncStatus";
+
 import { SyllabusDialog } from "@/components/board/SyllabusDialog";
 import { courseAttendance, defaultClassDay } from "@/lib/course-attendance";
 import { sessionSubject } from "@/lib/attendance";
@@ -184,9 +184,9 @@ export function LiveClassHero({
   }, [classes, now, offset]);
 
   const nextClassToday = useMemo(() => {
-    if (offset !== 0 || liveClass) return null;
+    if (liveClass) return null;
     return classes.find((s) => new Date(s.start_at).getTime() > now) || null;
-  }, [classes, liveClass, now, offset]);
+  }, [classes, liveClass, now]);
 
   const nextUpcomingAnyDay = useMemo(() => {
     return (
@@ -636,7 +636,7 @@ export function LiveClassHero({
             </span>
           </div>
 
-          <div className="flex items-stretch gap-2.5 sm:gap-3 overflow-x-auto pt-2 pb-3 px-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+          <div className="class-card-grid grid grid-cols-1 gap-3 pt-2 pb-1">
             {visibleClasses.map((s) => {
               const color = sessionColor(s, colorMap) ?? FALLBACK_COURSE_COLOR;
               const isLive = liveClass?.id === s.id;
@@ -650,7 +650,7 @@ export function LiveClassHero({
                   key={s.id}
                   whileHover={{ y: -3 }}
                   whileTap={{ scale: 0.97 }}
-                  className={`relative flex flex-col justify-between rounded-xl sm:rounded-2xl p-3 sm:p-4 min-w-[170px] sm:min-w-[220px] shrink-0 border transition-all ${
+                  className={`relative flex flex-col justify-between rounded-xl sm:rounded-2xl p-3 sm:p-4 min-w-0 border transition-all ${
                     isLive
                       ? "border-cyan/80 bg-cyan/[0.08] shadow-lg shadow-cyan/10 ring-1 ring-cyan/40"
                       : isPast
@@ -969,7 +969,6 @@ export function LiveClassHero({
         </div>
       )}
 
-      {minimal && <TimetableSyncStatus />}
       {/* ── Syllabus Dialog ── */}
       <SyllabusDialog
         deadline={syllabusExam}

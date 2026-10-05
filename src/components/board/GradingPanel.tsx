@@ -69,10 +69,8 @@ export function GradingPanel() {
           <CourseCard
             key={`${user?.id ?? "guest"}:${batchId}:${row.code}`}
             row={row}
-            open={open === row.code || (open === null && row === rows[0])}
-            onToggle={() =>
-              setOpen(open === row.code || (open === null && row === rows[0]) ? "" : row.code)
-            }
+            open={open === row.code}
+            onToggle={() => setOpen(open === row.code ? null : row.code)}
             canManage={canManage}
             onEdit={(c) => setEditing(c)}
             batchId={batchId!}
@@ -251,16 +249,16 @@ function CourseCard({
       </div>
       {open && (
         <div className="border-t border-border">
-          <div className="grid grid-cols-3 gap-3 p-4">
+          <div className="grid grid-cols-2 gap-3 p-4 sm:grid-cols-3">
             <div>
-              <p className="text-xs text-dim">Earned so far</p>
+              <p className="text-xs text-dim">Saved marks</p>
               <p className="text-2xl font-bold">
                 {row.banked}
                 <span className="text-xs text-dim"> / 100</span>
               </p>
             </div>
             <div>
-              <p className="text-xs text-dim">Expected total</p>
+              <p className="text-xs text-dim">Predicted total</p>
               <p
                 className={`text-2xl font-bold ${planned >= target ? "text-emerald-400" : "text-cyan"}`}
               >
@@ -268,7 +266,7 @@ function CourseCard({
                 <span className="text-xs text-dim"> / 100</span>
               </p>
             </div>
-            <label className="text-xs text-dim">
+            <label className="col-span-2 text-xs text-dim sm:col-span-1">
               Your target
               <input
                 aria-label={`Target for ${row.name}`}
@@ -296,7 +294,7 @@ function CourseCard({
             />
           </div>
           <p className="px-4 pb-3 text-xs text-dim">
-            Predictions for ungraded work · final grades are relative.
+            Saved marks + predictions = predicted total. Final grades are relative.
           </p>
           {row.components.map((c) => (
             <Fragment key={c.component.id}>
@@ -494,9 +492,9 @@ function ComponentRow({
         {pct === null && preview === null ? "—" : `${preview ?? earned} / ${weightage}`}
       </span>
       {!markId && (
-        <div className="flex w-full items-center gap-3 rounded-lg bg-cyan/5 px-3 py-2">
+        <div className="grid w-full min-w-0 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2 rounded-lg bg-cyan/5 px-3 py-2">
           <label className="text-xs text-cyan shrink-0" htmlFor={`expected-${component.id}`}>
-            Expected
+            Predict
           </label>
           <input
             id={`expected-${component.id}`}
@@ -509,7 +507,7 @@ function ComponentRow({
             className="min-w-0 flex-1 accent-cyan"
           />
           <span className="w-12 text-right text-sm tabular-nums">{expected}%</span>
-          <span className="w-20 text-right text-sm tabular-nums text-cyan">
+          <span className="col-start-2 col-span-2 text-right text-sm tabular-nums text-cyan">
             {round1((expected * weightage) / 100)} / {weightage}
           </span>
         </div>
