@@ -242,3 +242,13 @@ assert.match(icsFor(dateOnlyEvent), /DTSTART;VALUE=DATE:20261008/);
 assert.match(icsFor(dateOnlyEvent), /DTEND;VALUE=DATE:20261009/);
 
 assert.match(formatDeadlineWhen(dateOnlyEvent), /Time TBA/);
+
+import { classSlotIndex, IPM_CLASS_SLOTS } from "../src/lib/class-slots";
+assert.equal(IPM_CLASS_SLOTS.length, 4);
+assert.equal(classSlotIndex("2026-10-09T04:45:00Z"), 0);
+assert.equal(classSlotIndex("2026-10-09T06:15:00Z"), 1);
+assert.equal(classSlotIndex("2026-10-09T09:00:00Z"), 2);
+assert.equal(classSlotIndex("2026-10-09T10:30:00Z"), 3);
+assert.equal(classSlotIndex("2026-10-09T03:00:00Z"), -1);
+assert.equal(classSlotIndex("2026-10-09T13:00:00Z"), -1);
+console.log("Passed: four class slots use India time and preserve off-slot classes.");

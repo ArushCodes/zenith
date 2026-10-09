@@ -1435,7 +1435,24 @@ summary:hover {
   min-width: 0;
 }
 .class-card-grid {
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, 230px), 1fr));
+  grid-template-columns: minmax(0, 1fr);
+}
+.class-tracker {
+  container-type: inline-size;
+}
+@container (min-width: 500px) {
+  .class-card-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+@container (min-width: 980px) {
+  .class-card-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+.class-slot-empty {
+  min-width: 0;
+  background: var(--surface2);
 }
 .class-tracker-minimal .class-tracker-schedule article {
   min-width: 0;
@@ -1621,23 +1638,32 @@ summary:hover {
 }
 @media (max-width: 600px) {
   .class-tracker-minimal .class-tracker-feature {
-    min-height: 88px;
-    padding-right: 82px !important;
+    min-height: 0;
+    padding: 8px 0 !important;
   }
   .class-progress-dial {
-    width: 72px;
-    height: 72px;
-    right: 14px;
-    top: 126px;
+    display: none;
   }
   .class-progress-dial strong {
     font-size: 21px;
   }
-  .class-tracker-minimal > .relative.z-10 + div > .relative.z-10 {
-    padding-right: 82px;
-  }
   .class-tracker-minimal h2 {
     padding-right: 0;
+    font-size: 22px;
+  }
+  .class-tracker-toolbar {
+    align-items: stretch;
+  }
+  .class-tracker-toolbar > div {
+    justify-content: space-between;
+    gap: 8px;
+  }
+  .class-tracker-minimal .class-tracker-schedule article > div.mt-3 {
+    margin-top: 8px;
+  }
+  .zenith-workspace .workspace-main p,
+  .zenith-workspace .workspace-main h2 {
+    overflow-wrap: anywhere;
   }
 }
 .zenith-workspace > .workspace-main.feed-page {

@@ -47,6 +47,7 @@ import { courseAttendance, defaultClassDay } from "@/lib/course-attendance";
 import { sessionSubject } from "@/lib/attendance";
 import { IPM1_BATCH_ID } from "@/lib/roster.data";
 import { MissAllowance } from "@/components/attendance/MissAllowance";
+import { IPM_CLASS_SLOTS, classSlotIndex } from "@/lib/class-slots";
 
 type Props = {
   now: number;
@@ -229,6 +230,26 @@ export function LiveClassHero({
   const inspected = classes.find((s) => s.id === inspectedId);
   const featured = offset === 0 ? liveClass || nextClassToday || nextUpcomingAnyDay : classes[0];
   const visibleClasses = classes;
+  const slotCards =
+    batchId === IPM1_BATCH_ID
+      ? [
+          ...IPM_CLASS_SLOTS.flatMap<{ session: ClassSession | null; slot: number; time: string }>(
+            (slot, index) => {
+              const matches = visibleClasses.filter((s) => classSlotIndex(s.start_at) === index);
+              return matches.length
+                ? matches.map((session) => ({
+                    session,
+                    slot: index,
+                    time: `${slot.start}–${slot.end}`,
+                  }))
+                : [{ session: null, slot: index, time: `${slot.start}–${slot.end}` }];
+            },
+          ),
+          ...visibleClasses
+            .filter((s) => classSlotIndex(s.start_at) === -1)
+            .map((session) => ({ session, slot: -1, time: "" })),
+        ]
+      : visibleClasses.map((session) => ({ session, slot: -1, time: "" }));
   const untilStart = featured
     ? Math.max(0, Math.ceil((new Date(featured.start_at).getTime() - now) / 60000))
     : 0;
@@ -637,7 +658,19 @@ export function LiveClassHero({
           </div>
 
           <div className="class-card-grid grid grid-cols-1 gap-3 pt-2 pb-1">
-            {visibleClasses.map((s) => {
+            {slotCards.map(({ session: s, slot, time }) => {
+              if (!s)
+                return (
+                  <div
+                    key={`empty-${slot}`}
+                    className="class-slot-empty rounded-xl border border-dashed border-border p-3 text-dim"
+                  >
+                    <span className="text-xs font-semibold">
+                      Slot {slot + 1} · {time}
+                    </span>
+                    <p className="mt-2 text-sm">No class</p>
+                  </div>
+                );
               const color = sessionColor(s, colorMap) ?? FALLBACK_COURSE_COLOR;
               const isLive = liveClass?.id === s.id;
               const isPast = new Date(s.end_at).getTime() <= now;
@@ -664,6 +697,9 @@ export function LiveClassHero({
                   />
 
                   <div className="space-y-1 pl-1">
+                    {slot >= 0 && (
+                      <div className="text-xs font-semibold text-dim">Slot {slot + 1}</div>
+                    )}
                     <div className="flex items-center justify-between gap-2">
                       <span className="font-mono text-xs font-bold text-dim">
                         {clockTimeFmt.format(new Date(s.start_at))}
@@ -685,12 +721,12 @@ export function LiveClassHero({
                       type="button"
                       aria-expanded={inspectedId === s.id}
                       onClick={() => setInspectedId((id) => (id === s.id ? null : s.id))}
-                      className="text-left font-display text-sm font-bold text-ink whitespace-nowrap pt-0.5 hover:text-cyan"
+                      className="min-w-0 text-left font-display text-base font-bold text-ink break-words pt-0.5 hover:text-cyan"
                     >
                       {periodSubject}
                     </button>
 
-                    <div className="flex items-center gap-2 text-[11px] text-dim pt-1">
+                    <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-dim pt-1">
                       {s.classroom && <span>Room {s.classroom}</span>}
                       {s.faculty_name && <span>· {s.faculty_name}</span>}
                     </div>
