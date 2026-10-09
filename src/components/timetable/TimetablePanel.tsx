@@ -54,6 +54,8 @@ import {
 import { TimetableSyncStatus } from "@/components/board/TimetableSyncStatus";
 import { saveIcsUrl, syncTimetableNow } from "@/lib/timetable.functions";
 import { SessionMeta } from "@/components/common/SessionMeta";
+import { IPM_CLASS_SLOTS, classSlotIndex } from "@/lib/class-slots";
+import { IPM1_BATCH_ID } from "@/lib/roster.data";
 
 const HOLIDAY_COLOR = "#10B981";
 
@@ -63,6 +65,7 @@ const dayFmt = new Intl.DateTimeFormat("en-GB", {
   month: "short",
 });
 const timeFmt = new Intl.DateTimeFormat("en-GB", {
+  timeZone: "Asia/Kolkata",
   hour: "2-digit",
   minute: "2-digit",
   hour12: false,
@@ -466,6 +469,91 @@ export function TimetablePanel() {
             .filter(([day]) => !dayFocus || day === dayFocus)
             .map(([day, list]) => {
               const total = list.sessions.length + list.events.length;
+              const teaching = list.sessions.filter(isTeachingClass);
+              const useSlots = batchId === IPM1_BATCH_ID && teaching.length > 0;
+              const renderSession = (s: ClassSession, slotted = false) => {
+                const color = s.is_holiday ? HOLIDAY_COLOR : colorOf(s);
+                return (
+                  <Fragment key={s.id}>
+                    <motion.div
+                      layout
+                      whileHover={{ scale: 1.005, y: -1 }}
+                      style={{ borderLeftColor: color ?? "transparent" }}
+                      className={`flex min-w-0 flex-wrap ${slotted ? "items-start" : "items-center"} gap-x-3 gap-y-2 rounded-xl border-l-[3px] bg-surface px-3.5 py-3 ring-1 transition-shadow hover:shadow-lg hover:shadow-black/20 ${
+                        s.is_holiday ? "ring-evt-present/30 bg-evt-present/5" : "ring-border"
+                      }`}
+                    >
+                      <Marker
+                        shape={s.is_holiday ? "bar" : "circle"}
+                        color={color ?? FALLBACK_COURSE_COLOR}
+                        size={9}
+                      />
+                      <span className="font-mono text-[11px] text-dim shrink-0">
+                        {s.is_holiday
+                          ? "All day"
+                          : `${timeFmt.format(new Date(s.start_at))} – ${timeFmt.format(new Date(s.end_at))}`}
+                      </span>
+                      <span
+                        className={`min-w-0 flex-1 basis-full ${slotted ? "" : "sm:basis-auto"}`}
+                      >
+                        <span className="block break-words font-display text-sm font-semibold">
+                          {sessionFullName(s)}
+                        </span>
+                        <SessionMeta session={s} />
+                      </span>
+                      {s.course_code && (
+                        <span
+                          className="shrink-0 rounded-md px-2 py-0.5 font-mono text-[10px] font-medium"
+                          style={{
+                            color: color ?? undefined,
+                            backgroundColor: color ? `${color}18` : undefined,
+                            border: color ? `1px solid ${color}35` : undefined,
+                          }}
+                        >
+                          {s.course_code}
+                        </span>
+                      )}
+                      {canManage && (
+                        <motion.button
+                          whileTap={{ scale: 0.94 }}
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setEditingSession(s);
+                          }}
+                          title="Edit class"
+                          className="flex shrink-0 items-center gap-1 rounded-lg px-2.5 py-1 font-mono text-[10px] font-semibold text-amber ring-1 ring-amber/30 transition-colors hover:bg-amber/15 hover:ring-amber/50"
+                        >
+                          <Pencil className="size-3" />
+                          <span>Edit</span>
+                        </motion.button>
+                      )}
+                      {isTeachingClass(s) && isMember && user && (
+                        <motion.button
+                          whileTap={{ scale: 0.94 }}
+                          onClick={() =>
+                            markAbsent.mutate({
+                              session: s,
+                              clear: absentIds.has(s.id),
+                            })
+                          }
+                          title={
+                            absentIds.has(s.id) ? "Tap to clear absence" : "Mark yourself absent"
+                          }
+                          className={`flex shrink-0 items-center gap-1.5 rounded-lg px-2.5 py-1 font-mono text-[10px] ring-1 transition-colors ${
+                            absentIds.has(s.id)
+                              ? "bg-evt-exam/20 text-evt-exam ring-evt-exam/40"
+                              : "text-dim ring-border hover:text-ink"
+                          }`}
+                        >
+                          <CircleSlash className="size-3" />
+                          {absentIds.has(s.id) ? "Absent" : "Mark absent"}
+                        </motion.button>
+                      )}
+                    </motion.div>
+                  </Fragment>
+                );
+              };
               return (
                 <motion.div
                   key={day}
@@ -505,89 +593,38 @@ export function TimetablePanel() {
                     </button>
                   </div>
                   <div className="flex flex-col gap-2">
-                    {list.sessions.map((s) => {
-                      const color = s.is_holiday ? HOLIDAY_COLOR : colorOf(s);
-                      return (
-                        <Fragment key={s.id}>
-                          <motion.div
-                            layout
-                            whileHover={{ scale: 1.005, y: -1 }}
-                            style={{ borderLeftColor: color ?? "transparent" }}
-                            className={`flex flex-wrap items-center gap-x-3 gap-y-2 rounded-xl border-l-[3px] bg-surface px-3.5 py-3 ring-1 transition-shadow hover:shadow-lg hover:shadow-black/20 ${
-                              s.is_holiday ? "ring-evt-present/30 bg-evt-present/5" : "ring-border"
-                            }`}
-                          >
-                            <Marker
-                              shape={s.is_holiday ? "bar" : "circle"}
-                              color={color ?? FALLBACK_COURSE_COLOR}
-                              size={9}
-                            />
-                            <span className="font-mono text-[11px] text-dim shrink-0">
-                              {s.is_holiday
-                                ? "All day"
-                                : `${timeFmt.format(new Date(s.start_at))} – ${timeFmt.format(new Date(s.end_at))}`}
-                            </span>
-                            <span className="min-w-0 flex-1 basis-full sm:basis-auto">
-                              <span className="block truncate font-display text-sm font-semibold">
-                                {sessionFullName(s)}
-                              </span>
-                              <SessionMeta session={s} />
-                            </span>
-                            {s.course_code && (
-                              <span
-                                className="shrink-0 rounded-md px-2 py-0.5 font-mono text-[10px] font-medium"
-                                style={{
-                                  color: color ?? undefined,
-                                  backgroundColor: color ? `${color}18` : undefined,
-                                  border: color ? `1px solid ${color}35` : undefined,
-                                }}
-                              >
-                                {s.course_code}
-                              </span>
-                            )}
-                            {canManage && (
-                              <motion.button
-                                whileTap={{ scale: 0.94 }}
-                                type="button"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  setEditingSession(s);
-                                }}
-                                title="Edit class"
-                                className="flex shrink-0 items-center gap-1 rounded-lg px-2.5 py-1 font-mono text-[10px] font-semibold text-amber ring-1 ring-amber/30 transition-colors hover:bg-amber/15 hover:ring-amber/50"
-                              >
-                                <Pencil className="size-3" />
-                                <span>Edit</span>
-                              </motion.button>
-                            )}
-                            {isTeachingClass(s) && isMember && user && (
-                              <motion.button
-                                whileTap={{ scale: 0.94 }}
-                                onClick={() =>
-                                  markAbsent.mutate({
-                                    session: s,
-                                    clear: absentIds.has(s.id),
-                                  })
-                                }
-                                title={
-                                  absentIds.has(s.id)
-                                    ? "Tap to clear absence"
-                                    : "Mark yourself absent"
-                                }
-                                className={`flex shrink-0 items-center gap-1.5 rounded-lg px-2.5 py-1 font-mono text-[10px] ring-1 transition-colors ${
-                                  absentIds.has(s.id)
-                                    ? "bg-evt-exam/20 text-evt-exam ring-evt-exam/40"
-                                    : "text-dim ring-border hover:text-ink"
-                                }`}
-                              >
-                                <CircleSlash className="size-3" />
-                                {absentIds.has(s.id) ? "Absent" : "Mark absent"}
-                              </motion.button>
-                            )}
-                          </motion.div>
-                        </Fragment>
-                      );
-                    })}
+                    {useSlots && (
+                      <div className="grid min-w-0 grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-4">
+                        {IPM_CLASS_SLOTS.map((slot, index) => {
+                          const classes = teaching.filter(
+                            (s) => classSlotIndex(s.start_at) === index,
+                          );
+                          return (
+                            <div key={slot.start} className="flex min-w-0 flex-col gap-2">
+                              <div className="flex items-center justify-between gap-2 px-1 font-mono text-xs">
+                                <span className="font-semibold text-cyan">Slot {index + 1}</span>
+                                <span className="text-dim">
+                                  {slot.start}–{slot.end}
+                                </span>
+                              </div>
+                              {classes.length > 0 ? (
+                                classes.map((s) => renderSession(s, true))
+                              ) : (
+                                <div className="rounded-xl border border-dashed border-border/70 px-3 py-4 text-sm text-dim">
+                                  {selectedSubject ? "No match" : "No class"}
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                    {list.sessions
+                      .filter(
+                        (s) =>
+                          !useSlots || !isTeachingClass(s) || classSlotIndex(s.start_at) === -1,
+                      )
+                      .map((s) => renderSession(s))}
 
                     {list.events.map((d) => {
                       const meta = eventMeta(d.type);

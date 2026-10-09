@@ -275,3 +275,6 @@ assert.equal(overProgress.state, "over");
 assert.equal(overProgress.remaining, 0);
 assert.equal(classProgress([], Date.now()).state, "empty");
 console.log("Passed: class/break scrubber boundaries, countdown and day completion.");
+import { testCalendarAcademic } from "./calendar-academic";
+testCalendarAcademic();
+console.log("Passed: calendar exam placeholders, study gaps and duplicate holiday labels.");

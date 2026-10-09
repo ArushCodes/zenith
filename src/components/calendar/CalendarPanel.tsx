@@ -20,6 +20,11 @@ import {
   type Deadline,
 } from "@/lib/deadlines";
 
+import {
+  calendarAcademicDays,
+  calendarDisplayMarks,
+  isDerivedStudyDay,
+} from "@/lib/calendar-academic";
 import type { ClassSession, Course } from "@/lib/batches";
 import { SessionEditDialog } from "@/components/calendar/SessionEditDialog";
 import { DayMarkDialog } from "@/components/calendar/DayMarkDialog";
@@ -31,7 +36,7 @@ import {
   FALLBACK_COURSE_COLOR,
   buildColorMap,
   courseKey,
-  isAcademicEvent,
+  isTeachingClass,
   isDayOff,
   sessionColor,
   sessionKey,
@@ -121,7 +126,10 @@ export function CalendarPanel({
   }
 
   const { data: dayMarks = [] } = useQuery(dayMarksQuery(batchId));
-  const marks = useMemo(() => dayMarkMap(dayMarks), [dayMarks]);
+  const marks = useMemo(
+    () => calendarDisplayMarks(dayMarkMap(dayMarks), deadlines),
+    [dayMarks, deadlines],
+  );
 
   const colorMap = useMemo(() => buildColorMap(courses, sessions), [courses, sessions]);
 
@@ -140,16 +148,9 @@ export function CalendarPanel({
   }, [batchSubjects]);
 
   const classSessions = useMemo(
-    () => sessions.filter((s) => !isAcademicEvent(s) && !s.is_holiday),
+    () => sessions.filter((s) => !s.is_cancelled && isTeachingClass(s)),
     [sessions],
   );
-  /** Holidays ride along with academic-calendar entries so they get their own
-   *  hexagon marker instead of a class dot. */
-  const academic = useMemo(
-    () => sessions.filter((s) => isAcademicEvent(s) || s.is_holiday),
-    [sessions],
-  );
-
   const visibleClasses = useMemo(() => {
     if (!showClasses) return [];
     if (activeSubjects.length === 0) return classSessions;
@@ -176,21 +177,10 @@ export function CalendarPanel({
     return map;
   }, [visibleClasses]);
 
-  /** Academic entries can span several days — expand across their range. */
-  const academicByDay = useMemo(() => {
-    const map = new Map<string, ClassSession[]>();
-    for (const e of academic) {
-      let d = new Date(e.start_at);
-      d.setHours(12, 0, 0, 0);
-      const end = new Date(e.end_at);
-      for (let i = 0; i < 60 && d <= end; i++) {
-        const k = dayKey(d);
-        map.set(k, [...(map.get(k) ?? []), e]);
-        d = addDays(d, 1);
-      }
-    }
-    return map;
-  }, [academic]);
+  const academicByDay = useMemo(
+    () => calendarAcademicDays(sessions, deadlines, marks, batchId),
+    [sessions, deadlines, marks, batchId],
+  );
 
   function shift(delta: number) {
     setDirection(delta);
@@ -337,7 +327,7 @@ export function CalendarPanel({
                 cursor={cursor}
                 deadlines={deadlines}
                 classes={visibleClasses}
-                academic={academic}
+                academicByDay={academicByDay}
                 colorMap={colorMap}
                 marks={marks}
                 now={now}
@@ -370,7 +360,7 @@ export function CalendarPanel({
       <DayMarkDialog
         day={markDay}
         batchId={batchId}
-        mark={markDay ? (marks.get(markDay) ?? null) : null}
+        mark={markDay ? (dayMarks.find((mark) => mark.day === markDay) ?? null) : null}
         onClose={() => setMarkDay(null)}
       />
 
@@ -812,7 +802,11 @@ function MonthGrid({
                       key={e.id}
                       entry={e}
                       dense
-                      onClick={canManage && onEditSession ? () => onEditSession(e) : undefined}
+                      onClick={
+                        canManage && onEditSession && !isDerivedStudyDay(e)
+                          ? () => onEditSession(e)
+                          : undefined
+                      }
                     />
                   ))}
                 </div>
@@ -912,7 +906,11 @@ function WeekTimeline({
                   key={e.id}
                   entry={e}
                   dense
-                  onClick={canManage && onEditSession ? () => onEditSession(e) : undefined}
+                  onClick={
+                    canManage && onEditSession && !isDerivedStudyDay(e)
+                      ? () => onEditSession(e)
+                      : undefined
+                  }
                 />
               ))}
             </div>
@@ -1030,7 +1028,7 @@ function Agenda({
   cursor,
   deadlines,
   classes,
-  academic,
+  academicByDay,
   colorMap,
   marks,
   now,
@@ -1048,7 +1046,7 @@ function Agenda({
   cursor: Date;
   deadlines: Deadline[];
   classes: ClassSession[];
-  academic: ClassSession[];
+  academicByDay: Map<string, ClassSession[]>;
   colorMap: Map<string, string>;
   marks: Map<string, DayMark>;
   now: number;
@@ -1077,9 +1075,15 @@ function Agenda({
     ...classes
       .filter((s) => inMonth(s.start_at))
       .map((s) => ({ kind: "class" as const, at: s.start_at, session: s })),
-    ...academic
-      .filter((s) => inMonth(s.start_at) || inMonth(s.end_at))
-      .map((s) => ({ kind: "academic" as const, at: s.start_at, session: s })),
+    ...[...academicByDay.entries()]
+      .filter(([day]) => inMonth(day + "T12:00:00+05:30"))
+      .flatMap(([day, entries]) =>
+        entries.map((session) => ({
+          kind: "academic" as const,
+          at: day + "T00:00:00+05:30",
+          session,
+        })),
+      ),
   ].sort((a, b) => a.at.localeCompare(b.at));
 
   const groups = new Map<string, Row[]>();
@@ -1209,7 +1213,7 @@ function Agenda({
                 if (row.kind === "academic")
                   return (
                     <div
-                      key={`${s.id}-acad`}
+                      key={`${s.id}-${key}-acad`}
                       className={`rounded-xl px-3 py-2.5 ring-1 ${
                         s.is_holiday
                           ? "bg-evt-present/10 ring-evt-present/30"
@@ -1219,10 +1223,15 @@ function Agenda({
                       <p className="font-display text-sm font-semibold">{sessionLabel(s)}</p>
                       <div className="flex items-center gap-2">
                         <p className="min-w-0 flex-1 font-mono text-[10px] text-dim">
-                          Academic calendar · {rangeFmt.format(new Date(s.start_at))} —{" "}
-                          {rangeFmt.format(new Date(s.end_at))}
+                          {isDerivedStudyDay(s)
+                            ? "Between exams"
+                            : rangeFmt.format(new Date(s.start_at)) +
+                              " – " +
+                              rangeFmt.format(new Date(s.end_at))}
                         </p>
-                        {canManage && <EditSessionButton onClick={() => onEditSession(s)} />}
+                        {canManage && !isDerivedStudyDay(s) && (
+                          <EditSessionButton onClick={() => onEditSession(s)} />
+                        )}
                       </div>
                     </div>
                   );
@@ -1244,7 +1253,9 @@ function Agenda({
                       <span className="block truncate font-display text-sm">{sessionLabel(s)}</span>
                       <SessionMeta session={s} />
                     </span>
-                    {canManage && <EditSessionButton onClick={() => onEditSession(s)} />}
+                    {canManage && !isDerivedStudyDay(s) && (
+                      <EditSessionButton onClick={() => onEditSession(s)} />
+                    )}
                   </div>
                 );
               })}
