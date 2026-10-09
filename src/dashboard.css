@@ -1420,8 +1420,8 @@ summary:hover {
   }
 }
 .class-tracker-minimal .class-tracker-feature {
-  min-height: 110px;
-  padding: 12px 110px 12px 0 !important;
+  min-height: 0;
+  padding: 12px 0 !important;
 }
 .class-tracker-minimal .class-tracker-toolbar {
   flex-wrap: wrap;

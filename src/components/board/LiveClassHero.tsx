@@ -59,6 +59,13 @@ type Props = {
   minimal?: boolean;
 };
 
+function durationLabel(minutes: number) {
+  const whole = Math.max(0, Math.ceil(minutes));
+  const hours = Math.floor(whole / 60);
+  const rest = whole % 60;
+  return hours ? `${hours}h${rest ? ` ${rest}m` : ""}` : `${rest}m`;
+}
+
 const clockTimeFmt = new Intl.DateTimeFormat("en-GB", {
   hour: "2-digit",
   minute: "2-digit",
@@ -87,7 +94,7 @@ export function LiveClassHero({
 
   const [syllabusExam, setSyllabusExam] = useState<Deadline | null>(null);
 
-  const { data: sessions = [] } = useQuery(sessionsQuery(batchId));
+  const { data: sessions = [], isPending: sessionsLoading } = useQuery(sessionsQuery(batchId));
   const { data: courses = [] } = useQuery(coursesQuery(batchId));
   const {
     data: marks = [],
@@ -228,7 +235,6 @@ export function LiveClassHero({
       : "#22D3EE";
 
   const inspected = classes.find((s) => s.id === inspectedId);
-  const featured = offset === 0 ? liveClass || nextClassToday || nextUpcomingAnyDay : classes[0];
   const visibleClasses = classes;
   const slotCards =
     batchId === IPM1_BATCH_ID
@@ -250,17 +256,6 @@ export function LiveClassHero({
             .map((session) => ({ session, slot: -1, time: "" })),
         ]
       : visibleClasses.map((session) => ({ session, slot: -1, time: "" }));
-  const untilStart = featured
-    ? Math.max(0, Math.ceil((new Date(featured.start_at).getTime() - now) / 60000))
-    : 0;
-  const dialValue = liveClass
-    ? liveProgress.remainingMin
-    : untilStart >= 1440
-      ? Math.floor(untilStart / 1440)
-      : untilStart >= 60
-        ? Math.floor(untilStart / 60)
-        : untilStart;
-
   return (
     <motion.section
       aria-label="Current class tracker"
@@ -287,68 +282,6 @@ export function LiveClassHero({
         className="absolute inset-0 pointer-events-none"
         style={{ background: spotlight }}
       />
-      {minimal && (
-        <div className="class-progress-dial" style={{ color: activeThemeColor }}>
-          {liveClass ? (
-            <svg viewBox="0 0 112 112" aria-hidden="true">
-              <circle
-                cx="56"
-                cy="56"
-                r="48"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="3"
-                opacity="0.15"
-              />
-              <motion.circle
-                cx="56"
-                cy="56"
-                r="48"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="4"
-                strokeLinecap="round"
-                strokeDasharray="301.6"
-                animate={{ strokeDashoffset: 301.6 * (1 - liveProgress.pct / 100) }}
-                transition={{ duration: reducedMotion ? 0 : 1 }}
-                style={{ rotate: -90, transformOrigin: "56px 56px" }}
-              />
-              {featured && (
-                <motion.circle
-                  cx="56"
-                  cy="8"
-                  r="4"
-                  fill="currentColor"
-                  animate={reducedMotion ? {} : { rotate: 360 }}
-                  transition={{ duration: 12, repeat: Infinity, ease: "linear" }}
-                  style={{ transformOrigin: "56px 56px" }}
-                />
-              )}
-            </svg>
-          ) : (
-            <div className="countdown-launch" aria-hidden="true">
-              <i />
-              <i />
-              <i />
-              <i />
-            </div>
-          )}
-          <div>
-            <strong>{dialValue}</strong>
-            <span>
-              {liveClass
-                ? "min left"
-                : featured && untilStart > 0
-                  ? untilStart >= 1440
-                    ? "days to go"
-                    : untilStart >= 60
-                      ? "hours to go"
-                      : "min to go"
-                  : "all clear"}
-            </span>
-          </div>
-        </div>
-      )}
       {/* ── Ambient Radial Glows ── */}
       <div
         className="pointer-events-none absolute -right-24 -top-24 h-96 w-96 rounded-full blur-[130px] opacity-25 transition-colors duration-700"
@@ -383,15 +316,17 @@ export function LiveClassHero({
                     ? "Yesterday"
                     : shortDayFmt.format(selectedDate)}
             </span>
-            {offset !== 0 && (
-              <button
-                type="button"
-                onClick={() => setOffset(0)}
-                className="rounded-lg bg-cyan/15 px-2 py-0.5 font-mono text-[10px] font-bold text-cyan hover:bg-cyan/25 cursor-pointer"
-              >
-                Today
-              </button>
-            )}
+            {sessionsLoading
+              ? "Loading classes…"
+              : offset !== 0 && (
+                  <button
+                    type="button"
+                    onClick={() => setOffset(0)}
+                    className="rounded-lg bg-cyan/15 px-2 py-0.5 font-mono text-[10px] font-bold text-cyan hover:bg-cyan/25 cursor-pointer"
+                  >
+                    Today
+                  </button>
+                )}
             <button
               type="button"
               onClick={() => {
@@ -552,7 +487,7 @@ export function LiveClassHero({
             {/* Progress Bar & Countdown */}
             <div className="space-y-1.5 pt-2">
               <div className="flex justify-between text-xs font-mono font-bold text-dim">
-                <span>{liveProgress.remainingMin} min left</span>
+                <span>{durationLabel(liveProgress.remainingMin)} left</span>
                 <span>Ends {clockTimeFmt.format(new Date(liveClass.end_at))}</span>
               </div>
               <div className="h-2.5 w-full overflow-hidden rounded-full bg-surface2 border border-border">
@@ -624,11 +559,15 @@ export function LiveClassHero({
               <Sparkles className="size-7" />
             </div>
             <h2 className="font-display text-2xl sm:text-3xl font-extrabold tracking-tight text-ink">
-              {offset !== 0
-                ? `${classes.length} classes · ${shortDayFmt.format(selectedDate)}`
-                : classes.length > 0
-                  ? "Done for today"
-                  : "No classes today"}
+              {sessionsLoading
+                ? "Loading classes…"
+                : offset !== 0
+                  ? `${classes.length} classes · ${shortDayFmt.format(selectedDate)}`
+                  : classes.length > 0
+                    ? classes.every((s) => new Date(s.end_at).getTime() <= now)
+                      ? "Done for today"
+                      : "Today's classes"
+                    : "No classes today"}
             </h2>
             {nextUpcomingAnyDay && (
               <p className="font-sans text-xs sm:text-sm text-dim">
@@ -789,7 +728,7 @@ export function LiveClassHero({
                       {isPast
                         ? "Finished"
                         : isLive
-                          ? `${Math.ceil((new Date(s.end_at).getTime() - now) / 60000)} min left`
+                          ? `${durationLabel(Math.ceil((new Date(s.end_at).getTime() - now) / 60000))} left`
                           : `Starts in ${timeLeft(s.start_at, now)}`}
                     </span>
                   </div>
