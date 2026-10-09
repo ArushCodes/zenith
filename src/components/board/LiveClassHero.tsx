@@ -48,6 +48,7 @@ import { sessionSubject } from "@/lib/attendance";
 import { IPM1_BATCH_ID } from "@/lib/roster.data";
 import { MissAllowance } from "@/components/attendance/MissAllowance";
 import { IPM_CLASS_SLOTS, classSlotIndex } from "@/lib/class-slots";
+import { classProgress } from "@/lib/class-progress";
 
 type Props = {
   now: number;
@@ -148,7 +149,8 @@ export function LiveClassHero({
 
   const [manualDay, setManualDay] = useState<{ day: string; offset: number } | null>(null);
   const todayKey = dayKey(new Date(now));
-  const offset = manualDay?.day === todayKey ? manualDay.offset : defaultClassDay(sessions, now);
+  const offset =
+    manualDay?.day === todayKey ? manualDay.offset : minimal ? 0 : defaultClassDay(sessions, now);
   const setOffset = (value: number | ((current: number) => number)) =>
     setManualDay({ day: todayKey, offset: typeof value === "function" ? value(offset) : value });
   const [inspectedId, setInspectedId] = useState<string | null>(null);
@@ -176,6 +178,7 @@ export function LiveClassHero({
   }, [sessions, targetDayKey]);
 
   const classes = useMemo(() => daySessions.filter(isTeachingClass), [daySessions]);
+  const dayProgress = classProgress(classes, now);
 
   const isWeekendOff = useMemo(() => isDayOff(selectedDate), [selectedDate]);
   const isHoliday = useMemo(() => daySessions.some((s) => s.is_holiday), [daySessions]);
@@ -352,240 +355,297 @@ export function LiveClassHero({
               Tomorrow
             </button>
           )}
-          {liveClass ? (
-            <span className="inline-flex items-center gap-2 rounded-xl bg-rose/15 px-3 py-1 text-xs font-bold text-rose border border-rose/30 shadow-xs shadow-rose/20">
-              <span className="relative flex size-2">
-                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-rose opacity-75" />
-                <span className="relative inline-flex size-2 rounded-full bg-rose" />
+          {!minimal &&
+            (liveClass ? (
+              <span className="inline-flex items-center gap-2 rounded-xl bg-rose/15 px-3 py-1 text-xs font-bold text-rose border border-rose/30 shadow-xs shadow-rose/20">
+                <span className="relative flex size-2">
+                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-rose opacity-75" />
+                  <span className="relative inline-flex size-2 rounded-full bg-rose" />
+                </span>
+                Live now
               </span>
-              Live now
-            </span>
-          ) : nextClassToday ? (
-            <span className="inline-flex items-center gap-2 rounded-xl bg-cyan/15 px-3 py-1 text-xs font-bold text-cyan border border-cyan/30">
-              <Clock className="size-3.5 text-cyan" />
-              Next Class at {clockTimeFmt.format(new Date(nextClassToday.start_at))}
-            </span>
-          ) : isWeekendOff ? (
-            <span className="inline-flex items-center gap-1.5 rounded-xl bg-cyan/10 px-3 py-1 text-xs font-semibold text-cyan">
-              <Sun className="size-3.5" /> Weekend Off
-            </span>
-          ) : isHoliday ? (
-            <span className="inline-flex items-center gap-1.5 rounded-xl bg-violet/15 px-3 py-1 text-xs font-semibold text-violet">
-              <Sparkles className="size-3.5" /> Institute Holiday
-            </span>
-          ) : (
-            <span className="rounded-xl bg-surface2 px-3 py-1 text-xs font-medium text-dim border border-border">
-              {classes.length} period{classes.length === 1 ? "" : "s"} scheduled
-            </span>
-          )}
+            ) : nextClassToday ? (
+              <span className="inline-flex items-center gap-2 rounded-xl bg-cyan/15 px-3 py-1 text-xs font-bold text-cyan border border-cyan/30">
+                <Clock className="size-3.5 text-cyan" />
+                Next Class at {clockTimeFmt.format(new Date(nextClassToday.start_at))}
+              </span>
+            ) : isWeekendOff ? (
+              <span className="inline-flex items-center gap-1.5 rounded-xl bg-cyan/10 px-3 py-1 text-xs font-semibold text-cyan">
+                <Sun className="size-3.5" /> Weekend Off
+              </span>
+            ) : isHoliday ? (
+              <span className="inline-flex items-center gap-1.5 rounded-xl bg-violet/15 px-3 py-1 text-xs font-semibold text-violet">
+                <Sparkles className="size-3.5" /> Institute Holiday
+              </span>
+            ) : (
+              <span className="rounded-xl bg-surface2 px-3 py-1 text-xs font-medium text-dim border border-border">
+                {classes.length} period{classes.length === 1 ? "" : "s"} scheduled
+              </span>
+            ))}
         </div>
 
-        <div className="flex items-center gap-3">
-          <div className="flex items-center gap-2 font-mono text-xs font-semibold text-dim bg-surface2/60 border border-border px-3 py-1.5 rounded-xl">
-            <Clock className="size-3.5 text-cyan" />
-            <span>{clockTimeFmt.format(new Date(now))}</span>
+        {!minimal && (
+          <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2 font-mono text-xs font-semibold text-dim bg-surface2/60 border border-border px-3 py-1.5 rounded-xl">
+              <Clock className="size-3.5 text-cyan" />
+              <span>{clockTimeFmt.format(new Date(now))}</span>
+            </div>
+            {onSeeFullTimetable && (
+              <button
+                type="button"
+                onClick={onSeeFullTimetable}
+                className="inline-flex items-center gap-1.5 rounded-xl bg-cyan/12 border border-cyan/30 px-3.5 py-1.5 text-xs font-bold text-cyan hover:bg-cyan/20 transition-all cursor-pointer"
+              >
+                <CalendarClock className="size-4" />
+                <span>Timetable</span>
+              </button>
+            )}
           </div>
-          {onSeeFullTimetable && (
-            <button
-              type="button"
-              onClick={onSeeFullTimetable}
-              className="inline-flex items-center gap-1.5 rounded-xl bg-cyan/12 border border-cyan/30 px-3.5 py-1.5 text-xs font-bold text-cyan hover:bg-cyan/20 transition-all cursor-pointer"
-            >
-              <CalendarClock className="size-4" />
-              <span>Timetable</span>
-            </button>
-          )}
-        </div>
+        )}
+        {minimal && !sessionsLoading && (
+          <span className="text-sm font-semibold text-dim">
+            {dayProgress.done} done · {dayProgress.remaining} to go
+          </span>
+        )}
       </div>
 
       {/* ── Centerpiece: Massive Animated Tracker ── */}
-      <AnimatePresence mode="wait">
-        {liveClass ? (
-          <motion.div
-            key="live-class"
-            initial={{ opacity: 0, y: 12 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -12 }}
-            transition={{ duration: 0.3 }}
-            className="class-tracker-feature relative z-10 py-4 sm:py-6 space-y-4"
-          >
-            <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-              <div className="space-y-1.5 min-w-0">
-                <div className="flex flex-wrap items-center gap-2.5">
-                  <span
-                    className="size-2.5 rounded-full shrink-0"
-                    style={{ backgroundColor: activeThemeColor }}
-                  />
-                  {liveClass.course_code && (
-                    <span
-                      className="rounded-lg px-2.5 py-1 font-mono text-xs font-extrabold tracking-wider"
-                      style={{
-                        backgroundColor: `${activeThemeColor}20`,
-                        color: activeThemeColor,
-                        border: `1px solid ${activeThemeColor}40`,
-                      }}
-                    >
-                      {liveClass.course_code}
-                    </span>
-                  )}
-                  <span className="font-mono text-xs font-bold text-dim bg-surface2 px-2.5 py-1 rounded-lg border border-border">
-                    {clockTimeFmt.format(new Date(liveClass.start_at))} –{" "}
-                    {clockTimeFmt.format(new Date(liveClass.end_at))}
-                  </span>
-                </div>
-
-                {/* Massive Headline Title: Full course name, never clipped */}
-                <h2 className="font-display text-xl sm:text-3xl md:text-4xl font-extrabold tracking-tight text-ink break-words leading-tight">
-                  {subjectFullName(
-                    liveClass.course_name || liveClass.course_code || liveClass.title,
-                  ) || sessionFullName(liveClass)}
-                </h2>
-
-                <div className="flex flex-wrap items-center gap-3 sm:gap-4 text-xs sm:text-sm text-dim pt-1">
-                  {liveClass.classroom && (
-                    <span className="font-semibold text-ink flex items-center gap-1.5 bg-surface2/60 border border-border px-2.5 sm:px-3 py-1 rounded-xl">
-                      <MapPin className="size-3.5 sm:size-4 text-cyan shrink-0" />
-                      Room {liveClass.classroom}
-                    </span>
-                  )}
-                  {liveClass.faculty_name && (
-                    <span className="flex items-center gap-1.5 bg-surface2/60 border border-border px-2.5 sm:px-3 py-1 rounded-xl">
-                      <User className="size-3.5 sm:size-4 text-cyan shrink-0" />
-                      {liveClass.faculty_name}
-                    </span>
-                  )}
-                </div>
-              </div>
-
-              {/* Attendance Toggle Button */}
-              <div className="shrink-0 pt-2 lg:pt-0">
-                <motion.button
-                  whileHover={{ scale: 1.04 }}
-                  whileTap={{ scale: 0.96 }}
-                  type="button"
-                  onClick={() => toggleAbsent.mutate(liveClass)}
-                  disabled={toggleAbsent.isPending}
-                  className={`inline-flex items-center gap-2 rounded-xl sm:rounded-2xl px-4 sm:px-5 py-2.5 sm:py-3 text-xs sm:text-sm font-extrabold shadow-lg transition-all cursor-pointer ${
-                    myMarks.get(liveClass.id) === "absent"
-                      ? "bg-rose text-white shadow-rose/25 hover:bg-rose/90"
-                      : "bg-emerald-500 text-white shadow-emerald-500/25 hover:bg-emerald-500/90"
-                  }`}
-                >
-                  {myMarks.get(liveClass.id) === "absent" ? (
-                    <>
-                      <X className="size-4 stroke-[3]" /> Absent · undo
-                    </>
-                  ) : (
-                    <>
-                      <Check className="size-4 stroke-[3]" /> Mark absent
-                    </>
-                  )}
-                </motion.button>
-              </div>
-            </div>
-
-            {/* Progress Bar & Countdown */}
-            <div className="space-y-1.5 pt-2">
-              <div className="flex justify-between text-xs font-mono font-bold text-dim">
-                <span>{durationLabel(liveProgress.remainingMin)} left</span>
-                <span>Ends {clockTimeFmt.format(new Date(liveClass.end_at))}</span>
-              </div>
-              <div className="h-2.5 w-full overflow-hidden rounded-full bg-surface2 border border-border">
-                <motion.div
-                  className="class-time-remaining relative h-full overflow-hidden rounded-full transition-all duration-700"
-                  style={{
-                    width: `${liveProgress.pct}%`,
-                    backgroundColor: activeThemeColor,
-                  }}
-                >
-                  <span className="class-time-shimmer" aria-hidden="true" />
-                </motion.div>
-              </div>
-            </div>
-          </motion.div>
-        ) : nextClassToday ? (
-          <motion.div
-            key="next-class"
-            initial={{ opacity: 0, y: 12 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -12 }}
-            transition={{ duration: 0.3 }}
-            className="class-tracker-feature relative z-10 py-4 sm:py-6 space-y-3"
-          >
-            <div className="flex flex-wrap items-center gap-2.5">
-              <span
-                className="size-2.5 rounded-full shrink-0"
-                style={{ backgroundColor: activeThemeColor }}
-              />
-              <span className="font-mono text-xs font-bold text-dim bg-surface2 px-2.5 py-1 rounded-lg border border-border">
-                {clockTimeFmt.format(new Date(nextClassToday.start_at))} –{" "}
-                {clockTimeFmt.format(new Date(nextClassToday.end_at))}
-              </span>
-              <span className="rounded-xl bg-cyan/15 px-3 py-1 font-mono text-xs font-bold text-cyan border border-cyan/30">
-                Starts in {timeLeft(nextClassToday.start_at, now)}
-              </span>
-              {nextClassToday.classroom && (
-                <span className="font-semibold text-xs text-ink flex items-center gap-1 bg-surface2 px-2.5 py-1 rounded-lg border border-border">
-                  <MapPin className="size-3 text-cyan" /> Room {nextClassToday.classroom}
-                </span>
-              )}
-            </div>
-
-            {/* Huge Headline Title: Full course name, never clipped */}
-            <h2 className="font-display text-xl sm:text-3xl md:text-4xl font-extrabold tracking-tight text-ink break-words leading-tight">
-              {subjectFullName(
-                nextClassToday.course_name || nextClassToday.course_code || nextClassToday.title,
-              ) || sessionFullName(nextClassToday)}
-            </h2>
-
-            {nextClassToday.faculty_name && (
-              <p className="font-sans text-xs sm:text-sm text-dim flex items-center gap-1.5">
-                <User className="size-4 text-dim" />
-                Faculty:{" "}
-                <strong className="text-ink font-semibold">{nextClassToday.faculty_name}</strong>
-              </p>
-            )}
-          </motion.div>
-        ) : (
-          <motion.div
-            key="no-classes"
-            initial={{ opacity: 0, y: 12 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -12 }}
-            transition={{ duration: 0.3 }}
-            className="class-tracker-feature relative z-10 py-6 sm:py-8 text-center space-y-2"
-          >
-            <div className="mx-auto flex size-14 items-center justify-center rounded-2xl bg-cyan/10 text-cyan mb-2">
-              <Sparkles className="size-7" />
-            </div>
-            <h2 className="font-display text-2xl sm:text-3xl font-extrabold tracking-tight text-ink">
+      {minimal ? (
+        <div className="class-tracker-feature relative z-10 space-y-2">
+          <div className="flex flex-wrap items-baseline justify-between gap-2">
+            <h2 className="font-display font-bold text-ink">
               {sessionsLoading
                 ? "Loading classes…"
-                : offset !== 0
-                  ? `${classes.length} classes · ${shortDayFmt.format(selectedDate)}`
-                  : classes.length > 0
-                    ? classes.every((s) => new Date(s.end_at).getTime() <= now)
-                      ? "Done for today"
-                      : "Today's classes"
-                    : "No classes today"}
+                : dayProgress.state === "class"
+                  ? sessionPeriodLabel(dayProgress.session!)
+                  : dayProgress.state === "break"
+                    ? "Break"
+                    : dayProgress.state === "over"
+                      ? "Day over"
+                      : dayProgress.state === "upcoming"
+                        ? sessionPeriodLabel(dayProgress.session!)
+                        : "No classes scheduled"}
             </h2>
-            {nextUpcomingAnyDay && (
-              <p className="font-sans text-xs sm:text-sm text-dim">
-                Next scheduled class:{" "}
-                <strong className="text-ink font-semibold">
-                  {subjectFullName(
-                    nextUpcomingAnyDay.course_name || nextUpcomingAnyDay.course_code,
-                  ) || sessionFullName(nextUpcomingAnyDay)}
-                </strong>{" "}
-                ({shortDayFmt.format(new Date(nextUpcomingAnyDay.start_at))})
-                <span className="block mt-2 font-semibold text-cyan">
-                  Starts in {timeLeft(nextUpcomingAnyDay.start_at, now)}
-                </span>
-              </p>
+            {dayProgress.session && (
+              <span className="font-mono text-sm font-semibold text-cyan">
+                {durationLabel(dayProgress.minutesLeft)}{" "}
+                {dayProgress.state === "class" || dayProgress.state === "break" ? "left" : "to go"}
+              </span>
             )}
-          </motion.div>
-        )}
-      </AnimatePresence>
+          </div>
+          {dayProgress.state === "break" && (
+            <p className="text-sm text-dim">Next: {sessionPeriodLabel(dayProgress.session!)}</p>
+          )}
+          {(dayProgress.state === "class" || dayProgress.state === "break") && (
+            <div
+              role="progressbar"
+              aria-label={dayProgress.state === "class" ? "Class progress" : "Break progress"}
+              aria-valuemin={0}
+              aria-valuemax={100}
+              aria-valuenow={Math.round(dayProgress.elapsed)}
+              className="relative h-2.5 rounded-full bg-surface2"
+            >
+              <motion.div
+                initial={false}
+                animate={{ width: `${dayProgress.elapsed}%` }}
+                transition={{ duration: 0.8, ease: "linear" }}
+                className="class-time-remaining relative h-full rounded-full bg-cyan"
+              >
+                <span className="class-time-shimmer rounded-full" aria-hidden="true" />
+                <span className="absolute -right-1 top-1/2 size-3 -translate-y-1/2 rounded-full bg-cyan ring-2 ring-surface shadow-[0_0_12px_var(--cyan)]" />
+              </motion.div>
+            </div>
+          )}
+        </div>
+      ) : (
+        <AnimatePresence mode="wait">
+          {liveClass ? (
+            <motion.div
+              key="live-class"
+              initial={{ opacity: 0, y: 12 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -12 }}
+              transition={{ duration: 0.3 }}
+              className="class-tracker-feature relative z-10 py-4 sm:py-6 space-y-4"
+            >
+              <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+                <div className="space-y-1.5 min-w-0">
+                  <div className="flex flex-wrap items-center gap-2.5">
+                    <span
+                      className="size-2.5 rounded-full shrink-0"
+                      style={{ backgroundColor: activeThemeColor }}
+                    />
+                    {liveClass.course_code && (
+                      <span
+                        className="rounded-lg px-2.5 py-1 font-mono text-xs font-extrabold tracking-wider"
+                        style={{
+                          backgroundColor: `${activeThemeColor}20`,
+                          color: activeThemeColor,
+                          border: `1px solid ${activeThemeColor}40`,
+                        }}
+                      >
+                        {liveClass.course_code}
+                      </span>
+                    )}
+                    <span className="font-mono text-xs font-bold text-dim bg-surface2 px-2.5 py-1 rounded-lg border border-border">
+                      {clockTimeFmt.format(new Date(liveClass.start_at))} –{" "}
+                      {clockTimeFmt.format(new Date(liveClass.end_at))}
+                    </span>
+                  </div>
+
+                  {/* Massive Headline Title: Full course name, never clipped */}
+                  <h2 className="font-display text-xl sm:text-3xl md:text-4xl font-extrabold tracking-tight text-ink break-words leading-tight">
+                    {subjectFullName(
+                      liveClass.course_name || liveClass.course_code || liveClass.title,
+                    ) || sessionFullName(liveClass)}
+                  </h2>
+
+                  <div className="flex flex-wrap items-center gap-3 sm:gap-4 text-xs sm:text-sm text-dim pt-1">
+                    {liveClass.classroom && (
+                      <span className="font-semibold text-ink flex items-center gap-1.5 bg-surface2/60 border border-border px-2.5 sm:px-3 py-1 rounded-xl">
+                        <MapPin className="size-3.5 sm:size-4 text-cyan shrink-0" />
+                        Room {liveClass.classroom}
+                      </span>
+                    )}
+                    {liveClass.faculty_name && (
+                      <span className="flex items-center gap-1.5 bg-surface2/60 border border-border px-2.5 sm:px-3 py-1 rounded-xl">
+                        <User className="size-3.5 sm:size-4 text-cyan shrink-0" />
+                        {liveClass.faculty_name}
+                      </span>
+                    )}
+                  </div>
+                </div>
+
+                {/* Attendance Toggle Button */}
+                <div className="shrink-0 pt-2 lg:pt-0">
+                  <motion.button
+                    whileHover={{ scale: 1.04 }}
+                    whileTap={{ scale: 0.96 }}
+                    type="button"
+                    onClick={() => toggleAbsent.mutate(liveClass)}
+                    disabled={toggleAbsent.isPending}
+                    className={`inline-flex items-center gap-2 rounded-xl sm:rounded-2xl px-4 sm:px-5 py-2.5 sm:py-3 text-xs sm:text-sm font-extrabold shadow-lg transition-all cursor-pointer ${
+                      myMarks.get(liveClass.id) === "absent"
+                        ? "bg-rose text-white shadow-rose/25 hover:bg-rose/90"
+                        : "bg-emerald-500 text-white shadow-emerald-500/25 hover:bg-emerald-500/90"
+                    }`}
+                  >
+                    {myMarks.get(liveClass.id) === "absent" ? (
+                      <>
+                        <X className="size-4 stroke-[3]" /> Absent · undo
+                      </>
+                    ) : (
+                      <>
+                        <Check className="size-4 stroke-[3]" /> Mark absent
+                      </>
+                    )}
+                  </motion.button>
+                </div>
+              </div>
+
+              {/* Progress Bar & Countdown */}
+              <div className="space-y-1.5 pt-2">
+                <div className="flex justify-between text-xs font-mono font-bold text-dim">
+                  <span>{durationLabel(liveProgress.remainingMin)} left</span>
+                  <span>Ends {clockTimeFmt.format(new Date(liveClass.end_at))}</span>
+                </div>
+                <div className="h-2.5 w-full overflow-hidden rounded-full bg-surface2 border border-border">
+                  <motion.div
+                    className="class-time-remaining relative h-full overflow-hidden rounded-full transition-all duration-700"
+                    style={{
+                      width: `${liveProgress.pct}%`,
+                      backgroundColor: activeThemeColor,
+                    }}
+                  >
+                    <span className="class-time-shimmer" aria-hidden="true" />
+                  </motion.div>
+                </div>
+              </div>
+            </motion.div>
+          ) : nextClassToday ? (
+            <motion.div
+              key="next-class"
+              initial={{ opacity: 0, y: 12 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -12 }}
+              transition={{ duration: 0.3 }}
+              className="class-tracker-feature relative z-10 py-4 sm:py-6 space-y-3"
+            >
+              <div className="flex flex-wrap items-center gap-2.5">
+                <span
+                  className="size-2.5 rounded-full shrink-0"
+                  style={{ backgroundColor: activeThemeColor }}
+                />
+                <span className="font-mono text-xs font-bold text-dim bg-surface2 px-2.5 py-1 rounded-lg border border-border">
+                  {clockTimeFmt.format(new Date(nextClassToday.start_at))} –{" "}
+                  {clockTimeFmt.format(new Date(nextClassToday.end_at))}
+                </span>
+                <span className="rounded-xl bg-cyan/15 px-3 py-1 font-mono text-xs font-bold text-cyan border border-cyan/30">
+                  Starts in {timeLeft(nextClassToday.start_at, now)}
+                </span>
+                {nextClassToday.classroom && (
+                  <span className="font-semibold text-xs text-ink flex items-center gap-1 bg-surface2 px-2.5 py-1 rounded-lg border border-border">
+                    <MapPin className="size-3 text-cyan" /> Room {nextClassToday.classroom}
+                  </span>
+                )}
+              </div>
+
+              {/* Huge Headline Title: Full course name, never clipped */}
+              <h2 className="font-display text-xl sm:text-3xl md:text-4xl font-extrabold tracking-tight text-ink break-words leading-tight">
+                {subjectFullName(
+                  nextClassToday.course_name || nextClassToday.course_code || nextClassToday.title,
+                ) || sessionFullName(nextClassToday)}
+              </h2>
+
+              {nextClassToday.faculty_name && (
+                <p className="font-sans text-xs sm:text-sm text-dim flex items-center gap-1.5">
+                  <User className="size-4 text-dim" />
+                  Faculty:{" "}
+                  <strong className="text-ink font-semibold">{nextClassToday.faculty_name}</strong>
+                </p>
+              )}
+            </motion.div>
+          ) : (
+            <motion.div
+              key="no-classes"
+              initial={{ opacity: 0, y: 12 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -12 }}
+              transition={{ duration: 0.3 }}
+              className="class-tracker-feature relative z-10 py-6 sm:py-8 text-center space-y-2"
+            >
+              <div className="mx-auto flex size-14 items-center justify-center rounded-2xl bg-cyan/10 text-cyan mb-2">
+                <Sparkles className="size-7" />
+              </div>
+              <h2 className="font-display text-2xl sm:text-3xl font-extrabold tracking-tight text-ink">
+                {sessionsLoading
+                  ? "Loading classes…"
+                  : offset !== 0
+                    ? `${classes.length} classes · ${shortDayFmt.format(selectedDate)}`
+                    : classes.length > 0
+                      ? classes.every((s) => new Date(s.end_at).getTime() <= now)
+                        ? "Done for today"
+                        : "Today's classes"
+                      : "No classes today"}
+              </h2>
+              {nextUpcomingAnyDay && (
+                <p className="font-sans text-xs sm:text-sm text-dim">
+                  Next scheduled class:{" "}
+                  <strong className="text-ink font-semibold">
+                    {subjectFullName(
+                      nextUpcomingAnyDay.course_name || nextUpcomingAnyDay.course_code,
+                    ) || sessionFullName(nextUpcomingAnyDay)}
+                  </strong>{" "}
+                  ({shortDayFmt.format(new Date(nextUpcomingAnyDay.start_at))})
+                  <span className="block mt-2 font-semibold text-cyan">
+                    Starts in {timeLeft(nextUpcomingAnyDay.start_at, now)}
+                  </span>
+                </p>
+              )}
+            </motion.div>
+          )}
+        </AnimatePresence>
+      )}
 
       {/* Today's remaining classes stay visible; completed periods are optional. */}
       {classes.length > 0 && (

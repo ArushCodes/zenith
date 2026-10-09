@@ -252,3 +252,26 @@ assert.equal(classSlotIndex("2026-10-09T10:30:00Z"), 3);
 assert.equal(classSlotIndex("2026-10-09T03:00:00Z"), -1);
 assert.equal(classSlotIndex("2026-10-09T13:00:00Z"), -1);
 console.log("Passed: four class slots use India time and preserve off-slot classes.");
+
+import { classProgress } from "../src/lib/class-progress";
+const progressClasses = [
+  { id: "slot1", start_at: "2026-10-09T10:15:00+05:30", end_at: "2026-10-09T11:30:00+05:30" },
+  { id: "slot2", start_at: "2026-10-09T11:45:00+05:30", end_at: "2026-10-09T13:00:00+05:30" },
+] as ClassSession[];
+assert.equal(
+  classProgress(progressClasses, Date.parse("2026-10-09T10:00:00+05:30")).state,
+  "upcoming",
+);
+const activeProgress = classProgress(progressClasses, Date.parse("2026-10-09T10:30:00+05:30"));
+assert.equal(activeProgress.state, "class");
+assert.equal(activeProgress.minutesLeft, 60);
+assert.equal(activeProgress.elapsed, 20);
+const gapProgress = classProgress(progressClasses, Date.parse("2026-10-09T11:30:00+05:30"));
+assert.equal(gapProgress.state, "break");
+assert.equal(gapProgress.minutesLeft, 15);
+assert.equal(gapProgress.done, 1);
+const overProgress = classProgress(progressClasses, Date.parse("2026-10-09T13:00:00+05:30"));
+assert.equal(overProgress.state, "over");
+assert.equal(overProgress.remaining, 0);
+assert.equal(classProgress([], Date.now()).state, "empty");
+console.log("Passed: class/break scrubber boundaries, countdown and day completion.");
