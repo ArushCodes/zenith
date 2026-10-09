@@ -79,7 +79,7 @@ const monthFmt = new Intl.DateTimeFormat("en-GB", { month: "long", year: "numeri
 
 type ViewFilter = "all" | "classes" | "events" | "holidays";
 
-export function TimetablePanel() {
+export function TimetablePanel({ now = Date.now() }: { now?: number }) {
   const todayKey = new Date().toDateString();
   const todayRef = useRef<HTMLDivElement>(null);
   const scrolled = useRef(false);
@@ -530,6 +530,7 @@ export function TimetablePanel() {
                       )}
                       {isTeachingClass(s) && isMember && user && (
                         <AttendanceChoice
+                          muted={Date.parse(s.end_at) <= now}
                           label={sessionFullName(s)}
                           absent={absentIds.has(s.id)}
                           disabled={markAbsent.isPending}

@@ -1191,7 +1191,7 @@ export default function StudentBoard({ guestPreview }: { guestPreview?: boolean 
             />
           )}
 
-          {tab === "timetable" && <TimetablePanel />}
+          {tab === "timetable" && <TimetablePanel now={now} />}
 
           {tab === "quizzes" && (
             <AssessmentAgenda

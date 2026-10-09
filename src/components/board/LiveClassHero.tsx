@@ -857,6 +857,7 @@ export function LiveClassHero({
                     </span>
                     {(isMember || canManage) && user && (
                       <AttendanceChoice
+                        muted={isPast}
                         absent={mark === "absent"}
                         label={periodSubject}
                         disabled={toggleAbsent.isPending || attendanceLoading || attendanceError}
