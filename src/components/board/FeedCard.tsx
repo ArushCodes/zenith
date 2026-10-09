@@ -32,7 +32,7 @@ import {
   typeLabel,
   urgencyOf,
 } from "@/lib/deadlines";
-import { autoColor, subjectShortName, subjectFullName } from "@/lib/courses";
+import { autoColor, subjectFullName } from "@/lib/courses";
 
 export type FeedCardProps = {
   deadline: Deadline;
@@ -119,7 +119,6 @@ export function FeedCard({
 
   const isExam = deadline.type === "midterm" || deadline.type === "endterm";
   const fullCourse = subjectFullName(deadline.subject || deadline.title);
-  const shortSubject = subjectShortName(deadline.subject || deadline.subject_code);
 
   // Intelligent title: clean, punchy topic without echoing the subject name already in the badge
   const title = useMemo(() => {
@@ -252,14 +251,7 @@ export function FeedCard({
               className="size-1.5 rounded-full shrink-0"
               style={{ backgroundColor: subjectColor }}
             />
-            <span>{shortSubject || deadline.subject || "Academic"}</span>
-          </span>
-
-          <span
-            className={`flex items-center gap-1 rounded-md px-2 py-0.5 font-mono text-[10px] font-semibold uppercase tracking-wider ${meta.chip}`}
-          >
-            {getTypeIcon(deadline.type, "size-3")}
-            {typeLabel(deadline.type)}
+            <span>{meta.label}</span>
           </span>
 
           {deadline.is_major && (
@@ -307,13 +299,7 @@ export function FeedCard({
             isDone ? "line-through text-dim" : "text-ink group-hover:text-cyan"
           }`}
         >
-          {deadline.type === "assignment"
-            ? `Submit · ${title}`
-            : deadline.type === "presentation"
-              ? `Present · ${title}`
-              : deadline.type === "quiz"
-                ? `Prepare · ${title}`
-                : title}
+          {fullCourse || deadline.subject || deadline.title}
         </h3>
 
         {/* Sleek Metadata Row: dot-separated, clean and responsive */}
@@ -464,7 +450,6 @@ export function FeedCompactRow({
 
   const isExam = deadline.type === "midterm" || deadline.type === "endterm";
   const fullCourse = subjectFullName(deadline.subject || deadline.title);
-  const shortSubject = subjectShortName(deadline.subject || deadline.subject_code);
 
   const title = isExam
     ? cleanExamTitle(deadline.title, deadline.subject) || typeLabel(deadline.type)
@@ -527,7 +512,7 @@ export function FeedCompactRow({
             border: `1px solid ${subjectColor}30`,
           }}
         >
-          {shortSubject || deadline.subject || "Academic"}
+          {meta.label}
         </span>
 
         {/* Type Icon */}
@@ -540,7 +525,7 @@ export function FeedCompactRow({
             isDone ? "line-through text-dim" : "text-ink"
           }`}
         >
-          {deadline.title}
+          {fullCourse || deadline.subject || deadline.title}
         </span>
       </div>
 
