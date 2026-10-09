@@ -193,6 +193,23 @@ summary:hover {
   min-height: 100vh;
   background: var(--ground);
 }
+.zenith-workspace :is(button, a, input, select, textarea, summary, [role="button"]):focus-visible {
+  outline: 2px solid var(--cyan);
+  outline-offset: 3px;
+}
+.zenith-workspace button {
+  min-height: 24px;
+  min-width: 24px;
+}
+.zenith-workspace button:disabled {
+  cursor: not-allowed;
+}
+@media (pointer: coarse) {
+  .zenith-workspace button {
+    min-height: 36px;
+    min-width: 36px;
+  }
+}
 .zenith-workspace > header {
   margin-left: 238px;
 }

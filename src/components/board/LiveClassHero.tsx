@@ -443,12 +443,13 @@ export function LiveClassHero({
               aria-valuemin={0}
               aria-valuemax={100}
               aria-valuenow={Math.round(dayProgress.elapsed)}
+              aria-valuetext={`${durationLabel(dayProgress.minutesLeft)} left`}
               className="relative h-2.5 rounded-full bg-surface2"
             >
               <motion.div
                 initial={false}
                 animate={{ width: `${dayProgress.elapsed}%` }}
-                transition={{ duration: 0.8, ease: "linear" }}
+                transition={{ duration: reducedMotion ? 0 : 0.8, ease: "linear" }}
                 className="class-time-remaining relative h-full rounded-full bg-cyan"
               >
                 <span className="class-time-shimmer rounded-full" aria-hidden="true" />

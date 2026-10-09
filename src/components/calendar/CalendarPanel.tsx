@@ -251,6 +251,8 @@ export function CalendarPanel({
             {SUB_VIEWS.map((v) => (
               <button
                 key={v.key}
+                type="button"
+                aria-pressed={subView === v.key}
                 onClick={() => {
                   setSubView(v.key);
                   if (v.key !== "agenda") setFocusDay(null);
@@ -405,6 +407,8 @@ function SubjectLegend({
         <div className="flex items-center gap-2">
           <button
             onClick={onToggleClasses}
+            type="button"
+            aria-pressed={showClasses}
             className={`rounded-lg px-2.5 py-1 font-mono text-[10px] ring-1 transition-colors ${
               showClasses
                 ? "bg-cyan/10 text-cyan ring-cyan/30"
@@ -434,6 +438,8 @@ function SubjectLegend({
               whileHover={{ y: -1 }}
               whileTap={{ scale: 0.96 }}
               onClick={() => onToggle(key)}
+              type="button"
+              aria-pressed={on}
               title={c.title}
               className={`flex items-center gap-1.5 rounded-lg px-2.5 py-1 font-mono text-[10px] ring-1 transition-all ${
                 on ? "opacity-100 ring-1" : "opacity-35 ring-transparent"
@@ -731,9 +737,17 @@ function MonthGrid({
               key={k}
               role="button"
               tabIndex={0}
+              aria-label={new Intl.DateTimeFormat("en-GB", {
+                dateStyle: "full",
+                timeZone: "Asia/Kolkata",
+              }).format(date)}
               onClick={() => onPickDay(k)}
               onKeyDown={(e) => {
-                if (e.key === "Enter" || e.key === " ") onPickDay(k);
+                if (e.target !== e.currentTarget) return;
+                if (e.key === "Enter" || e.key === " ") {
+                  e.preventDefault();
+                  onPickDay(k);
+                }
               }}
               whileHover={{ scale: 1.02, y: -2 }}
               transition={{ type: "spring", stiffness: 300, damping: 22 }}
@@ -937,9 +951,14 @@ function WeekTimeline({
                     key={`${dayKey(d)}-${hour}`}
                     role="button"
                     tabIndex={0}
+                    aria-label={`${new Intl.DateTimeFormat("en-GB", { dateStyle: "full", timeZone: "Asia/Kolkata" }).format(d)}, ${hour}:00`}
                     onClick={() => onPickDay(dayKey(d))}
                     onKeyDown={(e) => {
-                      if (e.key === "Enter" || e.key === " ") onPickDay(dayKey(d));
+                      if (e.target !== e.currentTarget) return;
+                      if (e.key === "Enter" || e.key === " ") {
+                        e.preventDefault();
+                        onPickDay(dayKey(d));
+                      }
                     }}
                     style={mark ? { backgroundColor: `${mark.color}14` } : undefined}
                     className={`min-h-[36px] cursor-pointer rounded-md p-1 ring-1 ring-border/60 transition-shadow hover:ring-cyan/40 ${
@@ -949,9 +968,15 @@ function WeekTimeline({
                     <div className="flex flex-col gap-1">
                       {classes.map((s) => {
                         const color = sessionColor(s, colorMap) ?? FALLBACK_COURSE_COLOR;
+                        const editable = Boolean(canManage && onEditSession);
+                        const Label = editable ? "button" : "span";
                         return (
-                          <span
+                          <Label
                             key={s.id}
+                            type={editable ? "button" : undefined}
+                            aria-label={
+                              editable ? `Edit ${s.course_name ?? sessionLabel(s)}` : undefined
+                            }
                             onClick={
                               canManage && onEditSession
                                 ? (ev) => {
@@ -968,7 +993,7 @@ function WeekTimeline({
                             ]
                               .filter(Boolean)
                               .join(" · ")}
-                            className={`flex items-center gap-1 truncate rounded-md px-1.5 py-1 font-mono text-[10px] ${
+                            className={`flex items-center gap-1 truncate rounded-md px-1.5 py-1 text-left font-mono text-[10px] ${
                               canManage && onEditSession
                                 ? "cursor-pointer hover:brightness-125 transition-all"
                                 : ""
@@ -980,7 +1005,7 @@ function WeekTimeline({
                               style={{ backgroundColor: color }}
                             />
                             <span className="truncate">{sessionShortLabel(s)}</span>
-                          </span>
+                          </Label>
                         );
                       })}
                       {events.map((e) => (

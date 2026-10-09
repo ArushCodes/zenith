@@ -767,6 +767,8 @@ export default function StudentBoard({ guestPreview }: { guestPreview?: boolean 
                         <button
                           type="button"
                           onClick={() => handleDensityChange("comfortable")}
+                          aria-label="Show deadline cards"
+                          aria-pressed={feedDensity === "comfortable"}
                           className={`inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-medium transition-all cursor-pointer ${
                             feedDensity === "comfortable"
                               ? "bg-surface text-ink shadow-xs font-semibold border border-border/80"
@@ -780,6 +782,8 @@ export default function StudentBoard({ guestPreview }: { guestPreview?: boolean 
                         <button
                           type="button"
                           onClick={() => handleDensityChange("compact")}
+                          aria-label="Show compact deadlines"
+                          aria-pressed={feedDensity === "compact"}
                           className={`inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-medium transition-all cursor-pointer ${
                             feedDensity === "compact"
                               ? "bg-surface text-ink shadow-xs font-semibold border border-border/80"
@@ -810,6 +814,7 @@ export default function StudentBoard({ guestPreview }: { guestPreview?: boolean 
                               animate={active ? { scale: [1, 1.12, 0.97, 1.04, 1] } : { scale: 1 }}
                               transition={{ type: "spring", stiffness: 500, damping: 22 }}
                               onClick={() => setFeedCategory(cat.key)}
+                              aria-pressed={active}
                               className={`group relative inline-flex shrink-0 items-center gap-1.5 rounded-xl px-2.5 sm:px-3 py-1 text-xs font-medium transition-colors cursor-pointer ${
                                 active
                                   ? "bg-cyan/15 text-cyan border border-cyan/30 shadow-xs shadow-cyan/10 font-bold"
@@ -838,7 +843,10 @@ export default function StudentBoard({ guestPreview }: { guestPreview?: boolean 
 
                       {/* Personal Checklist Preparation Progress */}
                       {totalUpcomingCount > 0 && (
-                        <div
+                        <button
+                          type="button"
+                          aria-pressed={pendingOnly}
+                          aria-label="Show pending deadlines only"
                           className="inline-flex items-center gap-2 rounded-xl bg-surface2/60 border border-border/60 px-2.5 py-1 text-xs text-dim shrink-0 self-end sm:self-auto cursor-pointer hover:bg-surface2 transition-all"
                           onClick={() => setPendingOnly((v) => !v)}
                           title={`${completedUpcomingCount} of ${totalUpcomingCount} upcoming events marked as prepared. Click to toggle pending only.`}
@@ -856,17 +864,17 @@ export default function StudentBoard({ guestPreview }: { guestPreview?: boolean 
                             {completedUpcomingCount}/{totalUpcomingCount}
                           </span>
                           <span className="hidden md:inline text-[11px] text-faint">prepared</span>
-                          <div className="w-12 h-1.5 rounded-full bg-surface overflow-hidden border border-border/40">
-                            <motion.div
-                              className="h-full bg-gradient-to-r from-cyan to-emerald-400 rounded-full"
+                          <span className="w-12 h-1.5 rounded-full bg-surface overflow-hidden border border-border/40">
+                            <motion.span
+                              className="block h-full bg-gradient-to-r from-cyan to-emerald-400 rounded-full"
                               animate={{ width: `${progressPercent}%` }}
                               transition={{ type: "spring", stiffness: 120, damping: 22 }}
                             />
-                          </div>
+                          </span>
                           <span className="font-mono text-[10px] text-cyan font-bold">
                             {progressPercent}%
                           </span>
-                        </div>
+                        </button>
                       )}
                     </div>
                   </div>

@@ -12,7 +12,7 @@ export function AnnouncementsPanel({ compact = false }: { compact?: boolean }) {
   const { user } = useAuth();
   const { batchId, canManage } = useBatch();
   const queryClient = useQueryClient();
-  const { data: items = [], isLoading } = useQuery(announcementsQuery(batchId));
+  const { data: items = [], isLoading, isError, refetch } = useQuery(announcementsQuery(batchId));
   const [open, setOpen] = useState(false);
   const [title, setTitle] = useState("");
   const [body, setBody] = useState("");
@@ -53,7 +53,7 @@ export function AnnouncementsPanel({ compact = false }: { compact?: boolean }) {
     onError: (e: Error) => toast.error(e.message),
   });
 
-  if (compact && !isLoading && !items.length && !canManage) return null;
+  if (compact && !isLoading && !isError && !items.length && !canManage) return null;
 
   const list = compact ? items.slice(0, 3) : items;
 
@@ -70,6 +70,7 @@ export function AnnouncementsPanel({ compact = false }: { compact?: boolean }) {
           <button
             type="button"
             onClick={() => setOpen((v) => !v)}
+            aria-expanded={open}
             className="flex items-center gap-1.5 rounded-xl border border-cyan/30 bg-cyan/10 px-3 py-1.5 font-sans text-xs font-semibold text-cyan hover:bg-cyan/20 transition-colors cursor-pointer"
           >
             <Plus className="size-3.5" />
@@ -123,7 +124,7 @@ export function AnnouncementsPanel({ compact = false }: { compact?: boolean }) {
                 <button
                   type="submit"
                   disabled={create.isPending}
-                  className="rounded-xl bg-cyan px-4 py-2 font-sans text-xs font-bold text-white shadow-sm hover:brightness-105 transition-all disabled:opacity-50 cursor-pointer"
+                  className="rounded-xl bg-cyan px-4 py-2 font-sans text-xs font-bold text-primary-foreground shadow-sm hover:brightness-105 transition-all disabled:opacity-50 cursor-pointer"
                 >
                   {create.isPending ? "Posting…" : "Post notice"}
                 </button>
@@ -135,6 +136,17 @@ export function AnnouncementsPanel({ compact = false }: { compact?: boolean }) {
 
       {isLoading ? (
         <div className="h-24 animate-pulse rounded-2xl bg-surface2/40" />
+      ) : isError ? (
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-border p-4 text-sm text-dim">
+          <p role="status">Couldn’t load notices.</p>
+          <button
+            type="button"
+            onClick={() => void refetch()}
+            className="rounded-lg border border-cyan/30 px-3 py-2 font-semibold text-cyan"
+          >
+            Retry
+          </button>
+        </div>
       ) : list.length === 0 ? (
         <div className="rounded-2xl border border-dashed border-border bg-surface/40 p-6 text-center">
           <p className="font-sans text-xs sm:text-sm text-dim">No notices yet.</p>
@@ -158,23 +170,21 @@ export function AnnouncementsPanel({ compact = false }: { compact?: boolean }) {
               >
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-2 mb-1">
+                    <div className="flex flex-wrap items-center gap-2 mb-1">
                       {a.pinned && (
                         <span className="flex items-center gap-1 rounded-md bg-cyan/15 px-2 py-0.5 font-mono text-[10px] font-bold text-cyan border border-cyan/30">
                           <Pin className="size-2.5" /> Pinned
                         </span>
                       )}
-                      <span className="font-mono text-[11px] text-faint">
-                        {timeAgo(a.created_at)}
-                      </span>
+                      <span className="font-mono text-xs text-dim">{timeAgo(a.created_at)}</span>
                     </div>
 
-                    <h4 className="font-display text-base font-bold text-ink leading-snug">
+                    <h4 className="break-words font-display text-base font-bold text-ink leading-snug">
                       {a.title}
                     </h4>
 
                     {a.body && compact && a.body.length > 180 ? (
-                      <details className="mt-2 text-sm text-dim">
+                      <details className="mt-2 break-words text-sm text-dim">
                         <summary className="cursor-pointer leading-relaxed">
                           <span>{a.body.slice(0, 180)}…</span>
                           <span className="ml-2 text-xs font-semibold text-cyan">Read more</span>
@@ -182,7 +192,7 @@ export function AnnouncementsPanel({ compact = false }: { compact?: boolean }) {
                         <p className="mt-2 whitespace-pre-wrap leading-relaxed">{a.body}</p>
                       </details>
                     ) : a.body ? (
-                      <p className="mt-2 whitespace-pre-wrap font-sans text-xs sm:text-sm leading-relaxed text-dim">
+                      <p className="mt-2 break-words whitespace-pre-wrap font-sans text-sm leading-relaxed text-dim">
                         {a.body}
                       </p>
                     ) : null}
@@ -206,6 +216,7 @@ export function AnnouncementsPanel({ compact = false }: { compact?: boolean }) {
                       className="rounded-lg p-1.5 text-dim hover:text-rose hover:bg-rose/10 transition-colors"
                       title="Delete announcement"
                       aria-label={`Delete ${a.title}`}
+                      disabled={remove.isPending}
                     >
                       <Trash2 className="size-3.5" />
                     </button>

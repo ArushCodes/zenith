@@ -171,7 +171,7 @@ export function FeedCard({
         glowY.set(event.clientY - rect.top);
       }}
       whileHover={reducedMotion ? undefined : { y: -2, boxShadow: "0 8px 30px oklch(0 0 0 / 8%)" }}
-      whileTap={{ scale: 0.99, y: 0 }}
+      whileTap={reducedMotion ? undefined : { scale: 0.99, y: 0 }}
       transition={{ type: "spring", stiffness: 500, damping: 30 }}
       onClick={() => onOpen?.(deadline)}
       className={`feed-event-card group relative overflow-hidden rounded-xl border bg-surface p-3 sm:p-4 transition-all cursor-pointer ${
@@ -208,6 +208,8 @@ export function FeedCard({
                 onToggleDone(deadline.id, e);
               }}
               title={isDone ? "Completed" : "Mark done"}
+              aria-label={`${isDone ? "Mark incomplete" : "Mark done"}: ${deadline.title}`}
+              aria-pressed={isDone}
               className={`flex items-center gap-1.5 rounded-md px-2 py-0.5 text-xs font-semibold transition-all cursor-pointer ${
                 isDone
                   ? "bg-emerald-500/15 text-emerald-500 ring-1 ring-emerald-500/30"
@@ -224,7 +226,7 @@ export function FeedCard({
                 {isDone && (
                   <motion.span
                     key="done-check"
-                    initial={{ scale: 0, rotate: -20 }}
+                    initial={reducedMotion ? false : { scale: 0, rotate: -20 }}
                     animate={{ scale: 1, rotate: 0 }}
                     transition={{ type: "spring", stiffness: 600, damping: 20 }}
                   >
@@ -299,7 +301,21 @@ export function FeedCard({
             isDone ? "line-through text-dim" : "text-ink group-hover:text-cyan"
           }`}
         >
-          {fullCourse || deadline.subject || deadline.title}
+          {onOpen ? (
+            <button
+              type="button"
+              aria-label={`View ${fullCourse || deadline.subject || deadline.title}: ${meta.label} ${title}`}
+              onClick={(event) => {
+                event.stopPropagation();
+                onOpen(deadline);
+              }}
+              className="rounded-sm text-left focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-cyan"
+            >
+              {fullCourse || deadline.subject || deadline.title}
+            </button>
+          ) : (
+            fullCourse || deadline.subject || deadline.title
+          )}
         </h3>
 
         {/* Sleek Metadata Row: dot-separated, clean and responsive */}
@@ -355,16 +371,19 @@ export function FeedCard({
       {/* Action Toolbar: Clean, well-spaced, zero clipping */}
       <div className="mt-3 flex flex-wrap items-center justify-between gap-2.5 border-t border-border/50 pt-3 text-xs">
         <div className="flex flex-wrap items-center gap-2">
-          <button
-            type="button"
-            onClick={(e) => {
-              e.stopPropagation();
-              onOpen?.(deadline);
-            }}
-            className="inline-flex items-center gap-1.5 rounded-xl bg-cyan/12 border border-cyan/30 px-3 py-1.5 font-sans text-xs font-bold text-cyan hover:bg-cyan/20 transition-all cursor-pointer"
-          >
-            <span>Details</span>
-          </button>
+          {onOpen && (
+            <button
+              type="button"
+              aria-label={`View details: ${deadline.title}`}
+              onClick={(e) => {
+                e.stopPropagation();
+                onOpen?.(deadline);
+              }}
+              className="inline-flex items-center gap-1.5 rounded-xl bg-cyan/12 border border-cyan/30 px-3 py-1.5 font-sans text-xs font-bold text-cyan hover:bg-cyan/20 transition-all cursor-pointer"
+            >
+              <span>Details</span>
+            </button>
+          )}
 
           {deadline.submission_link && (
             <a
@@ -373,6 +392,7 @@ export function FeedCard({
               rel="noreferrer"
               onClick={(e) => e.stopPropagation()}
               title="Open Submission Link"
+              aria-label={`Submit ${deadline.title} (opens in a new tab)`}
               className="inline-flex items-center gap-1.5 rounded-xl border border-border bg-surface2/60 px-3 py-1.5 font-sans text-xs font-semibold text-dim hover:text-cyan transition-colors"
             >
               <ExternalLink className="size-3.5" />
@@ -443,6 +463,7 @@ export function FeedCompactRow({
   onToggleDone,
   isSelected = false,
 }: FeedCardProps) {
+  const reducedMotion = useReducedMotion();
   const phase = phaseOf(deadline, now);
   const u = phase === "completed" ? "past" : urgencyOf(deadline.due_at, now);
   const meta = eventMeta(deadline.type);
@@ -466,8 +487,8 @@ export function FeedCompactRow({
   }, [deadline.due_at, now]);
 
   return (
-    <motion.div
-      whileHover={{ x: 2 }}
+    <motion.article
+      whileHover={reducedMotion ? undefined : { x: 2 }}
       transition={{ duration: 0.15 }}
       onClick={() => onOpen?.(deadline)}
       className={`group relative flex flex-wrap sm:flex-nowrap items-center justify-between gap-3 rounded-2xl border px-4 py-3 transition-all cursor-pointer ${
@@ -493,7 +514,9 @@ export function FeedCompactRow({
               onToggleDone(deadline.id, e);
             }}
             title={isDone ? "Completed" : "Mark as done"}
-            className={`grid size-5 shrink-0 place-items-center rounded-lg border transition-all cursor-pointer ${
+            aria-label={`${isDone ? "Mark incomplete" : "Mark done"}: ${deadline.title}`}
+            aria-pressed={isDone}
+            className={`grid size-6 shrink-0 place-items-center rounded-lg border transition-all cursor-pointer ${
               isDone
                 ? "border-emerald-500 bg-emerald-500 text-white"
                 : "border-border bg-surface hover:border-cyan"
@@ -519,14 +542,21 @@ export function FeedCompactRow({
         <span className={`shrink-0 ${meta.text}`}>{getTypeIcon(deadline.type, "size-4")}</span>
 
         {/* Title — Takes available space, no aggressive clipping */}
-        <span
+        <button
+          type="button"
+          disabled={!onOpen}
+          aria-label={`View ${fullCourse || deadline.subject || deadline.title}: ${meta.label} ${title}`}
+          onClick={(event) => {
+            event.stopPropagation();
+            onOpen?.(deadline);
+          }}
           title={title}
-          className={`font-display text-sm font-semibold whitespace-normal break-words min-w-0 transition-colors group-hover:text-cyan ${
+          className={`rounded-sm text-left font-display text-sm font-semibold whitespace-normal break-words min-w-0 transition-colors group-hover:text-cyan focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-cyan ${
             isDone ? "line-through text-dim" : "text-ink"
           }`}
         >
           {fullCourse || deadline.subject || deadline.title}
-        </span>
+        </button>
       </div>
 
       {/* Right side: Date, Urgency Countdown, Quick Action Icons */}
@@ -557,7 +587,7 @@ export function FeedCompactRow({
         )}
 
         {canManage && (
-          <div className="flex items-center gap-1 sm:opacity-0 group-hover:opacity-100 transition-opacity">
+          <div className="flex items-center gap-1 sm:opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity">
             <button
               type="button"
               onClick={(e) => {
@@ -565,13 +595,14 @@ export function FeedCompactRow({
                 onEdit(deadline);
               }}
               title="Edit event"
-              className="p-1 rounded-md hover:bg-cyan/20 text-dim hover:text-cyan transition-colors"
+              aria-label={`Edit ${deadline.title}`}
+              className="grid size-7 place-items-center rounded-md hover:bg-cyan/20 text-dim hover:text-cyan transition-colors"
             >
               <Pencil className="size-3.5" />
             </button>
           </div>
         )}
       </div>
-    </motion.div>
+    </motion.article>
   );
 }

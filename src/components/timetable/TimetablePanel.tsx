@@ -787,6 +787,7 @@ function CustomClassForm({
               key={o.key}
               type="button"
               onClick={() => setScope(o.key)}
+              aria-pressed={scope === o.key}
               className={`rounded-lg px-3 py-1.5 font-mono text-[11px] outline-none transition-colors focus:outline-none ${
                 scope === o.key
                   ? "bg-cyan/15 text-cyan ring-1 ring-cyan/40"

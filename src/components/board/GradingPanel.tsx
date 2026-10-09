@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useMemo, useState } from "react";
+import { Fragment, useEffect, useId, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { motion } from "framer-motion";
 import { AlertTriangle, ChevronDown, Pencil, Plus, Trash2 } from "lucide-react";
@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { db as supabase } from "@/lib/backend";
 import { useAuth } from "@/hooks/use-auth";
 import { useBatch } from "@/hooks/use-batch";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import {
   KIND_LABEL,
   PASS_LINE,
@@ -108,6 +109,7 @@ function CourseCard({
   batchId: string;
   userId: string | undefined;
 }) {
+  const detailsId = useId();
   const storageKey = userId ? `zenith.grade-plan:${userId}:${batchId}:${row.code}` : null;
   const [plan, setPlan] = useState<{
     key: string | null;
@@ -174,30 +176,32 @@ function CourseCard({
     <div className="overflow-hidden rounded-2xl bg-surface ring-1 ring-border">
       <button
         onClick={onToggle}
-        className="flex w-full items-center gap-4 px-4 py-3 text-left hover:bg-surface2/40"
+        aria-expanded={open}
+        aria-controls={open ? detailsId : undefined}
+        className="flex w-full items-center gap-3 px-4 py-3 text-left hover:bg-surface2/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-cyan"
       >
         <span className="min-w-0 flex-1">
           <span className="flex flex-wrap items-center gap-2">
-            <span className="font-display text-sm font-semibold">{row.name}</span>
+            <span className="break-words font-display text-base font-semibold">{row.name}</span>
             {batchId === "ee4a435d-4003-4a22-940b-0ee0e676b6f5" && row.code === "HRM 1103" && (
               <span className="rounded-md bg-surface2 px-2 py-1 text-xs text-dim">Finished</span>
             )}
 
-            <span className="rounded-md px-1.5 py-0.5 font-mono text-[9px] text-dim ring-1 ring-border">
+            <span className="rounded-md px-1.5 py-0.5 font-mono text-xs text-dim ring-1 ring-border">
               {row.credits} {row.credits === 1 ? "credit" : "credits"}
             </span>
             {row.isMlc && (
-              <span className="rounded-md bg-violet/12 px-1.5 py-0.5 font-mono text-[9px] text-violet ring-1 ring-violet/30">
+              <span className="rounded-md bg-violet/12 px-1.5 py-0.5 font-mono text-xs text-violet ring-1 ring-violet/30">
                 Pass / fail
               </span>
             )}
             {row.isProvisional && (
-              <span className="rounded-md bg-amber/12 px-1.5 py-0.5 font-mono text-[9px] text-amber ring-1 ring-amber/30">
+              <span className="rounded-md bg-amber/12 px-1.5 py-0.5 font-mono text-xs text-amber ring-1 ring-amber/30">
                 Weights unconfirmed
               </span>
             )}
           </span>
-          <span className="mt-1 block font-mono text-[10px] text-faint">
+          <span className="mt-1 block font-mono text-xs text-dim">
             {row.gradedWeight > 0 ? `${row.gradedWeight}% graded` : "Add marks"}
           </span>
         </span>
@@ -206,7 +210,7 @@ function CourseCard({
           <span className={`block font-display text-lg font-semibold leading-none ${tone}`}>
             {headline === null ? "—" : `${headline}`}
           </span>
-          <span className="mt-1 block font-mono text-[9px] text-faint">
+          <span className="mt-1 block font-mono text-xs text-dim">
             {headline === null ? "no marks yet" : "earned / 100"}
           </span>
         </span>
@@ -235,6 +239,10 @@ function CourseCard({
 
       <div
         className="mx-4 mb-3 h-1.5 overflow-hidden rounded-full bg-surface2"
+        role="progressbar"
+        aria-valuemin={0}
+        aria-valuemax={100}
+        aria-valuenow={Math.min(100, row.gradedWeight)}
         aria-label={`${row.gradedWeight}% of course graded`}
       >
         <motion.div
@@ -244,7 +252,7 @@ function CourseCard({
         />
       </div>
       {open && (
-        <div className="border-t border-border">
+        <div id={detailsId} className="border-t border-border">
           <div className="grid grid-cols-2 gap-3 p-4 sm:grid-cols-3">
             <div>
               <p className="text-xs text-dim">Saved marks</p>
@@ -282,7 +290,14 @@ function CourseCard({
               />
             </label>
           </div>
-          <div className="mx-4 mb-4 h-2 rounded-full bg-surface2 overflow-hidden">
+          <div
+            className="mx-4 mb-4 h-2 rounded-full bg-surface2 overflow-hidden"
+            role="meter"
+            aria-label={`Predicted total for ${row.name}`}
+            aria-valuemin={0}
+            aria-valuemax={100}
+            aria-valuenow={Math.min(100, planned)}
+          >
             <motion.div
               initial={false}
               animate={{ width: `${Math.min(100, planned)}%` }}
@@ -323,7 +338,7 @@ function CourseCard({
 
 function Warning({ children }: { children: React.ReactNode }) {
   return (
-    <p className="flex items-start gap-1.5 font-mono text-[10px] leading-relaxed text-rose">
+    <p className="flex items-start gap-1.5 text-xs leading-relaxed text-rose">
       <AlertTriangle className="mt-px size-3 shrink-0" />
       <span>{children}</span>
     </p>
@@ -416,7 +431,7 @@ function ComponentRow({
   return (
     <div className="flex flex-wrap items-center gap-3 border-b border-border px-4 py-3 last:border-b-0">
       <span className="min-w-0 flex-1">
-        <span className="flex flex-wrap items-center gap-2 font-display text-sm font-semibold">
+        <span className="flex flex-wrap items-center gap-2 break-words font-display text-sm font-semibold">
           {component.name}
           <span className="rounded-md bg-cyan/15 px-2 py-0.5 font-mono text-sm text-cyan">
             {weightage}%
@@ -436,23 +451,23 @@ function ComponentRow({
           className="w-full accent-cyan sm:w-28"
         />
       )}
-      <span className="flex items-center gap-1.5">
+      <span className="flex min-w-0 flex-wrap items-center gap-1.5">
         <input
           value={s}
           aria-label={`My marks for ${component.name}`}
           onChange={(e) => setS(e.target.value)}
           placeholder="score"
           inputMode="decimal"
-          className="w-16 rounded-lg bg-surface2 px-2 py-1 text-center font-mono text-[11px] text-ink ring-1 ring-border outline-none focus:ring-cyan"
+          className="w-16 rounded-lg bg-surface2 px-2 py-1 text-center font-mono text-sm text-ink ring-1 ring-border outline-none focus:ring-cyan"
         />
-        <span className="font-mono text-[10px] text-faint">/</span>
+        <span className="font-mono text-xs text-dim">/</span>
         <input
           value={t}
           aria-label={`Maximum marks for ${component.name}`}
           onChange={(e) => setT(e.target.value)}
           placeholder="out of"
           inputMode="decimal"
-          className="w-16 rounded-lg bg-surface2 px-2 py-1 text-center font-mono text-[11px] text-ink ring-1 ring-border outline-none focus:ring-cyan"
+          className="w-16 rounded-lg bg-surface2 px-2 py-1 text-center font-mono text-sm text-ink ring-1 ring-border outline-none focus:ring-cyan"
         />
         <button
           onClick={() => save.mutate()}
@@ -476,6 +491,7 @@ function ComponentRow({
           <button
             onClick={onEdit}
             title="Edit this component"
+            aria-label={`Edit ${component.name}`}
             className="rounded-lg p-1.5 text-faint ring-1 ring-border hover:text-ink"
           >
             <Pencil className="size-3.5" />
@@ -483,7 +499,7 @@ function ComponentRow({
         )}
       </span>
 
-      <span className="w-full font-mono text-[10px] text-dim sm:w-auto sm:min-w-[140px] sm:text-right">
+      <span className="w-full font-mono text-xs text-dim sm:w-auto sm:min-w-[140px] sm:text-right">
         <span className="block text-xs">Contribution</span>
         {pct === null && preview === null ? "—" : `${preview ?? earned} / ${weightage}`}
       </span>
@@ -587,26 +603,23 @@ function ComponentDialog({
   });
 
   const field =
-    "w-full rounded-lg bg-surface2 px-2.5 py-1.5 font-mono text-[11px] text-ink ring-1 ring-border outline-none focus:ring-cyan";
+    "w-full rounded-lg bg-surface2 px-2.5 py-1.5 font-mono text-sm text-ink ring-1 ring-border outline-none focus:ring-cyan";
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-end justify-center bg-ink/40 p-3 sm:items-center"
-      onClick={onClose}
-    >
-      <motion.div
-        initial={{ opacity: 0, y: 16 }}
-        animate={{ opacity: 1, y: 0 }}
-        onClick={(e) => e.stopPropagation()}
-        className="w-full max-w-lg rounded-2xl bg-surface p-4 ring-1 ring-border"
+    <Dialog open onOpenChange={(value) => !value && onClose()}>
+      <DialogContent
+        aria-describedby={undefined}
+        className="max-w-lg gap-0 rounded-2xl bg-surface p-4 ring-1 ring-border"
       >
-        <p className="font-display text-sm font-semibold text-ink">
-          {draft.id ? "Edit component" : "Add component"}
-        </p>
+        <DialogHeader className="pr-8 text-left">
+          <DialogTitle className="font-display text-base font-semibold text-ink">
+            {draft.id ? "Edit component" : "Add component"}
+          </DialogTitle>
+        </DialogHeader>
 
         <div className="mt-3 grid gap-2 sm:grid-cols-2">
           <label className="flex flex-col gap-1">
-            <span className="font-mono text-[10px] text-faint">Course code</span>
+            <span className="font-mono text-xs text-dim">Course code</span>
             <input
               className={field}
               value={form.course_code}
@@ -614,7 +627,7 @@ function ComponentDialog({
             />
           </label>
           <label className="flex flex-col gap-1">
-            <span className="font-mono text-[10px] text-faint">Course name</span>
+            <span className="font-mono text-xs text-dim">Course name</span>
             <input
               className={field}
               value={form.course_name}
@@ -622,7 +635,7 @@ function ComponentDialog({
             />
           </label>
           <label className="flex flex-col gap-1">
-            <span className="font-mono text-[10px] text-faint">Credits</span>
+            <span className="font-mono text-xs text-dim">Credits</span>
             <input
               className={field}
               value={form.credits}
@@ -630,7 +643,7 @@ function ComponentDialog({
             />
           </label>
           <label className="flex flex-col gap-1">
-            <span className="font-mono text-[10px] text-faint">Component name</span>
+            <span className="font-mono text-xs text-dim">Component name</span>
             <input
               className={field}
               value={form.name}
@@ -638,7 +651,7 @@ function ComponentDialog({
             />
           </label>
           <label className="flex flex-col gap-1">
-            <span className="font-mono text-[10px] text-faint">Weightage %</span>
+            <span className="font-mono text-xs text-dim">Weightage %</span>
             <input
               className={field}
               value={form.weightage}
@@ -646,7 +659,7 @@ function ComponentDialog({
             />
           </label>
           <label className="flex flex-col gap-1">
-            <span className="font-mono text-[10px] text-faint">Type</span>
+            <span className="font-mono text-xs text-dim">Type</span>
             <select
               className={field}
               value={form.kind}
@@ -660,7 +673,7 @@ function ComponentDialog({
             </select>
           </label>
           <label className="flex flex-col gap-1">
-            <span className="font-mono text-[10px] text-faint">Individual or group</span>
+            <span className="font-mono text-xs text-dim">Individual or group</span>
             <select
               className={field}
               value={form.work_mode}
@@ -673,7 +686,7 @@ function ComponentDialog({
             </select>
           </label>
           <label className="flex flex-col gap-1">
-            <span className="font-mono text-[10px] text-faint">Order</span>
+            <span className="font-mono text-xs text-dim">Order</span>
             <input
               className={field}
               value={form.sequence}
@@ -681,7 +694,7 @@ function ComponentDialog({
             />
           </label>
           <label className="flex flex-col gap-1 sm:col-span-2">
-            <span className="font-mono text-[10px] text-faint">When it happens</span>
+            <span className="font-mono text-xs text-dim">When it happens</span>
             <input
               className={field}
               value={form.timing_note}
@@ -692,7 +705,7 @@ function ComponentDialog({
         </div>
 
         <div className="mt-3 flex flex-wrap items-center gap-3">
-          <label className="flex items-center gap-1.5 font-mono text-[10px] text-dim">
+          <label className="flex items-center gap-1.5 font-mono text-xs text-dim">
             <input
               type="checkbox"
               checked={form.is_mlc}
@@ -700,22 +713,23 @@ function ComponentDialog({
             />
             Pass / fail course, no CGPA
           </label>
-          <label className="flex items-center gap-1.5 font-mono text-[10px] text-dim">
+          <label className="flex items-center gap-1.5 font-mono text-xs text-dim">
             <input
               type="checkbox"
               checked={form.is_provisional}
               onChange={(e) => setForm({ ...form, is_provisional: e.target.checked })}
             />
-            Provisional split
+            Weights unconfirmed
           </label>
         </div>
 
         <div className="mt-4 flex items-center gap-2">
           <button
             onClick={() => save.mutate()}
+            disabled={save.isPending || remove.isPending}
             className="rounded-lg bg-cyan px-3 py-1.5 font-mono text-[11px] text-primary-foreground hover:opacity-90"
           >
-            Save
+            {save.isPending ? "Saving…" : "Save"}
           </button>
           <button
             onClick={onClose}
@@ -726,13 +740,14 @@ function ComponentDialog({
           {draft.id && (
             <button
               onClick={() => remove.mutate()}
+              disabled={save.isPending || remove.isPending}
               className="ml-auto rounded-lg px-3 py-1.5 font-mono text-[11px] text-rose ring-1 ring-rose/30 hover:bg-rose/10"
             >
               Delete
             </button>
           )}
         </div>
-      </motion.div>
-    </div>
+      </DialogContent>
+    </Dialog>
   );
 }

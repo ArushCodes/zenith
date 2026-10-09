@@ -2,7 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/use-auth";
 import { useBatch } from "@/hooks/use-batch";
 import { examMarksQuery } from "@/lib/marks";
-import { useMemo, useState } from "react";
+import { useId, useMemo, useState } from "react";
 import { motion, useReducedMotion } from "framer-motion";
 import { ChevronDown, Pencil, Search, Trash2 } from "lucide-react";
 import { formatDeadlineWhen, phaseOf, typeLabel, type Deadline } from "@/lib/deadlines";
@@ -29,6 +29,7 @@ export function AssessmentAgenda({
   const { data: marks = [] } = useQuery(examMarksQuery(batchId, user?.id));
   const [search, setSearch] = useState("");
   const [open, setOpen] = useState<string | null>(null);
+  const agendaId = useId();
   const reduced = useReducedMotion();
   const shown = useMemo(
     () =>
@@ -50,7 +51,9 @@ export function AssessmentAgenda({
     >
       <button
         type="button"
+        id={`${agendaId}-${d.id}-toggle`}
         aria-expanded={open === d.id}
+        aria-controls={`${agendaId}-${d.id}-details`}
         onClick={() => setOpen(open === d.id ? null : d.id)}
         className="flex w-full items-center gap-3 px-4 py-3 text-left bg-surface2/20 hover:bg-surface2/70 transition-colors"
       >
@@ -74,6 +77,9 @@ export function AssessmentAgenda({
       </button>
       {open === d.id && (
         <motion.div
+          id={`${agendaId}-${d.id}-details`}
+          role="region"
+          aria-labelledby={`${agendaId}-${d.id}-toggle`}
           initial={reduced ? false : { y: 4 }}
           animate={{ y: 0 }}
           className="space-y-3 border-t border-border px-4 py-3"
@@ -88,6 +94,7 @@ export function AssessmentAgenda({
             {onOpen && (
               <button
                 type="button"
+                aria-label={`View details: ${d.title}`}
                 onClick={() => onOpen(d)}
                 className="rounded-md border border-cyan/25 px-2.5 py-1.5 text-cyan hover:bg-cyan/10"
               >
@@ -95,7 +102,13 @@ export function AssessmentAgenda({
               </button>
             )}
             {d.submission_link && (
-              <a href={d.submission_link} target="_blank" rel="noreferrer" className="text-cyan">
+              <a
+                href={d.submission_link}
+                target="_blank"
+                rel="noreferrer"
+                aria-label={`Submit ${d.title} (opens in a new tab)`}
+                className="rounded-md px-2 py-1.5 text-cyan hover:bg-cyan/10"
+              >
                 Submit
               </a>
             )}
@@ -105,7 +118,7 @@ export function AssessmentAgenda({
                   type="button"
                   aria-label={`Edit ${d.title}`}
                   onClick={() => onEdit(d)}
-                  className="ml-auto text-dim"
+                  className="ml-auto grid size-8 place-items-center rounded-md text-dim hover:bg-cyan/10 hover:text-cyan"
                 >
                   <Pencil className="size-4" />
                 </button>
@@ -113,7 +126,7 @@ export function AssessmentAgenda({
                   type="button"
                   aria-label={`Delete ${d.title}`}
                   onClick={() => onDelete(d)}
-                  className="text-rose"
+                  className="grid size-8 place-items-center rounded-md text-rose hover:bg-rose/10"
                 >
                   <Trash2 className="size-4" />
                 </button>
@@ -131,7 +144,7 @@ export function AssessmentAgenda({
         <p className="text-xs text-dim">
           {upcoming.length} upcoming · {past.length} past
         </p>
-        <label className="flex items-center gap-2 rounded-lg border border-border px-3 py-2">
+        <label className="flex items-center gap-2 rounded-lg border border-border px-3 py-2 focus-within:border-cyan focus-within:ring-1 focus-within:ring-cyan/40">
           <Search className="size-3.5 text-dim" />
           <input
             aria-label="Search assessments"

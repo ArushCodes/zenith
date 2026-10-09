@@ -55,6 +55,11 @@ export function SyllabusDialog({ deadline, isOpen, onClose, canManage }: Props) 
 
   if (!deadline) return null;
 
+  const cancelEditing = () => {
+    setNotes(deadline.notes ?? "");
+    setIsEditing(false);
+  };
+
   const m = eventMeta(deadline.type);
   const title =
     deadline.type === "midterm" || deadline.type === "endterm"
@@ -65,16 +70,19 @@ export function SyllabusDialog({ deadline, isOpen, onClose, canManage }: Props) 
 
   return (
     <Dialog open={isOpen} onOpenChange={(v) => !v && onClose()}>
-      <DialogContent className="max-w-xl rounded-3xl border border-border/80 bg-surface p-0 shadow-2xl overflow-hidden sm:max-w-2xl">
+      <DialogContent
+        aria-describedby={undefined}
+        className="max-w-xl gap-0 rounded-3xl border border-border/80 bg-surface p-0 shadow-2xl overflow-x-hidden overflow-y-auto sm:max-w-2xl"
+      >
         {/* Header Color Accent Stripe */}
         <div className="h-2 w-full" style={{ backgroundColor: color }} />
 
-        <div className="p-6 sm:p-8 space-y-6">
+        <div className="p-4 sm:p-6 space-y-4">
           <DialogHeader className="space-y-3 text-left">
-            <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="flex flex-wrap items-center justify-between gap-3 pr-8">
               <div className="flex flex-wrap items-center gap-2">
                 <span
-                  className="rounded-lg px-2.5 py-1 font-mono text-xs font-bold"
+                  className="max-w-full break-words rounded-lg px-2.5 py-1 font-mono text-xs font-bold"
                   style={{
                     color,
                     backgroundColor: `${color}18`,
@@ -98,7 +106,8 @@ export function SyllabusDialog({ deadline, isOpen, onClose, canManage }: Props) 
               {canManage && (
                 <button
                   type="button"
-                  onClick={() => setIsEditing((prev) => !prev)}
+                  onClick={() => (isEditing ? cancelEditing() : setIsEditing(true))}
+                  aria-pressed={isEditing}
                   className="inline-flex items-center gap-1.5 rounded-xl border border-border bg-surface2 px-3 py-1.5 text-xs font-medium text-ink hover:border-cyan/40 hover:text-cyan transition-all"
                 >
                   <Pencil className="size-3.5" />
@@ -107,19 +116,19 @@ export function SyllabusDialog({ deadline, isOpen, onClose, canManage }: Props) 
               )}
             </div>
 
-            <DialogTitle className="font-display text-2xl sm:text-3xl font-bold tracking-tight text-ink">
+            <DialogTitle className="break-words font-display text-xl sm:text-2xl font-bold tracking-tight text-ink">
               {title}
             </DialogTitle>
 
             {/* Quick Context Strip */}
-            <div className="flex flex-wrap items-center gap-4 text-xs text-dim pt-1 border-b border-border/60 pb-4">
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-sm text-dim pt-1 border-b border-border/60 pb-3">
               <span className="inline-flex items-center gap-1.5 font-medium text-ink">
                 <Calendar className="size-4 text-cyan" />
                 {formatDeadlineWhen(deadline)}
               </span>
               {deadline.location && (
-                <span className="inline-flex items-center gap-1.5 text-ink">
-                  <MapPin className="size-4 text-rose" />
+                <span className="inline-flex min-w-0 break-words items-center gap-1.5 text-ink">
+                  <MapPin className="size-4 shrink-0 text-rose" />
                   {deadline.location}
                 </span>
               )}
@@ -158,7 +167,7 @@ export function SyllabusDialog({ deadline, isOpen, onClose, canManage }: Props) 
                 <div className="flex items-center justify-end gap-3 pt-2">
                   <button
                     type="button"
-                    onClick={() => setIsEditing(false)}
+                    onClick={cancelEditing}
                     className="rounded-xl border border-border px-4 py-2 text-xs font-medium text-dim hover:text-ink transition-colors"
                   >
                     Cancel
@@ -167,7 +176,7 @@ export function SyllabusDialog({ deadline, isOpen, onClose, canManage }: Props) 
                     type="button"
                     onClick={() => saveMutation.mutate(notes)}
                     disabled={saveMutation.isPending}
-                    className="inline-flex items-center gap-2 rounded-xl bg-cyan px-4 py-2 text-xs font-semibold text-white shadow-md shadow-cyan/20 hover:bg-cyan/90 transition-all disabled:opacity-50"
+                    className="inline-flex items-center gap-2 rounded-xl bg-cyan px-4 py-2 text-xs font-semibold text-primary-foreground shadow-md shadow-cyan/20 hover:bg-cyan/90 transition-all disabled:opacity-50"
                   >
                     <Save className="size-3.5" />
                     {saveMutation.isPending ? "Saving…" : "Save"}
@@ -175,15 +184,15 @@ export function SyllabusDialog({ deadline, isOpen, onClose, canManage }: Props) 
                 </div>
               </div>
             ) : (
-              <div className="rounded-2xl border border-border/80 bg-surface2/40 p-5 sm:p-6 space-y-4">
+              <div className="rounded-2xl border border-border/80 bg-surface2/40 p-4 sm:p-5 space-y-4">
                 {notes.trim() ? (
                   <div className="prose prose-sm dark:prose-invert max-w-none">
-                    <p className="font-sans text-sm sm:text-base leading-relaxed text-ink whitespace-pre-wrap">
+                    <p className="break-words font-sans text-sm sm:text-base leading-relaxed text-ink whitespace-pre-wrap">
                       {notes}
                     </p>
                   </div>
                 ) : (
-                  <div className="py-8 text-center space-y-3">
+                  <div className="py-3 text-center space-y-3">
                     <div className="mx-auto flex size-12 items-center justify-center rounded-2xl bg-surface2 text-dim border border-border">
                       <BookOpen className="size-6 text-faint" />
                     </div>
@@ -215,7 +224,7 @@ export function SyllabusDialog({ deadline, isOpen, onClose, canManage }: Props) 
                 href={deadline.submission_link}
                 target="_blank"
                 rel="noreferrer"
-                className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-cyan px-4 py-3 text-xs sm:text-sm font-semibold text-white shadow-lg shadow-cyan/15 hover:bg-cyan/90 transition-all"
+                className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-cyan px-4 py-3 text-sm font-semibold text-primary-foreground shadow-lg shadow-cyan/15 hover:bg-cyan/90 transition-all"
               >
                 <ExternalLink className="size-4" />
                 Open submission
