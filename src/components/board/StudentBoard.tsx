@@ -669,6 +669,7 @@ export default function StudentBoard({ guestPreview }: { guestPreview?: boolean 
                   onSeeFullTimetable={() => setTab("timetable")}
                   onSeeAttendance={() => setTab("attendance")}
                   canManage={isMod}
+                  deadlines={approved}
                   minimal
                 />
               </div>

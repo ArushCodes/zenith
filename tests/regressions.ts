@@ -278,3 +278,34 @@ console.log("Passed: class/break scrubber boundaries, countdown and day completi
 import { testCalendarAcademic } from "./calendar-academic";
 testCalendarAcademic();
 console.log("Passed: calendar exam placeholders, study gaps and duplicate holiday labels.");
+
+import { nextDayBrief } from "../src/lib/next-day-brief";
+const briefNow = Date.parse("2026-10-08T20:00:00+05:30");
+const brief = nextDayBrief(
+  progressClasses.map((s) => ({ ...s, course_name: "Mathematics" })),
+  [],
+  briefNow,
+);
+assert.equal(brief.day, "2026-10-09");
+assert.equal(brief.classes.length, 2);
+assert.equal(brief.day, brief.tomorrow);
+const examBrief = nextDayBrief(
+  [],
+  [
+    {
+      id: "exam",
+      type: "endterm",
+      due_at: "2026-10-10T10:00:00+05:30",
+      status: "approved",
+    } as Deadline,
+  ],
+  briefNow,
+);
+assert.equal(examBrief.day, "2026-10-10");
+assert.equal(examBrief.events.length, 1);
+assert.equal(
+  nextDayBrief([], [{ ...examBrief.events[0], status: "pending" }], briefNow).events.length,
+  0,
+);
+assert.equal(nextDayBrief([], [], briefNow).day, "2026-10-09");
+console.log("Passed: next-day briefs respect India dates, timetable gaps and approval status.");

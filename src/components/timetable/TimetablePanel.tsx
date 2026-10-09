@@ -6,7 +6,6 @@ import {
   Calendar,
   ChevronLeft,
   ChevronRight,
-  CircleSlash,
   Filter,
   Pencil,
   Plus,
@@ -56,6 +55,7 @@ import { saveIcsUrl, syncTimetableNow } from "@/lib/timetable.functions";
 import { SessionMeta } from "@/components/common/SessionMeta";
 import { IPM_CLASS_SLOTS, classSlotIndex } from "@/lib/class-slots";
 import { IPM1_BATCH_ID } from "@/lib/roster.data";
+import { AttendanceChoice } from "@/components/attendance/AttendanceChoice";
 
 const HOLIDAY_COLOR = "#10B981";
 
@@ -133,7 +133,7 @@ export function TimetablePanel() {
     },
     onSuccess: (res) => {
       queryClient.invalidateQueries({ queryKey: ["attendance", batchId] });
-      toast.success(res === "cleared" ? "Attendance cleared" : "Marked absent");
+      toast.success(res === "cleared" ? "Marked present" : "Marked absent");
     },
     onError: (e: Error) => toast.error(e.message),
   });
@@ -529,26 +529,17 @@ export function TimetablePanel() {
                         </motion.button>
                       )}
                       {isTeachingClass(s) && isMember && user && (
-                        <motion.button
-                          whileTap={{ scale: 0.94 }}
-                          onClick={() =>
+                        <AttendanceChoice
+                          label={sessionFullName(s)}
+                          absent={absentIds.has(s.id)}
+                          disabled={markAbsent.isPending}
+                          onChange={(absent) =>
                             markAbsent.mutate({
                               session: s,
-                              clear: absentIds.has(s.id),
+                              clear: !absent,
                             })
                           }
-                          title={
-                            absentIds.has(s.id) ? "Tap to clear absence" : "Mark yourself absent"
-                          }
-                          className={`flex shrink-0 items-center gap-1.5 rounded-lg px-2.5 py-1 font-mono text-[10px] ring-1 transition-colors ${
-                            absentIds.has(s.id)
-                              ? "bg-evt-exam/20 text-evt-exam ring-evt-exam/40"
-                              : "text-dim ring-border hover:text-ink"
-                          }`}
-                        >
-                          <CircleSlash className="size-3" />
-                          {absentIds.has(s.id) ? "Absent" : "Mark absent"}
-                        </motion.button>
+                        />
                       )}
                     </motion.div>
                   </Fragment>

@@ -49,6 +49,8 @@ import { IPM1_BATCH_ID } from "@/lib/roster.data";
 import { MissAllowance } from "@/components/attendance/MissAllowance";
 import { IPM_CLASS_SLOTS, classSlotIndex } from "@/lib/class-slots";
 import { classProgress } from "@/lib/class-progress";
+import { nextDayBrief } from "@/lib/next-day-brief";
+import { AttendanceChoice } from "@/components/attendance/AttendanceChoice";
 
 type Props = {
   now: number;
@@ -179,6 +181,7 @@ export function LiveClassHero({
 
   const classes = useMemo(() => daySessions.filter(isTeachingClass), [daySessions]);
   const dayProgress = classProgress(classes, now);
+  const nextBrief = nextDayBrief(sessions, deadlines, now);
 
   const isWeekendOff = useMemo(() => isDayOff(selectedDate), [selectedDate]);
   const isHoliday = useMemo(() => daySessions.some((s) => s.is_holiday), [daySessions]);
@@ -432,6 +435,43 @@ export function LiveClassHero({
                 {dayProgress.state === "class" || dayProgress.state === "break" ? "left" : "to go"}
               </span>
             )}
+            {offset === 0 &&
+              !sessionsLoading &&
+              (dayProgress.state === "over" || dayProgress.state === "empty") && (
+                <div className="min-w-0 rounded-xl border border-cyan/20 bg-cyan/5 px-3 py-2 text-sm sm:max-w-lg">
+                  <div className="flex flex-wrap items-center gap-2 font-semibold text-cyan">
+                    <span>
+                      {nextBrief.day === nextBrief.tomorrow
+                        ? "Tomorrow"
+                        : `Tomorrow clear · ${shortDayFmt.format(new Date(`${nextBrief.day}T12:00:00+05:30`))}`}
+                    </span>
+                    {nextBrief.classes.length > 0 && (
+                      <span className="text-ink">
+                        {nextBrief.classes.length}{" "}
+                        {nextBrief.classes.length === 1 ? "class" : "classes"} ·{" "}
+                        {clockTimeFmt.format(new Date(nextBrief.classes[0]!.start_at))}–
+                        {clockTimeFmt.format(new Date(nextBrief.classes.at(-1)!.end_at))}
+                      </span>
+                    )}
+                  </div>
+                  {nextBrief.classes.length > 0 && (
+                    <p className="mt-1 break-words text-dim">
+                      {nextBrief.classes.map(sessionPeriodLabel).join(" → ")}
+                    </p>
+                  )}
+                  {nextBrief.events.slice(0, 2).map((event) => (
+                    <p key={event.id} className="mt-1 text-ink">
+                      <span className={eventMeta(event.type).text}>
+                        {eventMeta(event.type).label}
+                      </span>{" "}
+                      · {subjectFullName(event.subject || event.title)}
+                    </p>
+                  ))}
+                  {nextBrief.classes.length === 0 && nextBrief.events.length === 0 && (
+                    <p className="mt-1 text-dim">No classes or deadlines scheduled.</p>
+                  )}
+                </div>
+              )}
           </div>
           {dayProgress.state === "break" && (
             <p className="text-sm text-dim">Next: {sessionPeriodLabel(dayProgress.session!)}</p>
@@ -805,7 +845,7 @@ export function LiveClassHero({
                       </motion.div>
                     </div>
                   )}
-                  <div className="mt-3 pt-2 border-t border-border/50 flex items-center justify-between gap-2 text-xs">
+                  <div className="mt-3 pt-2 border-t border-border/50 flex flex-wrap items-center justify-between gap-2 text-xs">
                     <span className="font-mono text-[10px] text-faint">
                       {minimal &&
                       (isMember || canManage) &&
@@ -816,15 +856,12 @@ export function LiveClassHero({
                         : "Class"}
                     </span>
                     {(isMember || canManage) && user && (
-                      <button
-                        type="button"
+                      <AttendanceChoice
+                        absent={mark === "absent"}
+                        label={periodSubject}
                         disabled={toggleAbsent.isPending || attendanceLoading || attendanceError}
-                        onClick={() => toggleAbsent.mutate(s)}
-                        className={`rounded-lg border px-3 py-2 text-xs font-semibold transition-colors ${mark === "absent" ? "border-rose/50 bg-rose/15 text-rose" : "border-emerald-400/30 bg-emerald-400/10 text-emerald-400"}`}
-                        aria-label={`${mark === "absent" ? "Undo absence" : "Mark absent"}: ${periodSubject}`}
-                      >
-                        {mark === "absent" ? "Absent · undo" : "Mark absent"}
-                      </button>
+                        onChange={() => toggleAbsent.mutate(s)}
+                      />
                     )}
                   </div>
                   {batchId === IPM1_BATCH_ID && !attendanceLoading && !attendanceError && (
