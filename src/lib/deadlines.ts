@@ -261,6 +261,11 @@ export function phaseOf(d: Deadline, now: number): Phase {
   return "upcoming";
 }
 
+/** Exams cannot be completed before their scheduled window has closed. */
+export function canCompleteDeadline(d: Deadline, now: number) {
+  return (d.type !== "midterm" && d.type !== "endterm") || phaseOf(d, now) === "completed";
+}
+
 export function weekKey(dueAt: string) {
   const d = new Date(dueAt);
   const day = (d.getDay() + 6) % 7;

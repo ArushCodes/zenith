@@ -22,6 +22,7 @@ import {
 } from "lucide-react";
 import {
   cleanExamTitle,
+  canCompleteDeadline,
   eventSourceLabel,
   displayTitle,
   eventMeta,
@@ -200,7 +201,7 @@ export function FeedCard({
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex flex-wrap items-center gap-1.5">
           {/* Personal Student Done Toggle Button */}
-          {onToggleDone && (
+          {onToggleDone && canCompleteDeadline(deadline, now) && (
             <button
               type="button"
               onClick={(e) => {
@@ -506,7 +507,7 @@ export function FeedCompactRow({
       {/* Left side: Checkbox, Short Subject Pill, Type Icon, Title */}
       <div className="flex items-center gap-2.5 min-w-0 basis-full sm:basis-auto sm:flex-1">
         {/* Personal Done Checkbox */}
-        {onToggleDone && (
+        {onToggleDone && canCompleteDeadline(deadline, now) && (
           <button
             type="button"
             onClick={(e) => {

@@ -1,5 +1,5 @@
 import { AssessmentAgenda } from "./AssessmentAgenda";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { AnimatePresence, motion } from "framer-motion";
 import {
@@ -63,6 +63,7 @@ import { autoColor } from "@/lib/courses";
 import { Marker, shapeForDeadline } from "@/lib/shapes";
 import {
   FILTERS,
+  canCompleteDeadline,
   deadlinesQueryFor,
   displayTitle,
   eventMeta,
@@ -121,7 +122,11 @@ export default function StudentBoard({ guestPreview }: { guestPreview?: boolean 
   const [tab, setTab] = useState<TabKey>("feed");
   const [examSubTab, setExamSubTab] = useState<"midterm" | "endterm">("midterm");
   const [filter, setFilter] = useState<FilterKey>("all");
-  const { doneMap, isDone, toggleDone } = usePersonalChecklist(batchId);
+  const {
+    doneMap,
+    isDone: checklistIsDone,
+    toggleDone: checklistToggleDone,
+  } = usePersonalChecklist(batchId);
   const [feedDensity, setFeedDensity] = useState<"comfortable" | "compact">(() => {
     try {
       if (typeof window !== "undefined") {
@@ -166,6 +171,21 @@ export default function StudentBoard({ guestPreview }: { guestPreview?: boolean 
   const [editing, setEditing] = useState<Deadline | null>(null);
   const [selected, setSelected] = useState<Deadline | null>(null);
   const [now, setNow] = useState(() => Date.now());
+  const isDone = useCallback(
+    (id: string) => {
+      const deadline = deadlines.find((d) => d.id === id);
+      return Boolean(deadline && canCompleteDeadline(deadline, now) && checklistIsDone(id));
+    },
+    [deadlines, now, checklistIsDone],
+  );
+  const toggleDone = useCallback(
+    (id: string, event: React.MouseEvent) => {
+      event.stopPropagation();
+      const deadline = deadlines.find((d) => d.id === id);
+      if (deadline && canCompleteDeadline(deadline, Date.now())) checklistToggleDone(id, event);
+    },
+    [deadlines, checklistToggleDone],
+  );
   const [panel, setPanel] = useState<PanelKey | null>(null);
   const nextAcademic = useMemo(
     () =>
@@ -390,8 +410,8 @@ export default function StudentBoard({ guestPreview }: { guestPreview?: boolean 
 
   const totalUpcomingCount = allUpcoming.length;
   const completedUpcomingCount = useMemo(() => {
-    return allUpcoming.filter((d) => doneMap[d.id]).length;
-  }, [allUpcoming, doneMap]);
+    return allUpcoming.filter((d) => canCompleteDeadline(d, now) && doneMap[d.id]).length;
+  }, [allUpcoming, doneMap, now]);
   const progressPercent =
     totalUpcomingCount > 0 ? Math.round((completedUpcomingCount / totalUpcomingCount) * 100) : 0;
 

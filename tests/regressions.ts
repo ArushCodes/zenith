@@ -309,3 +309,29 @@ assert.equal(
 );
 assert.equal(nextDayBrief([], [], briefNow).day, "2026-10-09");
 console.log("Passed: next-day briefs respect India dates, timetable gaps and approval status.");
+
+import { canCompleteDeadline } from "../src/lib/deadlines";
+const scheduledExam = {
+  type: "midterm",
+  due_at: "2026-10-15T10:00:00+05:30",
+  end_at: "2026-10-15T12:00:00+05:30",
+  all_day: false,
+} as Deadline;
+assert.equal(canCompleteDeadline(scheduledExam, Date.parse("2026-10-14T10:00:00+05:30")), false);
+assert.equal(canCompleteDeadline(scheduledExam, Date.parse("2026-10-15T11:00:00+05:30")), false);
+assert.equal(canCompleteDeadline(scheduledExam, Date.parse("2026-10-15T12:01:00+05:30")), true);
+assert.equal(
+  canCompleteDeadline(
+    { ...scheduledExam, type: "endterm" },
+    Date.parse("2026-10-14T10:00:00+05:30"),
+  ),
+  false,
+);
+assert.equal(
+  canCompleteDeadline(
+    { ...scheduledExam, type: "assignment" },
+    Date.parse("2026-10-14T10:00:00+05:30"),
+  ),
+  true,
+);
+console.log("Passed: exams cannot be completed before their scheduled window closes.");
