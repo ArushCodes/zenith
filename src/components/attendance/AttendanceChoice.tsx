@@ -4,12 +4,14 @@ export function AttendanceChoice({
   absent,
   disabled,
   muted = false,
+  authoritative = false,
   label,
   onChange,
 }: {
   absent: boolean;
   disabled?: boolean;
   muted?: boolean;
+  authoritative?: boolean;
   label: string;
   onChange: (absent: boolean) => void;
 }) {
@@ -19,6 +21,14 @@ export function AttendanceChoice({
       aria-label={`Attendance for ${label}`}
       className="inline-flex shrink-0 gap-1 rounded-xl border border-border bg-surface2/60 p-1"
     >
+      {authoritative && (
+        <span
+          className="self-center px-1 text-xs text-dim"
+          title="Representative record takes priority"
+        >
+          Rep
+        </span>
+      )}
       {[false, true].map((value) => {
         const selected = absent === value;
         const Icon = value ? X : Check;
@@ -28,7 +38,7 @@ export function AttendanceChoice({
             type="button"
             aria-pressed={selected}
             aria-label={`${value ? "Absent" : "Present"}: ${label}`}
-            disabled={disabled}
+            disabled={disabled || authoritative}
             onClick={() => {
               if (!selected) onChange(value);
             }}

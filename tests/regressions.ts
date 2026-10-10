@@ -335,3 +335,12 @@ assert.equal(
   true,
 );
 console.log("Passed: exams cannot be completed before their scheduled window closes.");
+
+import { testAssessmentLinks } from "./assessment-link";
+testAssessmentLinks();
+import { testAttendanceAudit } from "./attendance-audit";
+testAttendanceAudit();
+import { testWorkflowAudit } from "./workflow-audit";
+testWorkflowAudit();
+import { testNoticeAudit } from "./notice-audit";
+testNoticeAudit();

@@ -1,18 +1,22 @@
-import { useEffect, useState } from "react";
+import { useEffect, useId, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { motion, AnimatePresence } from "framer-motion";
-import { Award, Check, ChevronDown, ChevronUp, Pencil, Percent, Trash2 } from "lucide-react";
+import { ChevronDown, ChevronUp, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { db as supabase } from "@/lib/backend";
 import { useAuth } from "@/hooks/use-auth";
 import { useBatch } from "@/hooks/use-batch";
 import { examMarksQuery, fmtNum, scorePct, weightedPoints } from "@/lib/marks";
+import { componentMarksQuery, courseComponentsQuery } from "@/lib/grading";
+import {
+  assessmentCandidates,
+  isCombinedComponent,
+  suggestedComponent,
+} from "@/lib/assessment-link";
 import type { Deadline } from "@/lib/deadlines";
 
-/** Personal marks entry & display for an exam: score / total / weightage → percentage. */
+/** One personal score, reused by a confirmed grading-component link. */
 export function ExamMarks({
   deadline,
-  defaultWeight = 20,
   inline = false,
 }: {
   deadline: Deadline;
@@ -21,44 +25,74 @@ export function ExamMarks({
 }) {
   const { batchId, isMember } = useBatch();
   const { user } = useAuth();
-  const queryClient = useQueryClient();
-  const { data: marks = [] } = useQuery(examMarksQuery(batchId, user?.id));
-  const mine = marks.find((m) => m.deadline_id === deadline.id) ?? null;
-
-  const [isOpen, setIsOpen] = useState(inline);
+  const client = useQueryClient();
+  const inputId = useId();
+  const marksQuery = useQuery(examMarksQuery(batchId, user?.id));
+  const componentsQuery = useQuery(courseComponentsQuery(batchId));
+  const gradesQuery = useQuery(componentMarksQuery(batchId, user?.id));
+  const marks = marksQuery.data ?? [];
+  const components = componentsQuery.data ?? [];
+  const mine = marks.find((m) => m.deadline_id === deadline.id);
+  const candidates = assessmentCandidates(deadline, components);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const suggestion = suggestedComponent(deadline, components);
+  const suggestedAvailable =
+    suggestion &&
+    !marks.some((m) => m.component_id === suggestion.id && m.deadline_id !== deadline.id);
+  const componentId = selectedId ?? mine?.component_id ?? (suggestedAvailable ? suggestion.id : "");
+  const component = components.find((c) => c.id === componentId);
+  const grade = (gradesQuery.data ?? []).find((m) => m.component_id === componentId);
+  const [open, setOpen] = useState(inline);
   const [score, setScore] = useState("");
   const [total, setTotal] = useState("");
-  const [weightage, setWeightage] = useState(String(defaultWeight));
-
+  const [combinedConfirmed, setCombinedConfirmed] = useState(false);
+  const source = component && grade ? grade : mine;
+  const sourceId = source?.id;
+  const sourceScore = source?.score;
+  const sourceTotal = source?.total;
+  const storedComponent = mine?.component_id;
   useEffect(() => {
-    if (mine) {
-      setScore(fmtNum(Number(mine.score)));
-      setTotal(fmtNum(Number(mine.total)));
-      setWeightage(fmtNum(Number(mine.weightage)) || String(defaultWeight));
-    } else {
-      setWeightage(String(defaultWeight));
-    }
-  }, [mine?.id, mine?.score, mine?.total, mine?.weightage, defaultWeight]);
-
-  const invalidate = () =>
-    queryClient.invalidateQueries({ queryKey: ["exam-marks", batchId, user?.id] });
-
+    setScore(sourceId ? String(sourceScore) : "");
+    setTotal(sourceId ? String(sourceTotal) : "");
+    setCombinedConfirmed(Boolean(storedComponent && storedComponent === componentId));
+  }, [sourceId, sourceScore, sourceTotal, componentId, storedComponent]);
+  const loading = marksQuery.isPending || componentsQuery.isPending || gradesQuery.isPending;
+  const failed = marksQuery.isError || componentsQuery.isError || gradesQuery.isError;
+  const pending = loading || failed;
+  const valid =
+    score.trim() !== "" &&
+    total.trim() !== "" &&
+    Number.isFinite(Number(score)) &&
+    Number.isFinite(Number(total)) &&
+    Number(total) > 0 &&
+    Number(score) >= 0 &&
+    Number(score) <= Number(total);
+  const combined = Boolean(component && isCombinedComponent(component));
+  const weight = component ? Number(component.weightage) : null;
+  const invalidate = () => {
+    void client.invalidateQueries({ queryKey: ["exam-marks", batchId, user?.id] });
+    void client.invalidateQueries({ queryKey: ["component-marks", batchId, user?.id] });
+  };
   const save = useMutation({
     mutationFn: async () => {
-      const s = Number(score);
-      const t = Number(total);
-      const w = weightage === "" ? defaultWeight : Number(weightage);
-      if (!score.trim() || !total.trim() || !Number.isFinite(s) || !Number.isFinite(t) || t <= 0)
-        throw new Error("Enter a valid score and the total marks.");
-      if (s < 0 || s > t) throw new Error("Score must be between 0 and the total marks.");
+      if (!user || !valid || pending) throw new Error("Enter a valid score and maximum marks.");
+      if (combined && !combinedConfirmed)
+        throw new Error("Confirm that this is the combined result.");
+      if (
+        marks.some(
+          (m) => componentId && m.component_id === componentId && m.deadline_id !== deadline.id,
+        )
+      )
+        throw new Error("That component is linked to another assessment.");
       const { error } = await supabase.from("exam_marks").upsert(
         {
           deadline_id: deadline.id,
           batch_id: deadline.batch_id,
-          user_id: user!.id,
-          score: s,
-          total: t,
-          weightage: w,
+          user_id: user.id,
+          score: Number(score),
+          total: Number(total),
+          weightage: weight ?? 0,
+          component_id: componentId || null,
         },
         { onConflict: "deadline_id,user_id" },
       );
@@ -66,12 +100,15 @@ export function ExamMarks({
     },
     onSuccess: () => {
       invalidate();
-      if (!inline) setIsOpen(false);
-      toast.success("Marks saved");
+      toast.success(
+        component
+          ? "Score saved in assessment and Grading"
+          : "Score saved; grading component not linked",
+      );
+      if (!inline) setOpen(false);
     },
     onError: (e: Error) => toast.error(e.message),
   });
-
   const remove = useMutation({
     mutationFn: async () => {
       if (!mine) return;
@@ -82,224 +119,195 @@ export function ExamMarks({
       invalidate();
       setScore("");
       setTotal("");
-      if (!inline) setIsOpen(false);
-      toast.success("Marks removed");
+      toast.success("Score removed");
     },
     onError: (e: Error) => toast.error(e.message),
   });
-
   if (!isMember || !user) return null;
-
-  const s = Number(score);
-  const t = Number(total);
-  const w = weightage === "" ? defaultWeight : Number(weightage);
-  const valid =
-    !!score.trim() &&
-    !!total.trim() &&
-    Number.isFinite(s) &&
-    Number.isFinite(t) &&
-    t > 0 &&
-    s >= 0 &&
-    s <= t;
-  const pct = valid ? scorePct(s, t) : null;
-  const points = valid && w > 0 ? weightedPoints(s, t, w) : null;
-
-  const savedS = mine ? Number(mine.score) : null;
-  const savedT = mine ? Number(mine.total) : null;
-  const savedW = mine ? Number(mine.weightage) : null;
-  const savedPct = savedS !== null && savedT !== null ? scorePct(savedS, savedT) : null;
-  const savedPoints =
-    savedS !== null && savedT !== null && savedW !== null
-      ? weightedPoints(savedS, savedT, savedW)
-      : null;
-
+  if (pending)
+    return (
+      <div className="mt-3 rounded-xl border border-border p-3 text-sm text-dim">
+        {failed ? (
+          <>
+            <span>Couldn't load scores.</span>
+            <button
+              className="ml-3 text-cyan"
+              onClick={() => {
+                void marksQuery.refetch();
+                void componentsQuery.refetch();
+                void gradesQuery.refetch();
+              }}
+            >
+              Retry
+            </button>
+          </>
+        ) : (
+          "Loading scores…"
+        )}
+      </div>
+    );
+  const busy = save.isPending || remove.isPending;
+  const pct = valid ? scorePct(Number(score), Number(total)) : null;
+  const points =
+    valid && weight !== null ? weightedPoints(Number(score), Number(total), weight) : null;
+  const field = "w-full rounded-lg border border-border bg-surface2 px-3 py-2 text-sm text-ink";
   return (
-    <div className="mt-3 overflow-hidden rounded-2xl border border-border/70 bg-surface2/30 transition-all">
-      {/* Header Bar / Summary Row */}
-      <div className="flex flex-wrap items-center justify-between gap-3 p-3 sm:px-4">
-        <div className="flex items-center gap-2.5">
-          <span className="flex size-7 items-center justify-center rounded-lg bg-cyan/12 text-cyan">
-            <Percent className="size-3.5" />
-          </span>
-          <div>
-            <p className="font-sans text-xs font-bold uppercase tracking-wider text-dim">
-              My score
-            </p>
+    <div className="mt-3 rounded-xl border border-border bg-surface2/30 p-3">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <span className="text-sm font-semibold text-ink">
+          My score{" "}
+          {source && (
+            <span className="font-mono text-cyan">
+              {fmtNum(Number(source.score))}/{fmtNum(Number(source.total))}
+            </span>
+          )}
+        </span>
+        {!inline && (
+          <button
+            type="button"
+            aria-expanded={open}
+            aria-controls={open ? inputId : undefined}
+            onClick={() => setOpen(!open)}
+            className="inline-flex items-center gap-1 rounded-lg border border-border px-3 py-1.5 text-sm"
+          >
+            {open ? "Close" : source ? "Edit score" : "Add score"}
+            {open ? <ChevronUp className="size-4" /> : <ChevronDown className="size-4" />}
+          </button>
+        )}
+      </div>
+      {open && (
+        <div id={inputId} className="mt-3 space-y-3">
+          <div className="grid grid-cols-2 gap-3">
+            <label className="text-xs text-dim" htmlFor={`${inputId}-score`}>
+              Score
+              <input
+                id={`${inputId}-score`}
+                inputMode="decimal"
+                value={score}
+                onChange={(e) => setScore(e.target.value)}
+                disabled={busy}
+                className={field}
+              />
+            </label>
+            <label className="text-xs text-dim" htmlFor={`${inputId}-total`}>
+              Out of
+              <input
+                id={`${inputId}-total`}
+                inputMode="decimal"
+                value={total}
+                onChange={(e) => setTotal(e.target.value)}
+                disabled={busy}
+                className={field}
+              />
+            </label>
           </div>
-        </div>
-
-        <div className="flex items-center gap-2">
-          {mine && !isOpen && (
-            <div className="flex items-center gap-2 rounded-xl border border-cyan/30 bg-cyan/10 px-3 py-1.5 shadow-xs">
-              <span className="font-mono text-xs font-extrabold text-cyan">{savedPct}%</span>
-              <span className="font-mono text-xs text-dim">
-                ({savedS}/{savedT} marks · {savedPoints}/{savedW} pts)
-              </span>
+          {Number(total) > 0 && (
+            <input
+              type="range"
+              aria-label={`Score for ${deadline.title}`}
+              min={0}
+              max={Number(total)}
+              step={0.5}
+              value={Math.min(Number(total), Math.max(0, Number(score) || 0))}
+              disabled={busy}
+              onChange={(e) => setScore(e.target.value)}
+              className="w-full accent-cyan"
+            />
+          )}
+          <label className="block text-xs text-dim" htmlFor={`${inputId}-component`}>
+            Counts towards
+            <select
+              id={`${inputId}-component`}
+              value={componentId}
+              disabled={busy}
+              onChange={(e) => {
+                setSelectedId(e.target.value);
+                setCombinedConfirmed(false);
+              }}
+              className={field}
+            >
+              <option value="">Score only — not linked</option>
+              {candidates.map((c) => (
+                <option
+                  key={c.id}
+                  value={c.id}
+                  disabled={marks.some(
+                    (m) => m.component_id === c.id && m.deadline_id !== deadline.id,
+                  )}
+                >
+                  {c.name} · {c.weightage}%
+                  {marks.some((m) => m.component_id === c.id && m.deadline_id !== deadline.id)
+                    ? " · already linked"
+                    : ""}
+                </option>
+              ))}
+            </select>
+          </label>
+          {combined && (
+            <label className="flex items-start gap-2 text-sm text-amber">
+              <input
+                type="checkbox"
+                checked={combinedConfirmed}
+                onChange={(e) => setCombinedConfirmed(e.target.checked)}
+                disabled={busy}
+                className="mt-1"
+              />
+              This score combines all work in {component?.name}.
+            </label>
+          )}
+          {!component && <p className="text-xs text-dim">Choose where this counts in Grading.</p>}
+          {pct !== null && (
+            <div className="flex flex-wrap justify-between gap-2 text-sm">
+              <span className="font-mono text-cyan">{pct}%</span>
+              {points !== null && (
+                <span>
+                  {points} / {weight} course points
+                </span>
+              )}
             </div>
           )}
-
-          {!inline && (
+          <div className="flex flex-wrap justify-end gap-2">
+            {mine && (
+              <button
+                type="button"
+                disabled={busy}
+                aria-label={`Remove score for ${deadline.title}`}
+                onClick={() => {
+                  if (
+                    window.confirm(
+                      "Remove this score from the assessment and its linked grading component?",
+                    )
+                  )
+                    remove.mutate();
+                }}
+                className="mr-auto rounded-lg border border-rose/30 px-3 py-2 text-rose"
+              >
+                <Trash2 className="size-4" />
+              </button>
+            )}
             <button
               type="button"
-              onClick={() => setIsOpen(!isOpen)}
-              className="flex items-center gap-1.5 rounded-xl border border-border bg-surface px-3 py-1.5 font-sans text-xs font-semibold text-dim hover:bg-surface2 hover:text-ink transition-colors cursor-pointer"
+              disabled={busy}
+              onClick={() => {
+                setScore(source ? String(source.score) : "");
+                setTotal(source ? String(source.total) : "");
+                if (!inline) setOpen(false);
+              }}
+              className="rounded-lg border border-border px-3 py-2 text-sm"
             >
-              {mine ? (
-                <>
-                  <Pencil className="size-3 text-amber" />
-                  <span>{isOpen ? "Close" : "Edit Marks"}</span>
-                </>
-              ) : (
-                <>
-                  <Award className="size-3 text-cyan" />
-                  <span>{isOpen ? "Cancel" : "Record Score"}</span>
-                </>
-              )}
-              {isOpen ? (
-                <ChevronUp className="size-3.5 ml-0.5" />
-              ) : (
-                <ChevronDown className="size-3.5 ml-0.5" />
-              )}
+              {inline ? "Reset" : "Cancel"}
             </button>
-          )}
+            <button
+              type="button"
+              disabled={busy || !valid || (combined && !combinedConfirmed)}
+              onClick={() => save.mutate()}
+              className="rounded-lg bg-cyan px-4 py-2 text-sm font-semibold text-ground disabled:opacity-50"
+            >
+              {save.isPending ? "Saving…" : "Save"}
+            </button>
+          </div>
         </div>
-      </div>
-
-      {/* Expandable Form Box */}
-      <AnimatePresence>
-        {isOpen && (
-          <motion.div
-            initial={{ height: 0, opacity: 0 }}
-            animate={{ height: "auto", opacity: 1 }}
-            exit={{ height: 0, opacity: 0 }}
-            transition={{ duration: 0.2 }}
-            className="border-t border-border/60 bg-surface/80 p-4 sm:p-5"
-          >
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
-              <div>
-                <label className="block font-sans text-xs font-semibold text-dim mb-1">Score</label>
-                <input
-                  type="text"
-                  inputMode="decimal"
-                  value={score}
-                  onChange={(e) => setScore(e.target.value.replace(/[^\d.]/g, ""))}
-                  placeholder="e.g. 18"
-                  className="w-full rounded-xl border border-border bg-surface2 px-3 py-2 font-mono text-sm font-bold text-ink outline-none focus:border-cyan/70 focus:ring-2 focus:ring-cyan/20 transition-all placeholder:text-faint"
-                />
-              </div>
-
-              <div>
-                <label className="block font-sans text-xs font-semibold text-dim mb-1">
-                  Max marks
-                </label>
-                <input
-                  type="text"
-                  inputMode="decimal"
-                  value={total}
-                  onChange={(e) => setTotal(e.target.value.replace(/[^\d.]/g, ""))}
-                  placeholder="e.g. 20"
-                  className="w-full rounded-xl border border-border bg-surface2 px-3 py-2 font-mono text-sm font-bold text-ink outline-none focus:border-cyan/70 focus:ring-2 focus:ring-cyan/20 transition-all placeholder:text-faint"
-                />
-              </div>
-
-              <div>
-                <label className="block font-sans text-xs font-semibold text-dim mb-1">
-                  Course Weight %
-                </label>
-                <input
-                  type="text"
-                  inputMode="decimal"
-                  value={weightage}
-                  onChange={(e) => setWeightage(e.target.value.replace(/[^\d.]/g, ""))}
-                  placeholder="20"
-                  className="w-full rounded-xl border border-border bg-surface2 px-3 py-2 font-mono text-sm font-bold text-ink outline-none focus:border-cyan/70 focus:ring-2 focus:ring-cyan/20 transition-all placeholder:text-faint"
-                />
-              </div>
-            </div>
-
-            {t > 0 && (
-              <label className="mt-3 block text-xs text-dim">
-                Adjust score · {score || "0"}/{total}
-                <input
-                  type="range"
-                  aria-label="Adjust assessment score"
-                  min="0"
-                  max={t}
-                  step="0.5"
-                  value={Math.min(t, Math.max(0, s))}
-                  onChange={(e) => setScore(e.target.value)}
-                  className="mt-2 w-full accent-cyan"
-                />
-              </label>
-            )}
-            {pct !== null && (
-              <div className="mt-3 h-2 overflow-hidden rounded-full bg-surface2">
-                <motion.div
-                  initial={false}
-                  animate={{ width: Math.min(100, pct) + "%" }}
-                  className="h-full bg-cyan"
-                />
-              </div>
-            )}
-            {/* Real-time Calculation Result */}
-            {valid && (
-              <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-cyan/30 bg-cyan/8 p-3">
-                <div className="flex items-center gap-2">
-                  <span className="font-mono text-base font-extrabold text-cyan">{pct}%</span>
-                  <span className="font-sans text-xs text-dim">
-                    ({s} of {t} marks)
-                  </span>
-                </div>
-                {points !== null && (
-                  <div className="font-mono text-xs font-bold text-ink">
-                    Earned: <span className="text-cyan font-extrabold">{points}</span> / {fmtNum(w)}{" "}
-                    course points
-                  </div>
-                )}
-              </div>
-            )}
-
-            {/* Action Buttons */}
-            <div className="mt-4 flex items-center justify-end gap-2.5">
-              {mine && (
-                <button
-                  type="button"
-                  onClick={() => remove.mutate()}
-                  disabled={remove.isPending}
-                  className="flex items-center gap-1.5 rounded-xl border border-rose/30 bg-rose/10 px-3.5 py-2 font-sans text-xs font-semibold text-rose hover:bg-rose/20 transition-colors disabled:opacity-40 cursor-pointer"
-                >
-                  <Trash2 className="size-3.5" />
-                  <span>Remove</span>
-                </button>
-              )}
-
-              <button
-                type="button"
-                onClick={() => {
-                  if (inline) {
-                    setScore(mine ? String(mine.score) : "");
-                    setTotal(mine ? String(mine.total) : "");
-                    setWeightage(mine ? String(mine.weightage) : String(defaultWeight));
-                  } else setIsOpen(false);
-                }}
-                className="rounded-xl border border-border bg-surface2 px-3.5 py-2 font-sans text-xs font-semibold text-dim hover:text-ink transition-colors cursor-pointer"
-              >
-                {inline ? "Reset" : "Cancel"}
-              </button>
-
-              <button
-                type="button"
-                onClick={() => save.mutate()}
-                disabled={!valid || save.isPending}
-                className="flex items-center gap-1.5 rounded-xl bg-cyan px-4 py-2 font-sans text-xs font-bold text-white shadow-sm hover:brightness-105 transition-all disabled:opacity-40 cursor-pointer"
-              >
-                <Check className="size-4" />
-                <span>{save.isPending ? "Saving…" : "Save Marks"}</span>
-              </button>
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+      )}
     </div>
   );
 }

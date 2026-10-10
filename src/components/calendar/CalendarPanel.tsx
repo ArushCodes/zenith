@@ -1,3 +1,4 @@
+import { IPM_CLASS_SLOTS, classSlotIndex } from "@/lib/class-slots";
 import { useMemo, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { useQuery } from "@tanstack/react-query";
@@ -507,13 +508,6 @@ function EventPill({
   );
 }
 
-const SLOTS = [
-  { label: "S1", startHour: 8, endHour: 11 },
-  { label: "S2", startHour: 11, endHour: 13 },
-  { label: "S3", startHour: 13, endHour: 16 },
-  { label: "S4", startHour: 16, endHour: 22 },
-];
-
 function ClassDots({
   list,
   colorMap,
@@ -525,91 +519,55 @@ function ClassDots({
   canManage?: boolean;
   onEditSession?: (s: ClassSession) => void;
 }) {
-  if (list.length === 0) return null;
-
-  // Map sessions to one of the 4 slots based on start_at hour
-  const slotMap = new Array<ClassSession | null>(4).fill(null);
-  for (const s of list) {
-    const hour = new Date(s.start_at).getHours();
-    if (hour < 11) slotMap[0] = s;
-    else if (hour < 13) slotMap[1] = s;
-    else if (hour < 16) slotMap[2] = s;
-    else slotMap[3] = s;
-  }
-
+  if (!list.length) return null;
+  const slots = IPM_CLASS_SLOTS.map((_, i) => list.filter((s) => classSlotIndex(s.start_at) === i));
+  const unmatched = list.filter((s) => classSlotIndex(s.start_at) < 0);
+  const item = (s: ClassSession, slot: string) => {
+    const color = sessionColor(s, colorMap) ?? FALLBACK_COURSE_COLOR;
+    const content = (
+      <>
+        <span className="size-1.5 shrink-0 rounded-full" style={{ backgroundColor: color }} />
+        <span className="shrink-0 text-faint">{slot}</span>
+        <span className="truncate text-ink">{sessionShortLabel(s)}</span>
+      </>
+    );
+    const label = `${slot} · ${timeFmt.format(new Date(s.start_at))} · ${sessionLabel(s)}`;
+    return canManage && onEditSession ? (
+      <button
+        key={s.id}
+        type="button"
+        aria-label={`Edit ${label}`}
+        title={label}
+        onClick={(e) => {
+          e.stopPropagation();
+          onEditSession(s);
+        }}
+        className="flex w-full min-w-0 items-center gap-1 rounded text-left font-mono text-[10px] hover:bg-surface2 focus-visible:ring-2 focus-visible:ring-cyan"
+      >
+        {content}
+      </button>
+    ) : (
+      <div
+        key={s.id}
+        title={label}
+        className="flex min-w-0 items-center gap-1 font-mono text-[10px]"
+      >
+        {content}
+      </div>
+    );
+  };
   return (
-    <div className="mt-1 flex flex-col gap-0.5">
-      <div className="flex flex-col gap-0.5 sm:hidden">
-        {slotMap.map((s, idx) => {
-          if (!s) return null;
-          const color = sessionColor(s, colorMap) ?? FALLBACK_COURSE_COLOR;
-          const label = sessionShortLabel(s);
-          return (
-            <div
-              key={s.id || idx}
-              onClick={
-                canManage && onEditSession
-                  ? (e) => {
-                      e.stopPropagation();
-                      onEditSession(s);
-                    }
-                  : undefined
-              }
-              title={canManage ? "Click to edit" : undefined}
-              className={`flex items-center gap-1 text-[9px] font-mono truncate ${
-                canManage && onEditSession ? "cursor-pointer hover:text-ink" : ""
-              }`}
-            >
-              <span className="size-1.5 shrink-0 rounded-full" style={{ backgroundColor: color }} />
-              <span className="truncate text-dim">{label}</span>
-            </div>
-          );
-        })}
-      </div>
-      <div className="hidden sm:flex flex-col gap-0.5">
-        {slotMap.map((s, idx) => {
-          if (!s) {
-            return (
-              <div
-                key={idx}
-                className="flex items-center gap-1.5 font-mono text-[9px] text-faint/40"
-              >
-                <span className="size-1.5 rounded-full border border-border/40" />
-                <span className="w-3 font-mono text-[8px] opacity-40">{idx + 1}</span>
-                <span>—</span>
-              </div>
-            );
-          }
-          const color = sessionColor(s, colorMap) ?? FALLBACK_COURSE_COLOR;
-          const label = sessionShortLabel(s);
-          return (
-            <div
-              key={s.id}
-              onClick={
-                canManage && onEditSession
-                  ? (e) => {
-                      e.stopPropagation();
-                      onEditSession(s);
-                    }
-                  : undefined
-              }
-              title={`${timeFmt.format(new Date(s.start_at))} · ${sessionLabel(s)}${s.faculty_name ? ` · ${s.faculty_name}` : ""}${s.classroom ? ` · ${s.classroom}` : ""}${canManage ? " (Click to edit)" : ""}`}
-              className={`flex items-center gap-1.5 font-mono text-[10px] truncate ${
-                canManage && onEditSession
-                  ? "cursor-pointer hover:bg-surface2/80 rounded px-0.5 -mx-0.5 transition-colors"
-                  : ""
-              }`}
-            >
-              <span
-                className="size-2 shrink-0 rounded-full ring-1 ring-black/30"
-                style={{ backgroundColor: color }}
-              />
-              <span className="w-3 font-mono text-[8px] text-faint">{idx + 1}</span>
-              <span className="truncate font-medium text-ink/90">{label}</span>
-            </div>
-          );
-        })}
-      </div>
+    <div className="mt-1 flex flex-col gap-1">
+      {slots.map((sessions, i) =>
+        sessions.length ? (
+          sessions.map((s) => item(s, `S${i + 1}`))
+        ) : (
+          <div key={`empty-${i}`} className="hidden text-[10px] text-faint sm:block">
+            S{i + 1} —
+          </div>
+        ),
+      )}
+      {unmatched.map((s) => item(s, timeFmt.format(new Date(s.start_at))))}
     </div>
   );
 }
@@ -771,7 +729,7 @@ function MonthGrid({
                       onStyleDay(k);
                     }}
                     aria-label="Style this day"
-                    className="absolute right-1 top-1 rounded-md bg-surface2/90 p-1 text-dim opacity-0 ring-1 ring-border transition-opacity hover:text-cyan group-hover:opacity-100"
+                    className="absolute right-1 top-1 rounded-md bg-surface2/90 p-1 text-dim opacity-0 ring-1 ring-border transition-opacity hover:text-cyan group-hover:opacity-100 group-focus-within:opacity-100 focus-visible:opacity-100"
                   >
                     <Palette className="size-3" />
                   </button>

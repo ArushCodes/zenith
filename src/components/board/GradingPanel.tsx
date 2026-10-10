@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { db as supabase } from "@/lib/backend";
 import { useAuth } from "@/hooks/use-auth";
 import { useBatch } from "@/hooks/use-batch";
+import { examMarksQuery } from "@/lib/marks";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import {
   KIND_LABEL,
@@ -29,10 +30,19 @@ export function GradingPanel() {
   const [open, setOpen] = useState<string | null>(null);
   const [editing, setEditing] = useState<Partial<CourseComponent> | null>(null);
 
-  const { data: components = [], isLoading } = useQuery(courseComponentsQuery(batchId));
-  const { data: marks = [] } = useQuery(componentMarksQuery(batchId, user?.id));
+  const componentsQuery = useQuery(courseComponentsQuery(batchId));
+  const marksQuery = useQuery(componentMarksQuery(batchId, user?.id));
+  const assessmentResults = useQuery(examMarksQuery(batchId, user?.id));
+  const unlinkedResults = (assessmentResults.data ?? []).filter(
+    (result) => !result.component_id,
+  ).length;
+  const isLoading = componentsQuery.isPending || marksQuery.isPending;
+  const queryFailed = componentsQuery.isError || marksQuery.isError;
 
-  const rows = useMemo(() => buildCourseRows(components, marks), [components, marks]);
+  const rows = useMemo(
+    () => buildCourseRows(componentsQuery.data ?? [], marksQuery.data ?? []),
+    [componentsQuery.data, marksQuery.data],
+  );
 
   if (!isMember)
     return (
@@ -57,27 +67,52 @@ export function GradingPanel() {
         )}
       </div>
 
-      {isLoading && (
+      {queryFailed && (
+        <div
+          role="alert"
+          className="flex flex-wrap items-center gap-3 rounded-xl bg-rose/10 p-3 text-sm text-rose"
+        >
+          Could not load your grading records.
+          <button
+            className="rounded-lg px-3 py-2 ring-1 ring-rose/40"
+            onClick={() => {
+              void componentsQuery.refetch();
+              void marksQuery.refetch();
+            }}
+          >
+            Retry
+          </button>
+        </div>
+      )}
+      {unlinkedResults > 0 && !isLoading && !queryFailed && (
+        <p className="mb-3 rounded-xl border border-amber/30 bg-amber/5 px-3 py-2 text-sm text-amber">
+          {unlinkedResults} saved {unlinkedResults === 1 ? "result isn't" : "results aren't"}{" "}
+          linked. Choose a grading component in the assessment's score editor.
+        </p>
+      )}
+      {isLoading && !queryFailed && (
         <p className="mt-6 text-center font-mono text-xs text-faint">Loading courses…</p>
       )}
 
-      {!isLoading && rows.length === 0 && (
+      {!isLoading && !queryFailed && rows.length === 0 && (
         <p className="mt-6 text-center font-mono text-xs text-faint">No assessments added yet.</p>
       )}
 
       <div className="mt-4 flex flex-col gap-3">
-        {rows.map((row) => (
-          <CourseCard
-            key={`${user?.id ?? "guest"}:${batchId}:${row.code}`}
-            row={row}
-            open={open === row.code}
-            onToggle={() => setOpen(open === row.code ? null : row.code)}
-            canManage={canManage}
-            onEdit={(c) => setEditing(c)}
-            batchId={batchId!}
-            userId={user?.id}
-          />
-        ))}
+        {!isLoading &&
+          !queryFailed &&
+          rows.map((row) => (
+            <CourseCard
+              key={`${user?.id ?? "guest"}:${batchId}:${row.code}`}
+              row={row}
+              open={open === row.code}
+              onToggle={() => setOpen(open === row.code ? null : row.code)}
+              canManage={canManage}
+              onEdit={(c) => setEditing(c)}
+              batchId={batchId!}
+              userId={user?.id}
+            />
+          ))}
       </div>
 
       {editing && canManage && (
@@ -310,6 +345,7 @@ function CourseCard({
           {row.components.map((c) => (
             <Fragment key={c.component.id}>
               <ComponentRow
+                courseName={row.name}
                 component={c.component}
                 pct={c.pct}
                 earned={c.earned}
@@ -346,6 +382,7 @@ function Warning({ children }: { children: React.ReactNode }) {
 }
 
 function ComponentRow({
+  courseName,
   component,
   pct,
   earned,
@@ -359,6 +396,7 @@ function ComponentRow({
   expected,
   onExpected,
 }: {
+  courseName: string;
   component: CourseComponent;
   pct: number | null;
   earned: number | null;
@@ -381,8 +419,10 @@ function ComponentRow({
     setT(total === null ? "" : String(total));
   }, [score, total, markId]);
 
-  const invalidate = () =>
-    queryClient.invalidateQueries({ queryKey: ["component-marks", batchId, userId] });
+  const invalidate = () => {
+    void queryClient.invalidateQueries({ queryKey: ["component-marks", batchId, userId] });
+    void queryClient.invalidateQueries({ queryKey: ["exam-marks", batchId, userId] });
+  };
 
   const save = useMutation({
     mutationFn: async () => {
@@ -442,7 +482,8 @@ function ComponentRow({
       {Number(t) > 0 && (
         <input
           type="range"
-          aria-label={`Score for ${component.name}`}
+          aria-label={`Score for ${courseName}: ${component.name}`}
+          aria-valuetext={`${Number(s) || 0} out of ${Number(t)} marks, ${preview ?? 0} of ${weightage} course points`}
           min="0"
           max={Number(t)}
           step="0.5"
@@ -454,7 +495,7 @@ function ComponentRow({
       <span className="flex min-w-0 flex-wrap items-center gap-1.5">
         <input
           value={s}
-          aria-label={`My marks for ${component.name}`}
+          aria-label={`My marks for ${courseName}: ${component.name}`}
           onChange={(e) => setS(e.target.value)}
           placeholder="score"
           inputMode="decimal"
@@ -463,7 +504,7 @@ function ComponentRow({
         <span className="font-mono text-xs text-dim">/</span>
         <input
           value={t}
-          aria-label={`Maximum marks for ${component.name}`}
+          aria-label={`Maximum marks for ${courseName}: ${component.name}`}
           onChange={(e) => setT(e.target.value)}
           placeholder="out of"
           inputMode="decimal"
@@ -510,6 +551,8 @@ function ComponentRow({
           </label>
           <input
             id={`expected-${component.id}`}
+            aria-label={`Predict score for ${courseName}: ${component.name}`}
+            aria-valuetext={`${expected} percent score, ${round1((expected * weightage) / 100)} of ${weightage} course points`}
             type="range"
             min={0}
             max={100}

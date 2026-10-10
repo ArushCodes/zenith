@@ -63,6 +63,7 @@ import { autoColor } from "@/lib/courses";
 import { Marker, shapeForDeadline } from "@/lib/shapes";
 import {
   FILTERS,
+  feedState,
   canCompleteDeadline,
   deadlinesQueryFor,
   displayTitle,
@@ -261,6 +262,7 @@ export default function StudentBoard({ guestPreview }: { guestPreview?: boolean 
       window.removeEventListener("zenith:goto-tab", gotoTab);
     };
   }, [deadlines]);
+  const [deleting, setDeleting] = useState<Deadline | null>(null);
 
   const remove = useMutation({
     mutationFn: async (deadline: Deadline) => {
@@ -270,6 +272,8 @@ export default function StudentBoard({ guestPreview }: { guestPreview?: boolean 
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["deadlines", batchId] });
       setSelected(null);
+      setDeleting(null);
+      queryClient.invalidateQueries({ queryKey: ["exam-marks"] });
       toast.success("Deadline removed");
     },
     onError: (error: Error) => toast.error(error.message),
@@ -332,14 +336,14 @@ export default function StudentBoard({ guestPreview }: { guestPreview?: boolean 
   // ALL upcoming deadlines across ANY event type, strictly sorted by recency (nearest due_at first)
   const allUpcoming = useMemo(() => {
     return approved
-      .filter((d) => phaseOf(d, now) !== "completed" && !isDone(d.id))
+      .filter((d) => ["upcoming", "overdue"].includes(feedState(d, now, isDone(d.id))))
       .sort((a, b) => new Date(a.due_at).getTime() - new Date(b.due_at).getTime());
   }, [approved, now, isDone]);
 
   // ALL completed deadlines (most recently completed first)
   const allCompleted = useMemo(() => {
     return approved
-      .filter((d) => phaseOf(d, now) === "completed" || isDone(d.id))
+      .filter((d) => ["past", "done"].includes(feedState(d, now, isDone(d.id))))
       .sort((a, b) => new Date(b.due_at).getTime() - new Date(a.due_at).getTime());
   }, [approved, now, isDone]);
 
@@ -389,8 +393,10 @@ export default function StudentBoard({ guestPreview }: { guestPreview?: boolean 
   const recencyBuckets = useMemo(() => {
     const next48h = now + 48 * 3600_000;
     const next7d = now + 7 * 24 * 3600_000;
+    const overdue = filteredUpcoming.filter((d) => feedState(d, now) === "overdue");
 
     const critical = filteredUpcoming.filter((d) => {
+      if (feedState(d, now) === "overdue") return false;
       const t = new Date(d.due_at).getTime();
       return t <= next48h || phaseOf(d, now) === "ongoing";
     });
@@ -404,21 +410,28 @@ export default function StudentBoard({ guestPreview }: { guestPreview?: boolean 
       const t = new Date(d.due_at).getTime();
       return t > next7d && phaseOf(d, now) !== "ongoing";
     });
-
-    return { critical, thisWeek, later };
+    return { overdue, critical, thisWeek, later };
   }, [filteredUpcoming, now]);
-
-  const totalUpcomingCount = allUpcoming.length;
+  const relevantWork = useMemo(
+    () =>
+      approved.filter(
+        (d) =>
+          ["quiz", "assignment", "presentation"].includes(d.type) &&
+          phaseOf(d, now) !== "completed",
+      ),
+    [approved, now],
+  );
+  const totalUpcomingCount = relevantWork.length;
   const completedUpcomingCount = useMemo(() => {
-    return allUpcoming.filter((d) => canCompleteDeadline(d, now) && doneMap[d.id]).length;
-  }, [allUpcoming, doneMap, now]);
+    return relevantWork.filter((d) => isDone(d.id)).length;
+  }, [relevantWork, isDone]);
   const progressPercent =
     totalUpcomingCount > 0 ? Math.round((completedUpcomingCount / totalUpcomingCount) * 100) : 0;
 
   const FEED_CATEGORIES = [
     {
       key: "all" as const,
-      label: "All Upcoming",
+      label: "To do",
       count: allUpcoming.length,
       icon: <Layers className="size-3.5" />,
     },
@@ -870,7 +883,7 @@ export default function StudentBoard({ guestPreview }: { guestPreview?: boolean 
                           aria-label="Show pending deadlines only"
                           className="inline-flex items-center gap-2 rounded-xl bg-surface2/60 border border-border/60 px-2.5 py-1 text-xs text-dim shrink-0 self-end sm:self-auto cursor-pointer hover:bg-surface2 transition-all"
                           onClick={() => setPendingOnly((v) => !v)}
-                          title={`${completedUpcomingCount} of ${totalUpcomingCount} upcoming events marked as prepared. Click to toggle pending only.`}
+                          title={`${completedUpcomingCount} of ${totalUpcomingCount} tasks completed. Click to toggle pending only.`}
                         >
                           <CheckCircle2
                             className={`size-3.5 ${
@@ -884,7 +897,7 @@ export default function StudentBoard({ guestPreview }: { guestPreview?: boolean 
                           <span className="font-mono text-[11px] font-medium text-ink">
                             {completedUpcomingCount}/{totalUpcomingCount}
                           </span>
-                          <span className="hidden md:inline text-[11px] text-faint">prepared</span>
+                          <span className="hidden md:inline text-[11px] text-faint">done</span>
                           <span className="w-12 h-1.5 rounded-full bg-surface overflow-hidden border border-border/40">
                             <motion.span
                               className="block h-full bg-gradient-to-r from-cyan to-emerald-400 rounded-full"
@@ -961,6 +974,25 @@ export default function StudentBoard({ guestPreview }: { guestPreview?: boolean 
                   ) : (
                     <div className="relative pl-4 sm:pl-7 border-l-2 border-border/70 ml-3.5 sm:ml-5 flex flex-col gap-6">
                       {/* Bucket 1: Due soon / Ongoing */}
+                      {recencyBuckets.overdue.length > 0 && (
+                        <section className="mb-5">
+                          <h3 className="mb-2 text-sm font-semibold text-rose">
+                            Overdue · {recencyBuckets.overdue.length}
+                          </h3>
+                          <FeedList
+                            items={recencyBuckets.overdue}
+                            empty=""
+                            now={now}
+                            isMod={isMod}
+                            onEdit={openEdit}
+                            onDelete={setDeleting}
+                            onOpen={setSelected}
+                            density={feedDensity}
+                            isDone={isDone}
+                            onToggleDone={toggleDone}
+                          />
+                        </section>
+                      )}
                       {recencyBuckets.critical.length > 0 && (
                         <div className="relative">
                           {/* Spine Anchor Dot */}
@@ -1007,7 +1039,7 @@ export default function StudentBoard({ guestPreview }: { guestPreview?: boolean 
                               now={now}
                               isMod={isMod}
                               onEdit={openEdit}
-                              onDelete={(x) => remove.mutate(x)}
+                              onDelete={(x) => setDeleting(x)}
                               onOpen={setSelected}
                               density={feedDensity}
                               isDone={isDone}
@@ -1064,7 +1096,7 @@ export default function StudentBoard({ guestPreview }: { guestPreview?: boolean 
                               now={now}
                               isMod={isMod}
                               onEdit={openEdit}
-                              onDelete={(x) => remove.mutate(x)}
+                              onDelete={(x) => setDeleting(x)}
                               onOpen={setSelected}
                               density={feedDensity}
                               isDone={isDone}
@@ -1118,7 +1150,7 @@ export default function StudentBoard({ guestPreview }: { guestPreview?: boolean 
                               now={now}
                               isMod={isMod}
                               onEdit={openEdit}
-                              onDelete={(x) => remove.mutate(x)}
+                              onDelete={(x) => setDeleting(x)}
                               onOpen={setSelected}
                               density={feedDensity}
                               isDone={isDone}
@@ -1174,7 +1206,7 @@ export default function StudentBoard({ guestPreview }: { guestPreview?: boolean 
                               now={now}
                               isMod={isMod}
                               onEdit={openEdit}
-                              onDelete={(x) => remove.mutate(x)}
+                              onDelete={(x) => setDeleting(x)}
                               onOpen={setSelected}
                               density="compact"
                               isDone={isDone}
@@ -1219,7 +1251,7 @@ export default function StudentBoard({ guestPreview }: { guestPreview?: boolean 
               now={now}
               canManage={isMod}
               onEdit={openEdit}
-              onDelete={(x) => remove.mutate(x)}
+              onDelete={(x) => setDeleting(x)}
               onOpen={setSelected}
             />
           )}
@@ -1231,7 +1263,7 @@ export default function StudentBoard({ guestPreview }: { guestPreview?: boolean 
               canManage={isMod}
               initialSubTab={examSubTab}
               onEdit={openEdit}
-              onDelete={(x) => remove.mutate(x)}
+              onDelete={(x) => setDeleting(x)}
               onOpen={setSelected}
               onAddExam={() => {
                 setEditing(null);
@@ -1248,6 +1280,36 @@ export default function StudentBoard({ guestPreview }: { guestPreview?: boolean 
           {tab === "admin" && <AdminConsolePanel />}
         </div>
       </main>
+      <Dialog
+        open={!!deleting}
+        onOpenChange={(open) => !open && !remove.isPending && setDeleting(null)}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Delete {deleting?.title}?</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-dim">
+            This removes the event for the entire batch. Any saved scores for this event will also
+            be deleted.
+          </p>
+          <div className="flex justify-end gap-3">
+            <button
+              disabled={remove.isPending}
+              className="rounded-lg border border-border px-4 py-2"
+              onClick={() => setDeleting(null)}
+            >
+              Cancel
+            </button>
+            <button
+              disabled={remove.isPending}
+              className="rounded-lg bg-rose/20 px-4 py-2 text-rose"
+              onClick={() => deleting && remove.mutate(deleting)}
+            >
+              {remove.isPending ? "Deleting…" : "Delete event"}
+            </button>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       <EventDrawer
         deadline={selected}
@@ -1255,7 +1317,7 @@ export default function StudentBoard({ guestPreview }: { guestPreview?: boolean 
         canManage={isMod}
         onClose={() => setSelected(null)}
         onEdit={openEdit}
-        onDelete={(d) => remove.mutate(d)}
+        onDelete={(d) => setDeleting(d)}
       />
 
       <Dialog open={panel !== null} onOpenChange={(o) => !o && setPanel(null)}>

@@ -21,10 +21,9 @@ import {
   HARD_LINE,
   CONTINUOUS_ABSENCE_DAYS,
   PENALTY_PER_SESSION,
-  courseCredits,
-  plannedFor,
+  sessionCredits,
+  type CreditCourse,
   resolveMarks,
-  safeMisses,
   subjectKeyOf,
 } from "@/lib/attendance";
 import type { AttendanceMark, ClassSession } from "@/lib/batches";
@@ -37,6 +36,7 @@ type Props = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   sessions: ClassSession[];
+  courses?: CreditCourse[];
   marks: AttendanceMark[];
   batchId?: string;
   onApplyPlannedLeave?: (sessionIds: string[]) => void;
@@ -48,6 +48,7 @@ export function BunkSimulatorModal({
   open,
   onOpenChange,
   sessions,
+  courses: catalog = [],
   marks,
   batchId,
   onApplyPlannedLeave,
@@ -131,7 +132,7 @@ export function BunkSimulatorModal({
         attended: 0,
         scheduled: 0,
         absent: 0,
-        plannedTotal: plannedFor(subj),
+        plannedTotal: sessionCredits(s, catalog) * 8,
       };
       existing.scheduled += 1;
       map.set(key, existing);
@@ -150,7 +151,7 @@ export function BunkSimulatorModal({
     }
 
     return map;
-  }, [sessions, marks, user?.id]);
+  }, [sessions, marks, user?.id, catalog]);
 
   // Calculate course-by-course impact
   const simulationResults = useMemo(() => {
@@ -163,31 +164,32 @@ export function BunkSimulatorModal({
 
     const courses = Array.from(currentSubjectStats.entries()).map(([key, data]) => {
       const willMiss = subjectMissCounts.get(key) || 0;
-      const credits = courseCredits(data.subject);
+      const credits = data.plannedTotal / 8;
       const planned = credits * 8; // Strictly 8, 16, or 24 sessions
       // Current percentage (if no classes held yet, assume 100%)
       const currentMisses = data.absent;
-      const currentPct = Math.max(0, Math.round(((planned - currentMisses) / planned) * 100));
+      const currentPct =
+        planned > 0 ? Math.max(0, Math.round(((planned - currentMisses) / planned) * 100)) : 0;
 
       // Projected percentage after simulated misses
       const projectedMisses = currentMisses + willMiss;
-      const projectedPct = Math.max(0, Math.round(((planned - projectedMisses) / planned) * 100));
+      const projectedPct =
+        planned > 0 ? Math.max(0, Math.round(((planned - projectedMisses) / planned) * 100)) : 0;
 
       // TAPMI Credit Policy: exactly 1 miss allowed per credit
       const safeMissAllowed = credits * 1;
       const remainingSafeMisses = safeMissAllowed - projectedMisses;
 
       // Penalty check: 0.5 course grade points for each subsequent class missed beyond safe limit
-      const excessMisses = Math.max(0, projectedMisses - safeMissAllowed);
+      const excessMisses = credits > 0 ? Math.max(0, projectedMisses - safeMissAllowed) : 0;
       const gradePenaltyScore = excessMisses * PENALTY_PER_SESSION;
 
       let status: "safe" | "warn" | "danger" = "safe";
-      if (excessMisses > 0 || projectedPct < HARD_LINE) {
+      if (credits > 0 && (excessMisses > 0 || projectedPct < HARD_LINE)) {
         status = "danger";
       } else if (
-        remainingSafeMisses === 1 ||
-        remainingSafeMisses === 0 ||
-        projectedPct < SAFE_LINE
+        credits > 0 &&
+        (remainingSafeMisses === 1 || remainingSafeMisses === 0 || projectedPct < SAFE_LINE)
       ) {
         status = "warn";
       }
@@ -214,7 +216,8 @@ export function BunkSimulatorModal({
 
     // Overall verdict
     const hasDanger = courses.some((c) => c.status === "danger") || continuousAbsenceBreached;
-    const hasWarn = courses.some((c) => c.status === "warn");
+    const hasUnknown = courses.some((c) => c.credits === 0 && c.willMiss > 0);
+    const hasWarn = courses.some((c) => c.status === "warn") || hasUnknown;
 
     let verdict: "safe" | "warn" | "danger" = "safe";
     if (hasDanger) verdict = "danger";
@@ -226,6 +229,7 @@ export function BunkSimulatorModal({
       daysSpanned,
       continuousAbsenceBreached,
       verdict,
+      hasUnknown,
     };
   }, [currentSubjectStats, impactedSessions, startDate, endDate]);
 
@@ -414,6 +418,15 @@ export function BunkSimulatorModal({
             <div className="divide-y divide-border/60 rounded-xl border border-border bg-surface">
               {simulationResults.courses.map((c) => {
                 const color = autoColor(c.subject);
+                if (c.credits === 0)
+                  return (
+                    <div key={c.subject} className="p-3 text-sm">
+                      <strong>{c.subject}</strong>
+                      <p className="mt-1 text-dim">
+                        {c.willMiss} classes in this range · credits not set, allowance unavailable
+                      </p>
+                    </div>
+                  );
                 return (
                   <div key={c.subject} className="flex items-center justify-between p-3 text-xs">
                     <div className="flex items-center gap-2.5">
@@ -480,6 +493,7 @@ export function BunkSimulatorModal({
                     <div className="flex items-center gap-4">
                       <div className="text-right">
                         <span className="font-mono text-xs font-bold text-ink">
+                          <span className="block text-[10px] text-dim">Full-term projection</span>
                           {c.currentPct}% →{" "}
                           <span
                             className={
@@ -507,6 +521,11 @@ export function BunkSimulatorModal({
           )}
         </div>
 
+        {simulationResults.hasUnknown && (
+          <p className="text-sm text-amber-500">
+            Some credits are not set. This simulation cannot confirm their leave allowance.
+          </p>
+        )}
         {/* Footer Actions */}
         <div className="flex items-center justify-between border-t border-border/60 pt-3">
           <button

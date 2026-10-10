@@ -487,6 +487,7 @@ export type Database = {
       };
       component_marks: {
         Row: {
+          assessment_mark_id: string | null;
           batch_id: string;
           component_id: string;
           created_at: string;
@@ -497,6 +498,7 @@ export type Database = {
           user_id: string;
         };
         Insert: {
+          assessment_mark_id?: string | null;
           batch_id: string;
           component_id: string;
           created_at?: string;
@@ -507,6 +509,7 @@ export type Database = {
           user_id: string;
         };
         Update: {
+          assessment_mark_id?: string | null;
           batch_id?: string;
           component_id?: string;
           created_at?: string;
@@ -793,6 +796,7 @@ export type Database = {
           batch_id: string;
           created_at: string;
           deadline_id: string;
+          component_id: string | null;
           id: string;
           score: number;
           total: number;
@@ -804,6 +808,7 @@ export type Database = {
           batch_id: string;
           created_at?: string;
           deadline_id: string;
+          component_id?: string | null;
           id?: string;
           score?: number;
           total?: number;
@@ -815,6 +820,7 @@ export type Database = {
           batch_id?: string;
           created_at?: string;
           deadline_id?: string;
+          component_id?: string | null;
           id?: string;
           score?: number;
           total?: number;

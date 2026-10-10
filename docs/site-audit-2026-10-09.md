@@ -2,6 +2,21 @@
 
 Three independent agents reviewed student workflows, data consistency and permissions, and interface accessibility. This is a source-code audit, not a certification of accessibility or a live database-policy audit. Browser visual checks remain unavailable. Duplicate findings are consolidated below.
 
+## Implementation update — 10 October 2026
+
+The findings below are retained as the original audit. All 18 recommendations have now been addressed in code:
+
+- Linked assessment/grading scores synchronize atomically in both directions. Component weights are authoritative. Unique matches are suggested; ambiguous matches need a choice. Combined quiz scores require confirmation rather than treating one quiz as the whole component. Confirmed Maths quizzes are separate 10% components when no aggregate marks would be lost. Unlinked results stay saved and are identified in Grading.
+- Overdue coursework stays visible separately from Past/Done. Preparation counts are calculated before completed rows are hidden. Quiz numbers and task subtitles distinguish same-subject entries.
+- Attendance displays representative records consistently, locks personal overrides, counts held classes for percentages, uses catalog credits, exposes filtered subject history and reuses the shared controls with optional institutional leave.
+- Timetable events are approved-only, dates and slots use IST, calendar collisions preserve every class, and calendar edit controls support keyboard focus.
+- Notice review supports a date without time and preserves explicit exam windows. Grading/attendance/timetable query failures provide retries and unresolved personal data is not editable.
+- Event deletion has one confirmation. The event drawer uses the existing modal shell. Prediction sliders have component-specific names and value descriptions.
+
+Verification: TypeScript, changed-file lint, regression tests, and a Vercel production build. Live database rollback tests verified linked-score synchronization, private score visibility, clearing/cascading cleanup, unknown notice times, explicit end times and idempotent approval. Test fixtures did not persist. All three database migrations are applied; filenames match the recorded remote migration versions.
+
+Limit: ambiguous combined components cannot be inferred from an individual result. The score editor explicitly asks for the correct component/combined-result confirmation. Browser visual checks are still outstanding. Supabase's advisor reported no new migration security issue; its existing leaked-password-protection warning remains a separate account setting ([guidance](https://supabase.com/docs/guides/auth/password-security#password-strength-and-leaked-password-protection)).
+
 ## Fixed in this pass
 
 Upcoming and ongoing Midterms/Endterms no longer offer Mark done. The feed ignores previously saved premature exam-completion flags, and the toggle handler checks the exam window again at click time. Coursework completion remains available. Regression checks cover future, ongoing and finished exams.

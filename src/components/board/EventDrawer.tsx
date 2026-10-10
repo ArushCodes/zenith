@@ -1,4 +1,5 @@
-import { AnimatePresence, motion } from "framer-motion";
+import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
+import { useRef } from "react";
 import {
   CalendarPlus,
   Clock,
@@ -42,29 +43,24 @@ const countdownColor: Record<string, string> = {
 };
 
 export function EventDrawer({ deadline, now, canManage, onClose, onEdit, onDelete }: Props) {
+  const returnFocus = useRef<HTMLElement | null>(null);
   return (
-    <AnimatePresence>
-      {deadline && (
-        <>
-          <motion.div
-            key="scrim"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            onClick={onClose}
-            className="fixed inset-0 z-40 bg-ground/70 backdrop-blur-sm"
-          />
-          <motion.aside
-            key="panel"
-            role="dialog"
-            aria-modal="true"
-            aria-label={displayTitle(deadline.subject, deadline.title)}
-            initial={{ x: "100%", opacity: 0.4 }}
-            animate={{ x: 0, opacity: 1 }}
-            exit={{ x: "100%", opacity: 0.2 }}
-            transition={{ type: "spring", stiffness: 320, damping: 34 }}
-            className="fixed inset-y-0 right-0 z-50 flex w-full max-w-[460px] flex-col gap-5 overflow-y-auto border-l border-border bg-surface p-6 shadow-2xl"
-          >
+    <Sheet open={!!deadline} onOpenChange={(open) => !open && onClose()}>
+      <SheetContent
+        aria-describedby={undefined}
+        className="flex w-full sm:max-w-[460px] flex-col gap-5 overflow-y-auto border-border bg-surface p-5 pt-12"
+        onOpenAutoFocus={() => {
+          returnFocus.current =
+            document.activeElement instanceof HTMLElement ? document.activeElement : null;
+        }}
+        onCloseAutoFocus={(event) => {
+          event.preventDefault();
+          returnFocus.current?.focus();
+        }}
+      >
+        {deadline && (
+          <>
+            <SheetTitle className="sr-only">{deadline.title}</SheetTitle>
             <Body
               deadline={deadline}
               now={now}
@@ -73,10 +69,10 @@ export function EventDrawer({ deadline, now, canManage, onClose, onEdit, onDelet
               onEdit={onEdit}
               onDelete={onDelete}
             />
-          </motion.aside>
-        </>
-      )}
-    </AnimatePresence>
+          </>
+        )}
+      </SheetContent>
+    </Sheet>
   );
 }
 

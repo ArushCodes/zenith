@@ -1,5 +1,5 @@
-import type { AttendanceMark, ClassSession } from "@/lib/batches";
-import { sessionLabel, subjectCanonicalKey } from "@/lib/courses";
+import type { AttendanceMark, ClassSession, Course } from "@/lib/batches";
+import { sessionLabel } from "@/lib/courses";
 
 /** Planned number of sessions per subject:
  *  Rule: 1 Credit = 8 sessions (3-credit = 24 sessions, 2-credit = 16 sessions, 1-credit = 8 sessions).
@@ -50,22 +50,74 @@ export function subjectKeyOf(name: string) {
   return name.trim().toLowerCase().replace(/\s+/g, " ");
 }
 
-/** Determine credits for any course (1, 2, or 3). Defaults to 3 credits for standard IPM core courses. */
-export function courseCredits(subject: string): number {
-  const key = subjectKeyOf(subject);
-  if (COURSE_CREDITS[key]) return COURSE_CREDITS[key];
-  for (const [k, c] of Object.entries(COURSE_CREDITS)) {
-    if (key.includes(k)) return c;
+/** Exact catalog matches; unmatched subjects have no inferred allowance. */
+export type CreditCourse = {
+  code: string;
+  name: string;
+  short_name?: string | null;
+  credits: number;
+};
+
+export function creditCatalog(
+  courses: Course[],
+  components: { course_code: string; course_name: string; credits: number }[],
+): CreditCourse[] {
+  return components.map((c) => ({
+    code: c.course_code,
+    name: c.course_name,
+    short_name: courses.find(
+      (course) =>
+        course.code.toLowerCase().replace(/\s/g, "") ===
+        c.course_code.toLowerCase().replace(/\s/g, ""),
+    )?.short_name,
+    credits: Number(c.credits),
+  }));
+}
+
+export function courseCredits(subject: string, courses?: CreditCourse[]): number {
+  const normalize = (value: string) =>
+    value.toLowerCase().replace(/[–—]/g, "-").replace(/\s+/g, " ").trim();
+  const key = normalize(subject);
+  if (courses) {
+    const exactCode = (value: string) => value.toLowerCase().replace(/[^a-z0-9]/g, "");
+    const matches = courses.filter(
+      (c) =>
+        exactCode(c.code) === exactCode(subject) ||
+        [c.name, c.short_name].some((name) => name && normalize(name) === key),
+    );
+    const course = matches[0];
+    const values = new Set(matches.map((c) => Number(c.credits)));
+    return values.size === 1 && Number(course?.credits) > 0 ? Number(course?.credits) : 0;
   }
-  if (key.includes("team") || key.includes("workshop") || key.includes("1 credit")) return 1;
-  if (
-    key.includes("spreadsheet") ||
-    key.includes("ai") ||
-    key.includes("lab") ||
-    key.includes("2 credit")
-  )
-    return 2;
-  return 3;
+  const aliases: Record<string, string> = {
+    "foundations of psychology": "psychology",
+    "hrm 1101": "psychology",
+    "introduction to sociology": "sociology",
+    "mgt 1101": "sociology",
+    "basic mathematics - i": "mathematics",
+    "ops 1101": "mathematics",
+    "basics of statistics": "statistics",
+    "ops 1102": "statistics",
+    "english language and literature - i": "english",
+    "hrm 1102": "english",
+    "working with spreadsheets": "spreadsheets",
+    "ant 1101": "spreadsheets",
+    "introduction to ai": "ai",
+    "artificial intelligence": "ai",
+    "its 1101": "ai",
+    "working in groups and team building": "team building",
+    "hrm 1103": "team building",
+  };
+  return COURSE_CREDITS[aliases[key] ?? key] ?? 0;
+}
+
+export function sessionCredits(session: ClassSession, courses: CreditCourse[]): number {
+  for (const value of [session.course_code, session.course_name, session.short_name]) {
+    if (!value) continue;
+    const credits = courseCredits(value, courses);
+    if (credits > 0) return credits;
+  }
+  return 0;
 }
 
 /** Nicely shortened label for tight mobile layouts. */
@@ -177,10 +229,10 @@ export function leaveCaps(planned: number, personalUsed = 0) {
 /** Allowed misses: strictly 1 class per credit (1-credit = 1, 2-credit = 2, 3-credit = 3). */
 export function safeMisses(plannedOrCredits: number): number {
   if (plannedOrCredits <= 4) {
-    return Math.max(1, plannedOrCredits);
+    return Math.max(0, plannedOrCredits);
   }
   // Planned sessions: 8 -> 1 miss, 16 -> 2 misses, 24 -> 3 misses
-  return Math.max(1, Math.round(plannedOrCredits / 8));
+  return Math.max(0, Math.round(plannedOrCredits / 8));
 }
 
 /** Sessions you may still miss before the 70% eligibility line. */
@@ -190,6 +242,7 @@ export function eligibilityMisses(planned: number) {
 
 /** Grade points cut: 0.5 course grade-point cut for every subsequent class missed beyond the allowed 1 miss per credit. */
 export function gradePenalty(planned: number, absent: number): number {
+  if (planned <= 0) return 0;
   const allowed = safeMisses(planned);
   const over = Math.max(0, absent - allowed);
   return over * PENALTY_PER_SESSION;
@@ -213,6 +266,20 @@ export type BunkStatus = {
 export function getBunkStatus(courseOrCredits: string | number, absent: number): BunkStatus {
   const credits =
     typeof courseOrCredits === "number" ? courseOrCredits : courseCredits(courseOrCredits);
+  if (credits <= 0)
+    return {
+      credits: 0,
+      planned: 0,
+      allowed: 0,
+      safeLeft: 0,
+      excess: 0,
+      penalty: 0,
+      label: "Credits not set",
+      tone: "text-dim",
+      badge: "Unknown allowance",
+      isDanger: false,
+      isCut: false,
+    };
   const planned = credits * 8;
   const allowed = credits * 1;
   const safeLeft = allowed - absent;

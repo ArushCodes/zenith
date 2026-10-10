@@ -8,7 +8,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { useBatch } from "@/hooks/use-batch";
 import { emailQueueQuery, type EmailIngest } from "@/lib/batches";
 import type { Deadline } from "@/lib/deadlines";
-import { fromIstInput, toIstInput, matchesNotice } from "@/lib/notice-drafts";
+import { noticeDateTime, noticeDraftSchema, toIstInput, matchesNotice } from "@/lib/notice-drafts";
 import { deadlinesQueryFor } from "@/lib/deadlines";
 
 type Extracted = {
@@ -17,6 +17,8 @@ type Extracted = {
   subject_code?: string;
   type?: Deadline["type"];
   due_at?: string | null;
+  all_day?: boolean;
+  end_at?: string | null;
   work_mode?: Deadline["work_mode"];
   submission_link?: string;
   notes?: string;
@@ -52,7 +54,10 @@ export function EmailInboxPanel() {
       approve: boolean;
       draft?: Extracted | undefined;
     }) => {
-      const candidate = draft ?? ((item.extracted ?? {}) as Extracted);
+      const raw = draft ?? ((item.extracted ?? {}) as Extracted);
+      const candidate = approve
+        ? noticeDraftSchema.parse({ ...raw, type: raw.type ?? "assignment" })
+        : raw;
       if (approve && (!candidate.title || !candidate.due_at))
         throw new Error("Title and due date are required");
       if (approve && candidate.due_at && !Number.isFinite(new Date(candidate.due_at).getTime()))
@@ -163,6 +168,10 @@ function EmailCard({
   const [draft, setDraft] = useState<Extracted>(base);
   const { batchId } = useBatch();
   const { data: deadlines = [] } = useQuery(deadlinesQueryFor(batchId));
+  const date = draft.due_at ? toIstInput(draft.due_at).slice(0, 10) : "";
+  const time = draft.due_at && !draft.all_day ? toIstInput(draft.due_at).slice(11) : "";
+  const endDate = draft.end_at ? toIstInput(draft.end_at).slice(0, 10) : date;
+  const endTime = draft.end_at ? toIstInput(draft.end_at).slice(11) : "";
   const duplicate = deadlines.some((event) => matchesNotice(event, draft));
 
   return (
@@ -235,11 +244,50 @@ function EmailCard({
                   </select>
                 </label>
                 <Field
-                  label="Deadline (IST)"
-                  type="datetime-local"
-                  value={draft.due_at ? toIstInput(draft.due_at) : ""}
-                  onChange={(v) => setDraft({ ...draft, due_at: fromIstInput(v) })}
+                  label="Date (IST)"
+                  type="date"
+                  value={date}
+                  onChange={(v) =>
+                    setDraft({
+                      ...draft,
+                      due_at: noticeDateTime(v, time),
+                      all_day: !time,
+                      end_at: endTime ? noticeDateTime(endDate || v, endTime) : null,
+                    })
+                  }
                 />
+                <Field
+                  label="Time · optional"
+                  type="time"
+                  value={time}
+                  disabled={!date}
+                  onChange={(v) =>
+                    setDraft({
+                      ...draft,
+                      due_at: noticeDateTime(date, v),
+                      all_day: !v,
+                      end_at: v && endTime ? noticeDateTime(endDate, endTime) : null,
+                    })
+                  }
+                />
+                <Field
+                  label="End time · optional"
+                  type="time"
+                  value={endTime}
+                  disabled={!time || !date}
+                  onChange={(v) =>
+                    setDraft({ ...draft, end_at: v ? noticeDateTime(endDate, v) : null })
+                  }
+                />
+                {endTime && (
+                  <Field
+                    label="End date (IST)"
+                    type="date"
+                    value={endDate}
+                    onChange={(v) => setDraft({ ...draft, end_at: noticeDateTime(v, endTime) })}
+                  />
+                )}
+                {!time && <p className="self-center text-xs text-dim">Time TBA</p>}
                 <Field
                   label="Submission link"
                   value={draft.submission_link ?? ""}
@@ -300,17 +348,20 @@ function Field({
   value,
   onChange,
   type = "text",
+  disabled = false,
 }: {
   label: string;
   value: string;
   onChange: (v: string) => void;
   type?: string;
+  disabled?: boolean;
 }) {
   return (
     <label className="flex flex-col gap-1">
       <span className="font-mono text-[10px] uppercase tracking-wide text-faint">{label}</span>
       <input
         type={type}
+        disabled={disabled}
         value={value}
         onChange={(e) => onChange(e.target.value)}
         className="rounded-lg bg-surface2 px-3 py-2 text-sm ring-1 ring-border outline-none focus:ring-cyan/40"

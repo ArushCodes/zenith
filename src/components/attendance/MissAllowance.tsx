@@ -1,8 +1,17 @@
 import { attendanceColor } from "@/lib/attendance-colors";
 import { getBunkStatus } from "@/lib/attendance";
 
-export function MissAllowance({ course, missed }: { course: string; missed: number }) {
-  const budget = getBunkStatus(course, missed);
+export function MissAllowance({
+  course,
+  missed,
+  credits,
+}: {
+  course: string;
+  missed: number;
+  credits?: number;
+}) {
+  const budget = getBunkStatus(credits ?? course, missed);
+  if (budget.credits <= 0) return <p className="text-xs text-dim">Credits not set</p>;
   const color = attendanceColor(budget.safeLeft, budget.allowed, budget.excess);
   return (
     <div

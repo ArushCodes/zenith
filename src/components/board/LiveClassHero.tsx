@@ -22,7 +22,6 @@ import {
   Sparkles,
   Sun,
   User,
-  X,
 } from "lucide-react";
 import { toast } from "sonner";
 import { db as supabase } from "@/lib/backend";
@@ -44,7 +43,8 @@ import { cleanExamTitle, dayKey, eventMeta, timeLeft, type Deadline } from "@/li
 
 import { SyllabusDialog } from "@/components/board/SyllabusDialog";
 import { courseAttendance, defaultClassDay } from "@/lib/course-attendance";
-import { sessionSubject } from "@/lib/attendance";
+import { courseComponentsQuery } from "@/lib/grading";
+import { creditCatalog, resolveMarks, sessionCredits, sessionSubject } from "@/lib/attendance";
 import { IPM1_BATCH_ID } from "@/lib/roster.data";
 import { MissAllowance } from "@/components/attendance/MissAllowance";
 import { IPM_CLASS_SLOTS, classSlotIndex } from "@/lib/class-slots";
@@ -99,6 +99,8 @@ export function LiveClassHero({
 
   const { data: sessions = [], isPending: sessionsLoading } = useQuery(sessionsQuery(batchId));
   const { data: courses = [] } = useQuery(coursesQuery(batchId));
+  const { data: components = [] } = useQuery(courseComponentsQuery(batchId));
+  const catalog = useMemo(() => creditCatalog(courses, components), [courses, components]);
   const {
     data: marks = [],
     isPending: attendanceLoading,
@@ -107,21 +109,18 @@ export function LiveClassHero({
 
   const colorMap = useMemo(() => buildColorMap(courses, sessions), [courses, sessions]);
 
-  // Self attendance marks mapped by session ID
-  const myMarks = useMemo(() => {
-    const map = new Map<string, string>();
-    for (const m of marks) {
-      if (m.user_id === user?.id && m.mark_source === "self") {
-        map.set(m.session_id, m.status);
-      }
-    }
-    return map;
-  }, [marks, user?.id]);
+  const resolvedMine = useMemo(() => resolveMarks(marks, user?.id), [marks, user?.id]);
+  const myMarks = useMemo(
+    () => new Map([...resolvedMine].map(([id, mark]) => [id, mark.status])),
+    [resolvedMine],
+  );
 
   // Attendance toggle mutation
   const toggleAbsent = useMutation({
     mutationFn: async (session: ClassSession) => {
       if (!user) throw new Error("Not logged in");
+      if (resolvedMine.get(session.id)?.mark_source === "rep")
+        throw new Error("Representative record takes priority");
       const current = myMarks.get(session.id);
       const nextStatus = current === "absent" ? "present" : "absent";
 
@@ -559,28 +558,19 @@ export function LiveClassHero({
 
                 {/* Attendance Toggle Button */}
                 <div className="shrink-0 pt-2 lg:pt-0">
-                  <motion.button
-                    whileHover={{ scale: 1.04 }}
-                    whileTap={{ scale: 0.96 }}
-                    type="button"
-                    onClick={() => toggleAbsent.mutate(liveClass)}
-                    disabled={toggleAbsent.isPending}
-                    className={`inline-flex items-center gap-2 rounded-xl sm:rounded-2xl px-4 sm:px-5 py-2.5 sm:py-3 text-xs sm:text-sm font-extrabold shadow-lg transition-all cursor-pointer ${
-                      myMarks.get(liveClass.id) === "absent"
-                        ? "bg-rose text-white shadow-rose/25 hover:bg-rose/90"
-                        : "bg-emerald-500 text-white shadow-emerald-500/25 hover:bg-emerald-500/90"
-                    }`}
-                  >
-                    {myMarks.get(liveClass.id) === "absent" ? (
-                      <>
-                        <X className="size-4 stroke-[3]" /> Absent · undo
-                      </>
-                    ) : (
-                      <>
-                        <Check className="size-4 stroke-[3]" /> Mark absent
-                      </>
-                    )}
-                  </motion.button>
+                  <AttendanceChoice
+                    absent={myMarks.get(liveClass.id) === "absent"}
+                    authoritative={resolvedMine.get(liveClass.id)?.mark_source === "rep"}
+                    label={sessionPeriodLabel(liveClass)}
+                    disabled={
+                      toggleAbsent.isPending ||
+                      attendanceLoading ||
+                      attendanceError ||
+                      !user ||
+                      !isMember
+                    }
+                    onChange={() => toggleAbsent.mutate(liveClass)}
+                  />
                 </div>
               </div>
 
@@ -857,6 +847,7 @@ export function LiveClassHero({
                     </span>
                     {(isMember || canManage) && user && (
                       <AttendanceChoice
+                        authoritative={resolvedMine.get(s.id)?.mark_source === "rep"}
                         muted={isPast}
                         absent={mark === "absent"}
                         label={periodSubject}
@@ -867,7 +858,11 @@ export function LiveClassHero({
                   </div>
                   {batchId === IPM1_BATCH_ID && !attendanceLoading && !attendanceError && (
                     <div className="mt-2">
-                      <MissAllowance course={sessionSubject(s)} missed={record?.absent ?? 0} />
+                      <MissAllowance
+                        course={sessionSubject(s)}
+                        credits={sessionCredits(s, catalog)}
+                        missed={record?.absent ?? 0}
+                      />
                     </div>
                   )}
                 </motion.article>

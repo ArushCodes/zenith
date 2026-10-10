@@ -1,10 +1,11 @@
+import { courseComponentsQuery } from "@/lib/grading";
+import { attendanceProgress } from "@/lib/course-attendance";
 import { attendanceColor } from "@/lib/attendance-colors";
 import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { motion } from "framer-motion";
 import {
   AlertTriangle,
-  CircleSlash,
   Download,
   Palmtree,
   Search,
@@ -22,6 +23,7 @@ import { useMe } from "@/hooks/use-me";
 import {
   attendanceQuery,
   batchMembersQuery,
+  coursesQuery,
   sessionsQuery,
   type AttendanceMark,
   type ClassSession,
@@ -35,11 +37,13 @@ import {
   TOTAL_CAP_PCT,
   consecutiveNeededFor70,
   courseCredits,
+  creditCatalog,
   eligibilityMisses,
   getBunkStatus,
   leaveCaps,
   longestAbsenceRun,
-  plannedFor,
+  meterColor,
+  sessionCredits,
   resolveMarks,
   safeMissBufferFor70,
   sessionSubject,
@@ -47,6 +51,7 @@ import {
   trimesterEnd,
   type LeaveType,
 } from "@/lib/attendance";
+import { AttendanceChoice } from "@/components/attendance/AttendanceChoice";
 import { SessionMeta } from "@/components/common/SessionMeta";
 import { isTeachingClass, sessionLabel, autoColor } from "@/lib/courses";
 
@@ -76,8 +81,15 @@ export function AttendancePanel({ now, compact = false }: { now: number; compact
   const [focus, setFocus] = useState<string | null>(null);
   const [bunkSimOpen, setBunkSimOpen] = useState(false);
 
-  const { data: sessions = [] } = useQuery(sessionsQuery(batchId));
-  const { data: marks = [] } = useQuery(attendanceQuery(batchId, isMember, user?.id, canManage));
+  const sessionsResult = useQuery(sessionsQuery(batchId));
+  const { data: sessions = [] } = sessionsResult;
+  const componentsResult = useQuery(courseComponentsQuery(batchId));
+  const { data: components = [] } = componentsResult;
+  const coursesResult = useQuery(coursesQuery(batchId));
+  const { data: courses = [] } = coursesResult;
+  const catalog = useMemo(() => creditCatalog(courses, components), [courses, components]);
+  const marksResult = useQuery(attendanceQuery(batchId, isMember, user?.id, canManage));
+  const { data: marks = [] } = marksResult;
   const { data: members = [] } = useQuery(batchMembersQuery(batchId, canManage));
 
   const mark = useMutation({
@@ -89,6 +101,11 @@ export function AttendancePanel({ now, compact = false }: { now: number; compact
       source: AttendanceMark["mark_source"];
       leave?: LeaveType;
     }) => {
+      if (
+        input.source === "self" &&
+        resolveMarks(marks, input.userId).get(input.session.id)?.mark_source === "rep"
+      )
+        throw new Error("Representative record takes priority");
       if (input.status === null) {
         const { error } = await supabase
           .from("attendance_marks")
@@ -116,6 +133,7 @@ export function AttendancePanel({ now, compact = false }: { now: number; compact
     },
     onSuccess: (res) => {
       queryClient.invalidateQueries({ queryKey: ["attendance", batchId] });
+      queryClient.invalidateQueries({ queryKey: ["batch-attendance"] });
       toast.success(res === "cleared" ? "Attendance cleared" : "Attendance recorded");
     },
     onError: (e: Error) => toast.error(e.message),
@@ -132,6 +150,7 @@ export function AttendancePanel({ now, compact = false }: { now: number; compact
 
     return classes
       .filter((s) => new Date(s.end_at).getTime() <= now)
+      .filter((s) => !focus || sessionSubject(s) === focus)
       .filter((s) =>
         !needle
           ? true
@@ -140,14 +159,7 @@ export function AttendancePanel({ now, compact = false }: { now: number; compact
               .some((v) => String(v).toLowerCase().includes(needle)),
       )
       .sort((a, b) => new Date(b.start_at).getTime() - new Date(a.start_at).getTime());
-  }, [classes, q, now]);
-
-  const myMarks = useMemo(() => {
-    const map = new Map<string, AttendanceMark>();
-    for (const m of marks)
-      if (m.user_id === user?.id) map.set(`${m.session_id}-${m.mark_source}`, m);
-    return map;
-  }, [marks, user?.id]);
+  }, [classes, q, now, focus]);
 
   /** Marks that count as a leave, resolved rep-over-self, keyed by session. */
   const resolvedMine = useMemo(() => resolveMarks(marks, user?.id), [marks, user?.id]);
@@ -192,16 +204,20 @@ export function AttendancePanel({ now, compact = false }: { now: number; compact
 
     return [...rows.entries()]
       .map(([course, v]) => {
-        const credits = courseCredits(course);
+        const matchingSession = classes.find((session) => sessionSubject(session) === course);
+        const credits = matchingSession
+          ? sessionCredits(matchingSession, catalog)
+          : courseCredits(course, catalog);
         const planned = credits * 8; // Strictly 8, 16, or 24 sessions based on credits
         const absent = v.pl + v.il;
-        const bunk = getBunkStatus(course, absent);
+        const bunk = getBunkStatus(credits, absent);
         const attended = Math.max(0, planned - absent);
         const caps = leaveCaps(planned, v.pl);
-        const pct = planned ? Math.round((attended / planned) * 100) : 100;
+        const projection = planned ? Math.round((attended / planned) * 100) : null;
         const held = v.held;
-        const attendedHeld = Math.max(0, held - absent);
-        const heldPct = held > 0 ? Math.round((attendedHeld / held) * 100) : 100;
+        const actual = attendanceProgress(held, absent);
+        const attendedHeld = actual.attended;
+        const heldPct = actual.pct ?? 100;
         const recoveryNeeded = consecutiveNeededFor70(held, attendedHeld);
         const safeBuffer = safeMissBufferFor70(held, attendedHeld);
         return {
@@ -211,7 +227,7 @@ export function AttendancePanel({ now, compact = false }: { now: number; compact
           pl: v.pl,
           il: v.il,
           absent,
-          present: v.present,
+          present: attendedHeld,
           held,
           attended,
           attendedHeld,
@@ -228,7 +244,8 @@ export function AttendancePanel({ now, compact = false }: { now: number; compact
           eligibleLeft: eligibilityMisses(planned) - absent,
           penalty: bunk.penalty,
           bunkStatus: bunk,
-          pct,
+          pct: heldPct,
+          projection,
         };
       })
       .sort((a, b) => {
@@ -238,7 +255,7 @@ export function AttendancePanel({ now, compact = false }: { now: number; compact
         if (a.safeLeft !== b.safeLeft) return a.safeLeft - b.safeLeft;
         return b.pct - a.pct;
       });
-  }, [resolvedMine, classes, now]);
+  }, [resolvedMine, classes, catalog, now]);
 
   /** The leave budget belongs to the current trimester — its end is the last
    *  class on the calendar, and the budget resets after it. */
@@ -315,6 +332,37 @@ export function AttendancePanel({ now, compact = false }: { now: number; compact
         Request access from the batch selector.
       </p>
     );
+
+  if (
+    sessionsResult.isError ||
+    marksResult.isError ||
+    coursesResult.isError ||
+    componentsResult.isError
+  )
+    return (
+      <section className="premium-panel mt-4">
+        <p className="text-sm">Attendance could not load.</p>
+        <button
+          type="button"
+          className="mt-3 rounded-lg border border-border px-3 py-2"
+          onClick={() => {
+            void sessionsResult.refetch();
+            void marksResult.refetch();
+            void coursesResult.refetch();
+            void componentsResult.refetch();
+          }}
+        >
+          Retry
+        </button>
+      </section>
+    );
+  if (
+    sessionsResult.isPending ||
+    marksResult.isPending ||
+    coursesResult.isPending ||
+    componentsResult.isPending
+  )
+    return <p className="p-4 text-sm text-dim">Loading attendance…</p>;
 
   if (batchId !== IPM1_BATCH_ID)
     return (
@@ -532,21 +580,28 @@ export function AttendancePanel({ now, compact = false }: { now: number; compact
                   row={s}
                   active={focus === s.course}
                   compact={compact}
-                  onClick={() => setFocus(focus === s.course ? null : s.course)}
+                  onClick={() => {
+                    setFocus(focus === s.course ? null : s.course);
+                    setBrowse(true);
+                    setQ("");
+                  }}
                 />
               ))}
             </div>
           </>
         )}
 
-        {!compact && (
-          <section className="rounded-2xl bg-surface p-4 ring-1 ring-border">
+        {(!compact || focus) && (
+          <section
+            id="attendance-history"
+            className="rounded-2xl bg-surface p-4 ring-1 ring-border"
+          >
             <button
               onClick={() => setBrowse((v) => !v)}
               className="flex w-full items-center gap-2 font-display text-sm font-semibold"
             >
               <Search className="size-4 text-cyan" />
-              Mark a past class absent
+              {focus ? `${focus} class history` : "Class history"}
               <span className="ml-auto font-mono text-[11px] text-faint">
                 {browse ? "Hide" : "Open"}
               </span>
@@ -560,12 +615,25 @@ export function AttendancePanel({ now, compact = false }: { now: number; compact
                   placeholder="Search a class, faculty or room"
                   className="rounded-lg bg-ground px-3 py-2 text-sm text-ink outline-none ring-1 ring-border placeholder:text-faint focus:ring-cyan/50"
                 />
+                {focus && (
+                  <button
+                    type="button"
+                    onClick={() => setFocus(null)}
+                    className="self-start text-xs text-cyan"
+                  >
+                    All subjects
+                  </button>
+                )}
+                {browsable.length === 0 && (
+                  <p className="p-3 text-sm text-dim">No completed classes match.</p>
+                )}
                 {browsable.map((s) => (
                   <SessionCard
                     key={s.id}
                     session={s}
                     tone={new Date(s.end_at).getTime() < now ? "past" : "upcoming"}
-                    myMark={myMarks.get(`${s.id}-self`) ?? null}
+                    myMark={resolvedMine.get(s.id) ?? null}
+                    pending={mark.isPending}
                     canManage={canManage}
                     members={members}
                     marks={marks}
@@ -591,6 +659,7 @@ export function AttendancePanel({ now, compact = false }: { now: number; compact
         open={bunkSimOpen}
         onOpenChange={setBunkSimOpen}
         sessions={sessions}
+        courses={catalog}
         marks={marks}
         batchId={batchId ?? undefined}
       />
@@ -634,7 +703,7 @@ function PolicyCard() {
             No repeat exam or quiz for personal leave. More than 13 continuous days absent requires
             written approval from the Director to avoid withdrawal.
           </li>
-          <li>Representative marks take priority. Unmarked classes still need checking.</li>
+          <li>Representative marks take priority. Unmarked classes default to Present.</li>
         </ul>
       </details>
       <p className="mt-3 text-[10px] text-dim">
@@ -658,6 +727,7 @@ type SubjectStat = {
   excessMisses: number;
   eligibleLeft: number;
   pct: number;
+  projection: number | null;
   held: number;
   attendedHeld: number;
   heldPct: number;
@@ -682,35 +752,39 @@ function SubjectRow({
   const isLimit = row.safeLeft === 0 && !isCut;
 
   const status =
-    row.pct < HARD_LINE
-      ? { text: "Below 70% · Incomplete (I)", tone: "font-bold" }
-      : isCut
-        ? {
-            text: compact
-              ? `−${row.penalty.toFixed(1)} grade pts · ${row.excessMisses} excess`
-              : `−${row.penalty.toFixed(1)} grade pts · ${row.excessMisses} excess`,
-            tone: "text-rose font-bold",
-          }
-        : isDanger
+    row.credits === 0
+      ? { text: "Credits not set · allowance unavailable", tone: "text-dim" }
+      : row.projection !== null && row.projection < HARD_LINE
+        ? { text: "Full-term: below 70% · Incomplete (I)", tone: "font-bold" }
+        : isCut
           ? {
-              text: `1 safe miss left`,
-              tone: "font-bold",
+              text: compact
+                ? `−${row.penalty.toFixed(1)} grade pts · ${row.excessMisses} excess`
+                : `−${row.penalty.toFixed(1)} grade pts · ${row.excessMisses} excess`,
+              tone: "text-rose font-bold",
             }
-          : isLimit
+          : isDanger
             ? {
-                text: `0 safe misses · next: −0.5 pts`,
-                tone: "text-amber-500 font-bold",
+                text: `1 safe miss left`,
+                tone: "font-bold",
               }
-            : {
-                text: `${row.safeLeft}/${row.allowedMisses} safe misses left`,
-                tone: "font-medium",
-              };
+            : isLimit
+              ? {
+                  text: `0 safe misses · next: −0.5 pts`,
+                  tone: "text-amber-500 font-bold",
+                }
+              : {
+                  text: `${row.safeLeft}/${row.allowedMisses} safe misses left`,
+                  tone: "font-medium",
+                };
 
   return (
     <motion.button
       whileHover={{ x: 2 }}
       whileTap={{ scale: 0.995 }}
       onClick={onClick}
+      aria-expanded={active}
+      aria-controls="attendance-history"
       className={`flex w-full items-center gap-3.5 border-b border-border px-3.5 py-3 text-left last:border-b-0 transition-colors cursor-pointer ${
         active ? "bg-surface2/70" : "hover:bg-surface2/40"
       }`}
@@ -718,9 +792,14 @@ function SubjectRow({
       <div className="shrink-0">
         <span
           className="inline-block min-w-10 text-center text-xl font-semibold"
-          style={{ color: attendanceColor(row.safeLeft, row.allowedMisses, row.excessMisses) }}
+          style={{
+            color:
+              row.credits > 0
+                ? attendanceColor(row.safeLeft, row.allowedMisses, row.excessMisses)
+                : undefined,
+          }}
         >
-          {Math.max(0, row.safeLeft)}
+          {row.credits > 0 ? Math.max(0, row.safeLeft) : "—"}
           <span className="block text-[9px] font-normal text-dim">left</span>
         </span>
       </div>
@@ -735,7 +814,7 @@ function SubjectRow({
             {shortSubject(row.course, 36)}
           </span>
           <span className="rounded bg-surface2 px-1.5 py-0.5 font-mono text-[9px] text-dim shrink-0">
-            {row.credits} Cr · {row.planned} S
+            {row.credits > 0 ? `${row.credits} Cr · ${row.planned} classes` : "Credits not set"}
           </span>
         </span>
         <span
@@ -767,7 +846,7 @@ function SubjectRow({
       {!compact && (
         <span className="hidden w-28 shrink-0 sm:block">
           <span className="mt-1 block font-mono text-[9px] text-faint">
-            {row.absent} of {row.planned} missed
+            {row.absent} missed · {row.held} held
           </span>
         </span>
       )}
@@ -775,12 +854,12 @@ function SubjectRow({
       <span className="shrink-0 text-right">
         <span
           className="block font-display text-lg font-semibold leading-none"
-          style={{ color: attendanceColor(row.safeLeft, row.allowedMisses, row.excessMisses) }}
+          style={{ color: row.held > 0 ? meterColor(row.pct) : undefined }}
         >
-          {row.pct}%
+          {row.held > 0 ? `${row.pct}%` : "—"}
         </span>
         <span className="mt-1 block font-mono text-[9px] text-faint">
-          PL {row.pl} · IL {row.il}
+          attended · PL {row.pl} · IL {row.il}
         </span>
       </span>
     </motion.button>
@@ -791,6 +870,7 @@ function SessionCard({
   session,
   tone = "live",
   myMark,
+  pending,
   canManage,
   members,
   marks,
@@ -800,6 +880,7 @@ function SessionCard({
   session: ClassSession;
   tone?: "live" | "upcoming" | "past";
   myMark: AttendanceMark | null;
+  pending: boolean;
   canManage: boolean;
   members: {
     user_id: string;
@@ -842,20 +923,12 @@ function SessionCard({
           </span>
           <SessionMeta session={session} />
         </span>
-        <LeaveButtons
-          current={
-            myMark?.status === "absent" ? ((myMark.leave_type ?? "personal") as LeaveType) : null
-          }
-          onPick={(leave) =>
-            onMark(
-              myMark?.status === "absent" && (myMark.leave_type ?? "personal") === leave
-                ? null
-                : "absent",
-              meId,
-              "self",
-              leave,
-            )
-          }
+        <AttendanceControls
+          mark={myMark}
+          label={sessionLabel(session)}
+          authoritative={myMark?.mark_source === "rep"}
+          disabled={pending}
+          onChange={(status, leave) => onMark(status, meId, "self", leave)}
         />
 
         {canManage && (
@@ -875,25 +948,27 @@ function SessionCard({
             .map((m) => {
               const mk = repMarks.get(m.user_id);
               return (
-                <div key={m.user_id} className="flex items-center gap-2">
+                <div key={m.user_id} className="flex flex-wrap items-center gap-2">
                   <span className="min-w-0 flex-1 truncate text-sm">
                     {m.profiles?.full_name ?? m.profiles?.email ?? m.user_id}
                   </span>
-                  <LeaveButtons
-                    current={
-                      mk?.status === "absent" ? ((mk.leave_type ?? "personal") as LeaveType) : null
-                    }
-                    onPick={(leave) =>
-                      onMark(
-                        mk?.status === "absent" && (mk.leave_type ?? "personal") === leave
-                          ? null
-                          : "absent",
-                        m.user_id,
-                        "rep",
-                        leave,
-                      )
-                    }
+                  <AttendanceControls
+                    mark={mk ?? null}
+                    label={m.profiles?.full_name ?? m.user_id}
+                    disabled={pending}
+                    onChange={(status, leave) => onMark(status, m.user_id, "rep", leave)}
                   />
+                  {mk && (
+                    <button
+                      type="button"
+                      disabled={pending}
+                      onClick={() => onMark(null, m.user_id, "rep")}
+                      className="rounded-lg px-2 py-2 text-xs text-dim"
+                      aria-label={`Clear representative record for ${m.profiles?.full_name ?? m.user_id}`}
+                    >
+                      Clear rep
+                    </button>
+                  )}
                 </div>
               );
             })}
@@ -903,47 +978,44 @@ function SessionCard({
   );
 }
 
-/** Mark absence with quick single-tap Personal Leave (or expandable Institutional Leave). */
-function LeaveButtons({
-  current,
-  onPick,
+/** Leave type appears only for an absence; representative records lock personal controls. */
+function AttendanceControls({
+  mark,
+  label,
+  authoritative = false,
+  disabled,
+  onChange,
 }: {
-  current: LeaveType | null;
-  onPick: (leave: LeaveType) => void;
+  mark: AttendanceMark | null;
+  label: string;
+  authoritative?: boolean;
+  disabled?: boolean;
+  onChange: (status: AttendanceMark["status"], leave?: LeaveType) => void;
 }) {
-  const isPersonal = current === "personal";
-  const isInstitutional = current === "institutional";
-
+  const absent = mark?.status === "absent";
   return (
-    <div className="flex items-center gap-1.5">
-      <button
-        onClick={() => onPick("personal")}
-        title={isPersonal ? "Tap again to clear absence mark" : "Mark personal leave (PL)"}
-        className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 font-mono text-[11px] font-medium ring-1 transition-all ${
-          isPersonal
-            ? "bg-rose/20 text-rose ring-rose/40 shadow-sm"
-            : "bg-surface2 text-dim ring-border hover:text-ink hover:bg-surface"
-        }`}
-      >
-        <CircleSlash className="size-3.5" />
-        {isPersonal ? "Marked Absent (Personal)" : "Mark Absent"}
-      </button>
-
-      <button
-        onClick={() => onPick("institutional")}
-        title={
-          isInstitutional
-            ? "Tap again to clear absence mark"
-            : "Mark official/institutional leave (IL)"
-        }
-        className={`flex items-center gap-1 rounded-lg px-2 py-1.5 font-mono text-[10px] ring-1 transition-all ${
-          isInstitutional
-            ? "bg-amber/20 text-amber ring-amber/40"
-            : "text-faint ring-border hover:text-dim hover:bg-surface2"
-        }`}
-      >
-        {isInstitutional ? "Institutional (IL)" : "Official IL"}
-      </button>
+    <div className="flex flex-wrap items-center gap-2">
+      <AttendanceChoice
+        absent={absent}
+        label={label}
+        muted
+        authoritative={authoritative}
+        disabled={disabled}
+        onChange={(value) => onChange(value ? "absent" : "present", "personal")}
+      />
+      {absent && (
+        <button
+          type="button"
+          aria-pressed={mark.leave_type === "institutional"}
+          disabled={disabled || authoritative}
+          onClick={() =>
+            onChange("absent", mark.leave_type === "institutional" ? "personal" : "institutional")
+          }
+          className="rounded-lg border border-border px-2 py-2 text-xs text-dim"
+        >
+          {mark.leave_type === "institutional" ? "Official IL" : "Personal leave · use IL"}
+        </button>
+      )}
     </div>
   );
 }

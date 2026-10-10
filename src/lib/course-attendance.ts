@@ -41,3 +41,9 @@ export function courseAttendance(
   }
   return rows;
 }
+
+/** Held-to-date percentage excludes future classes and defaults unmarked held classes to present. */
+export function attendanceProgress(held: number, absent: number) {
+  const attended = Math.max(0, held - absent);
+  return { held, attended, pct: held > 0 ? Math.round((attended / held) * 100) : null };
+}

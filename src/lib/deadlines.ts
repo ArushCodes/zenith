@@ -404,3 +404,21 @@ export function formatTickerLabel(d: Deadline): string {
   const clean = displayTitle(d.subject, d.title);
   return clean && clean.length <= 18 ? `${shortSub} · ${clean}` : shortSub;
 }
+
+/** Work remains actionable after its deadline until personally completed. */
+export function isCoursework(d: Pick<Deadline, "type">) {
+  return d.type === "assignment" || d.type === "presentation";
+}
+export function feedState(
+  d: Deadline,
+  now: number,
+  done = false,
+): "upcoming" | "overdue" | "done" | "past" {
+  if (done && canCompleteDeadline(d, now)) return "done";
+  if (phaseOf(d, now) !== "completed") return "upcoming";
+  return isCoursework(d) ? "overdue" : "past";
+}
+export function assessmentBadge(d: Pick<Deadline, "type" | "title">) {
+  const number = d.type === "quiz" ? d.title.match(/quiz[\s-]*(\d+)/i)?.[1] : null;
+  return number ? `Quiz ${number}` : typeLabel(d.type);
+}

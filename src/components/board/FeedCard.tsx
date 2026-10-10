@@ -1,6 +1,5 @@
 import { useMemo } from "react";
 import { motion, useMotionValue, useMotionTemplate, useReducedMotion } from "framer-motion";
-import { toast } from "sonner";
 import {
   Award,
   BookOpen,
@@ -22,6 +21,8 @@ import {
 } from "lucide-react";
 import {
   cleanExamTitle,
+  assessmentBadge,
+  feedState,
   canCompleteDeadline,
   eventSourceLabel,
   displayTitle,
@@ -254,7 +255,7 @@ export function FeedCard({
               className="size-1.5 rounded-full shrink-0"
               style={{ backgroundColor: subjectColor }}
             />
-            <span>{meta.label}</span>
+            <span>{assessmentBadge(deadline)}</span>
           </span>
 
           {deadline.is_major && (
@@ -275,7 +276,11 @@ export function FeedCard({
 
           {phase === "completed" && (
             <span className="rounded-md bg-emerald-500/12 px-2.5 py-0.5 font-mono text-xs font-bold text-emerald-500 ring-1 ring-emerald-500/30">
-              Completed
+              {feedState(deadline, now, isDone) === "overdue"
+                ? "Overdue"
+                : isDone
+                  ? "Done"
+                  : "Past"}
             </span>
           )}
 
@@ -305,7 +310,7 @@ export function FeedCard({
           {onOpen ? (
             <button
               type="button"
-              aria-label={`View ${fullCourse || deadline.subject || deadline.title}: ${meta.label} ${title}`}
+              aria-label={`View ${fullCourse || deadline.subject || deadline.title}: ${assessmentBadge(deadline)} ${title}`}
               onClick={(event) => {
                 event.stopPropagation();
                 onOpen(deadline);
@@ -313,6 +318,9 @@ export function FeedCard({
               className="rounded-sm text-left focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-cyan"
             >
               {fullCourse || deadline.subject || deadline.title}
+              {["assignment", "presentation"].includes(deadline.type) && title && (
+                <span className="block text-xs font-normal text-dim">{title}</span>
+              )}
             </button>
           ) : (
             fullCourse || deadline.subject || deadline.title
@@ -424,16 +432,7 @@ export function FeedCard({
                 type="button"
                 onClick={(e) => {
                   e.stopPropagation();
-                  toast(`Delete "${title}"?`, {
-                    action: {
-                      label: "Delete",
-                      onClick: () => onDelete(deadline),
-                    },
-                    cancel: {
-                      label: "Cancel",
-                      onClick: () => {},
-                    },
-                  });
+                  onDelete(deadline);
                 }}
                 className="inline-flex items-center gap-1 rounded-lg border border-rose/30 bg-rose/10 px-2.5 py-1 font-sans text-xs font-semibold text-rose hover:bg-rose/20 transition-colors cursor-pointer"
               >
@@ -536,7 +535,7 @@ export function FeedCompactRow({
             border: `1px solid ${subjectColor}30`,
           }}
         >
-          {meta.label}
+          {assessmentBadge(deadline)}
         </span>
 
         {/* Type Icon */}
@@ -546,7 +545,7 @@ export function FeedCompactRow({
         <button
           type="button"
           disabled={!onOpen}
-          aria-label={`View ${fullCourse || deadline.subject || deadline.title}: ${meta.label} ${title}`}
+          aria-label={`View ${fullCourse || deadline.subject || deadline.title}: ${assessmentBadge(deadline)} ${title}`}
           onClick={(event) => {
             event.stopPropagation();
             onOpen?.(deadline);
@@ -557,6 +556,9 @@ export function FeedCompactRow({
           }`}
         >
           {fullCourse || deadline.subject || deadline.title}
+          {["assignment", "presentation"].includes(deadline.type) && title && (
+            <span className="block text-xs font-normal text-dim">{title}</span>
+          )}
         </button>
       </div>
 
@@ -571,7 +573,7 @@ export function FeedCompactRow({
           </span>
         ) : phase === "completed" ? (
           <span className="rounded-md bg-surface2 px-2 py-0.5 font-mono text-[11px] text-faint">
-            Completed
+            {feedState(deadline, now, isDone) === "overdue" ? "Overdue" : isDone ? "Done" : "Past"}
           </span>
         ) : (
           <span

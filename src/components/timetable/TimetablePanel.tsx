@@ -1,3 +1,4 @@
+import { resolveMarks } from "@/lib/attendance";
 import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
@@ -35,7 +36,6 @@ import {
   sessionLabel,
   sessionFullName,
   isAcademicEvent,
-  isDayOff,
   isTeachingClass,
   sessionColor,
   sessionKey,
@@ -45,6 +45,7 @@ import {
 import { Marker, shapeForDeadline } from "@/lib/shapes";
 import {
   deadlinesQueryFor,
+  dayKey,
   eventMeta,
   formatDeadlineWhen,
   type Deadline,
@@ -60,6 +61,7 @@ import { AttendanceChoice } from "@/components/attendance/AttendanceChoice";
 const HOLIDAY_COLOR = "#10B981";
 
 const dayFmt = new Intl.DateTimeFormat("en-GB", {
+  timeZone: "Asia/Kolkata",
   weekday: "long",
   day: "2-digit",
   month: "short",
@@ -72,41 +74,54 @@ const timeFmt = new Intl.DateTimeFormat("en-GB", {
 });
 
 function startOfMonth(d: Date) {
-  return new Date(d.getFullYear(), d.getMonth(), 1);
+  return new Date(`${dayKey(d).slice(0, 7)}-01T00:00:00+05:30`);
 }
 
-const monthFmt = new Intl.DateTimeFormat("en-GB", { month: "long", year: "numeric" });
+const monthFmt = new Intl.DateTimeFormat("en-GB", {
+  timeZone: "Asia/Kolkata",
+  month: "long",
+  year: "numeric",
+});
 
 type ViewFilter = "all" | "classes" | "events" | "holidays";
 
 export function TimetablePanel({ now = Date.now() }: { now?: number }) {
-  const todayKey = new Date().toDateString();
+  const todayKey = dayKey(new Date(now));
   const todayRef = useRef<HTMLDivElement>(null);
   const scrolled = useRef(false);
   const { batchId, batch, canManage, isMember } = useBatch();
   const { user } = useAuth();
   const queryClient = useQueryClient();
-  const { data: sessions = [], isLoading } = useQuery(sessionsQuery(batchId));
+  const {
+    data: sessions = [],
+    isLoading,
+    isError: sessionError,
+    refetch: retrySessions,
+  } = useQuery(sessionsQuery(batchId));
   const { data: courses = [] } = useQuery(coursesQuery(batchId));
   const { data: syncState } = useQuery(syncStateQuery(batchId, canManage));
-  const { data: marks = [] } = useQuery(attendanceQuery(batchId, isMember, user?.id, canManage));
-  const { data: deadlines = [] } = useQuery(deadlinesQueryFor(batchId));
-
-  /** Sessions this user has already self-marked absent. */
-  const absentIds = useMemo(
-    () =>
-      new Set(
-        marks
-          .filter(
-            (m) => m.user_id === user?.id && m.mark_source === "self" && m.status === "absent",
-          )
-          .map((m) => m.session_id),
-      ),
-    [marks, user?.id],
+  const {
+    data: marks = [],
+    isLoading: marksLoading,
+    isError: marksError,
+    refetch: retryMarks,
+  } = useQuery(attendanceQuery(batchId, isMember, user?.id, canManage));
+  const {
+    data: rawDeadlines = [],
+    isError: deadlineError,
+    refetch: retryDeadlines,
+  } = useQuery(deadlinesQueryFor(batchId));
+  const deadlines = useMemo(
+    () => rawDeadlines.filter((d) => (d.status ?? "approved") === "approved"),
+    [rawDeadlines],
   );
+
+  const resolvedMarks = useMemo(() => resolveMarks(marks, user?.id), [marks, user?.id]);
 
   const markAbsent = useMutation({
     mutationFn: async ({ session, clear }: { session: ClassSession; clear: boolean }) => {
+      if (resolvedMarks.get(session.id)?.mark_source === "rep")
+        throw new Error("Attendance recorded by your representative");
       if (clear) {
         const { error } = await supabase
           .from("attendance_marks")
@@ -138,7 +153,7 @@ export function TimetablePanel({ now = Date.now() }: { now?: number }) {
     onError: (e: Error) => toast.error(e.message),
   });
 
-  const [monthStart, setMonthStart] = useState(() => startOfMonth(new Date()));
+  const [monthStart, setMonthStart] = useState(() => startOfMonth(new Date(now)));
   const [selectedSubject, setSelectedSubject] = useState<string | null>(null);
   const [viewFilter, setViewFilter] = useState<ViewFilter>("all");
   const [showSettings, setShowSettings] = useState(false);
@@ -163,10 +178,12 @@ export function TimetablePanel({ now = Date.now() }: { now?: number }) {
     onError: (e: Error) => toast.error(e.message),
   });
 
-  const monthEnd = useMemo(
-    () => new Date(monthStart.getFullYear(), monthStart.getMonth() + 1, 1),
-    [monthStart],
-  );
+  const shiftMonth = (date: Date, delta: number) => {
+    const [y, m] = dayKey(date).split("-").map(Number);
+    const next = new Date(Date.UTC(y!, m! - 1 + delta, 1));
+    return new Date(`${next.toISOString().slice(0, 10)}T00:00:00+05:30`);
+  };
+  const monthEnd = useMemo(() => shiftMonth(monthStart, 1), [monthStart]);
 
   /** Unique colour per subject in this batch, catalogued or feed-discovered. */
   const colorMap = useMemo(() => buildColorMap(courses, sessions), [courses, sessions]);
@@ -218,7 +235,7 @@ export function TimetablePanel({ now = Date.now() }: { now?: number }) {
         const start = new Date(s.start_at);
         if (start < monthStart || start >= monthEnd) continue;
         if (hasSubj && sessionKey(s) !== selectedSubject) continue;
-        bucket(start.toDateString()).sessions.push(s);
+        bucket(dayKey(start)).sessions.push(s);
       }
     }
 
@@ -227,12 +244,12 @@ export function TimetablePanel({ now = Date.now() }: { now?: number }) {
         const start = new Date(d.due_at);
         if (start < monthStart || start >= monthEnd) continue;
         if (hasSubj && subjectCanonicalKey(d.subject) !== selectedSubject) continue;
-        bucket(start.toDateString()).events.push(d);
+        bucket(dayKey(start)).events.push(d);
       }
     }
 
-    if (new Date() >= monthStart && new Date() < monthEnd && !selectedSubject)
-      bucket(new Date().toDateString());
+    if (now >= monthStart.getTime() && now < monthEnd.getTime() && !selectedSubject)
+      bucket(todayKey);
     for (const v of map.values()) {
       v.sessions.sort((a, b) => a.start_at.localeCompare(b.start_at));
       v.events.sort((a, b) => a.due_at.localeCompare(b.due_at));
@@ -241,7 +258,7 @@ export function TimetablePanel({ now = Date.now() }: { now?: number }) {
     return [...map.entries()]
       .filter(([day, v]) => day === todayKey || v.sessions.length > 0 || v.events.length > 0)
       .sort(([a], [b]) => new Date(a).getTime() - new Date(b).getTime());
-  }, [sessions, deadlines, monthStart, monthEnd, selectedSubject, viewFilter, todayKey]);
+  }, [sessions, deadlines, monthStart, monthEnd, selectedSubject, viewFilter, todayKey, now]);
 
   useEffect(() => {
     if (scrolled.current || !todayRef.current) return;
@@ -252,6 +269,22 @@ export function TimetablePanel({ now = Date.now() }: { now?: number }) {
     return () => cancelAnimationFrame(frame);
   }, [grouped]);
 
+  if (sessionError || deadlineError || marksError)
+    return (
+      <div role="alert" className="rounded-xl border border-rose/30 p-4">
+        <p>Timetable couldn't load.</p>
+        <button
+          className="mt-2 rounded-lg border border-border px-3 py-2"
+          onClick={() => {
+            void retrySessions();
+            void retryDeadlines();
+            void retryMarks();
+          }}
+        >
+          Retry
+        </button>
+      </div>
+    );
   return (
     <section className="mt-4">
       {/* Month Navigation & Action Controls */}
@@ -259,7 +292,7 @@ export function TimetablePanel({ now = Date.now() }: { now?: number }) {
         <button
           aria-label="Previous month"
           onClick={() => {
-            setMonthStart((m) => new Date(m.getFullYear(), m.getMonth() - 1, 1));
+            setMonthStart((m) => shiftMonth(m, -1));
             setDayFocus(null);
           }}
           className="rounded-lg bg-surface2 px-3 py-1.5 font-mono text-[11px] text-dim ring-1 ring-border transition-colors hover:text-ink"
@@ -272,7 +305,7 @@ export function TimetablePanel({ now = Date.now() }: { now?: number }) {
         <button
           aria-label="Next month"
           onClick={() => {
-            setMonthStart((m) => new Date(m.getFullYear(), m.getMonth() + 1, 1));
+            setMonthStart((m) => shiftMonth(m, 1));
             setDayFocus(null);
           }}
           className="rounded-lg bg-surface2 px-3 py-1.5 font-mono text-[11px] text-dim ring-1 ring-border transition-colors hover:text-ink"
@@ -282,7 +315,7 @@ export function TimetablePanel({ now = Date.now() }: { now?: number }) {
         <button
           onClick={() => {
             scrolled.current = false;
-            setMonthStart(startOfMonth(new Date()));
+            setMonthStart(startOfMonth(new Date(now)));
             setDayFocus(null);
           }}
           className="rounded-lg bg-surface2 px-3 py-1.5 font-mono text-[11px] uppercase tracking-wide text-dim ring-1 ring-border transition-colors hover:text-ink"
@@ -532,8 +565,9 @@ export function TimetablePanel({ now = Date.now() }: { now?: number }) {
                         <AttendanceChoice
                           muted={Date.parse(s.end_at) <= now}
                           label={sessionFullName(s)}
-                          absent={absentIds.has(s.id)}
-                          disabled={markAbsent.isPending}
+                          absent={resolvedMarks.get(s.id)?.status === "absent"}
+                          authoritative={resolvedMarks.get(s.id)?.mark_source === "rep"}
+                          disabled={markAbsent.isPending || marksLoading}
                           onChange={(absent) =>
                             markAbsent.mutate({
                               session: s,
@@ -554,7 +588,7 @@ export function TimetablePanel({ now = Date.now() }: { now?: number }) {
                   className={
                     day === todayKey
                       ? "today-timetable rounded-2xl bg-cyan/10 p-3.5 ring-2 ring-cyan/70 shadow-lg shadow-cyan/15 scroll-mt-24"
-                      : isDayOff(day)
+                      : new Date(`${day}T12:00:00Z`).getUTCDay() === 0
                         ? "rounded-2xl bg-amber/8 p-3.5 ring-1 ring-amber/20"
                         : "rounded-2xl bg-surface/40 p-3.5 ring-1 ring-border/50"
                   }
@@ -563,7 +597,7 @@ export function TimetablePanel({ now = Date.now() }: { now?: number }) {
                     <button
                       onClick={() => setDayFocus((d) => (d === day ? null : day))}
                       className={`flex items-center gap-2 font-mono text-xs uppercase tracking-[0.18em] transition-colors hover:text-ink ${
-                        isDayOff(day) ? "text-amber" : "text-cyan"
+                        new Date(`${day}T12:00:00Z`).getUTCDay() === 0 ? "text-amber" : "text-cyan"
                       }`}
                     >
                       <span className="font-semibold">{dayFmt.format(new Date(day))}</span>
@@ -572,7 +606,7 @@ export function TimetablePanel({ now = Date.now() }: { now?: number }) {
                           Today
                         </span>
                       )}
-                      {isDayOff(day) && (
+                      {new Date(`${day}T12:00:00Z`).getUTCDay() === 0 && (
                         <span className="rounded-md bg-amber/15 px-2 py-0.5 text-[10px] normal-case tracking-normal text-amber font-mono font-medium">
                           Sunday
                         </span>
