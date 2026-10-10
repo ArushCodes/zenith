@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   AnimatePresence,
@@ -51,6 +51,7 @@ import { IPM_CLASS_SLOTS, classSlotIndex } from "@/lib/class-slots";
 import { classProgress } from "@/lib/class-progress";
 import { nextDayBrief } from "@/lib/next-day-brief";
 import { AttendanceChoice } from "@/components/attendance/AttendanceChoice";
+import { FeedAttendance } from "@/components/attendance/FeedAttendance";
 
 type Props = {
   now: number;
@@ -84,13 +85,20 @@ const shortDayFmt = new Intl.DateTimeFormat("en-GB", {
 });
 
 export function LiveClassHero({
-  now,
+  now: boardNow,
   onSeeFullTimetable,
+  onSeeAttendance,
   onSeeExams,
   deadlines = [],
   canManage = false,
   minimal = false,
 }: Props) {
+  const [now, setNow] = useState(boardNow);
+  useEffect(() => {
+    setNow(boardNow);
+    const timer = setInterval(() => setNow(Date.now()), 1_000);
+    return () => clearInterval(timer);
+  }, [boardNow]);
   const { batchId, batch, isMember } = useBatch();
   const { user } = useAuth();
   const queryClient = useQueryClient();
@@ -405,9 +413,21 @@ export function LiveClassHero({
           </div>
         )}
         {minimal && !sessionsLoading && (
-          <span className="text-sm font-semibold text-dim">
-            {dayProgress.done} done · {dayProgress.remaining} to go
-          </span>
+          <div className="flex min-w-0 flex-wrap items-center gap-2">
+            <span className="text-sm font-semibold text-dim">
+              {dayProgress.done} done · {dayProgress.remaining} to go
+            </span>
+            {(isMember || canManage) && user && batchId === IPM1_BATCH_ID && (
+              <FeedAttendance
+                catalog={catalog}
+                sessions={sessions}
+                records={attendanceByCourse}
+                loading={attendanceLoading}
+                error={attendanceError}
+                onSeeAll={onSeeAttendance}
+              />
+            )}
+          </div>
         )}
       </div>
 
@@ -483,16 +503,19 @@ export function LiveClassHero({
               aria-valuemax={100}
               aria-valuenow={Math.round(dayProgress.elapsed)}
               aria-valuetext={`${durationLabel(dayProgress.minutesLeft)} left`}
-              className="relative h-2.5 rounded-full bg-surface2"
+              className="relative h-2.5 overflow-hidden rounded-full bg-surface2"
             >
               <motion.div
                 initial={false}
                 animate={{ width: `${dayProgress.elapsed}%` }}
-                transition={{ duration: reducedMotion ? 0 : 0.8, ease: "linear" }}
-                className="class-time-remaining relative h-full rounded-full bg-cyan"
+                transition={{ duration: reducedMotion ? 0 : 1, ease: "linear" }}
+                className="class-time-remaining relative h-full overflow-hidden rounded-full bg-cyan"
               >
                 <span className="class-time-shimmer rounded-full" aria-hidden="true" />
-                <span className="absolute -right-1 top-1/2 size-3 -translate-y-1/2 rounded-full bg-cyan ring-2 ring-surface shadow-[0_0_12px_var(--cyan)]" />
+                <span
+                  className="absolute right-0 top-0 h-full w-1 rounded-full bg-white/70"
+                  aria-hidden="true"
+                />
               </motion.div>
             </div>
           )}
@@ -711,8 +734,6 @@ export function LiveClassHero({
               return (
                 <motion.article
                   key={s.id}
-                  whileHover={{ y: -3 }}
-                  whileTap={{ scale: 0.97 }}
                   className={`relative flex flex-col justify-between rounded-xl sm:rounded-2xl p-3 sm:p-4 min-w-0 border transition-all ${
                     isLive
                       ? "border-cyan/80 bg-cyan/[0.08] shadow-lg shadow-cyan/10 ring-1 ring-cyan/40"
@@ -830,6 +851,7 @@ export function LiveClassHero({
                         style={{ backgroundColor: color }}
                         initial={false}
                         animate={{ width: `${liveProgress.pct}%` }}
+                        transition={{ duration: reducedMotion ? 0 : 1, ease: "linear" }}
                       >
                         <span className="class-time-shimmer" aria-hidden="true" />
                       </motion.div>
@@ -842,7 +864,7 @@ export function LiveClassHero({
                       user &&
                       !attendanceLoading &&
                       !attendanceError
-                        ? `${record?.absent ?? 0} missed${mark === "absent" && !isPast ? " · 1 pending" : ""}`
+                        ? `${record?.absent ?? 0} missed`
                         : "Class"}
                     </span>
                     {(isMember || canManage) && user && (

@@ -1401,10 +1401,6 @@ summary:hover {
   inset: 0;
   overflow: hidden;
   pointer-events: none;
-  background-image:
-    linear-gradient(currentColor 1px, transparent 1px),
-    linear-gradient(90deg, currentColor 1px, transparent 1px);
-  background-size: 36px 36px;
   opacity: 0.08;
   mask-image: linear-gradient(90deg, transparent, black);
 }
@@ -1453,15 +1449,23 @@ summary:hover {
 .class-time-shimmer {
   position: absolute;
   inset: 0;
-  background: linear-gradient(100deg, transparent 20%, #ffffff80 50%, transparent 80%);
+  background-image: repeating-linear-gradient(
+    100deg,
+    transparent 0,
+    transparent 16px,
+    #ffffff40 32px,
+    transparent 48px,
+    transparent 64px
+  );
+  background-size: 65px 100%;
   animation: class-time-flow 2.4s linear infinite;
 }
 @keyframes class-time-flow {
   from {
-    transform: translateX(-100%);
+    background-position: 0 0;
   }
   to {
-    transform: translateX(100%);
+    background-position: 65px 0;
   }
 }
 @media (prefers-reduced-motion: reduce) {
