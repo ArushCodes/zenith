@@ -4,7 +4,7 @@ import { IPM_BATCHES } from "@/lib/roster.data";
 
 export type Batch = Tables<"batches">;
 export type Membership = Tables<"batch_memberships">;
-export type Course = Tables<"courses">;
+export type Course = Tables<"courses"> & { attendance_credits?: number };
 export type ClassSession = Tables<"class_sessions">;
 export type AttendanceMark = Tables<"attendance_marks">;
 export type EmailIngest = Tables<"email_ingest">;
@@ -121,7 +121,18 @@ export function coursesQuery(batchId: string | null) {
         .eq("batch_id", batchId!)
         .order("short_name");
       if (error) throw error;
-      return data ?? [];
+      // Attendance credits come from the published term catalog, not the legacy
+      // courses.credits column, whose default can look like a verified value.
+      const { data: termCredits, error: creditsError } = await supabase
+        .from("term_courses")
+        .select("code,credits")
+        .eq("batch_id", batchId!);
+      if (creditsError) throw creditsError;
+      const credits = new Map((termCredits ?? []).map((c) => [c.code, Number(c.credits)]));
+      return (data ?? []).map((course) => ({
+        ...course,
+        attendance_credits: credits.get(course.code),
+      }));
     },
   };
 }
