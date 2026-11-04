@@ -62,7 +62,7 @@ export function creditCatalog(
   courses: Course[],
   components: { course_code: string; course_name: string; credits: number }[],
 ): CreditCourse[] {
-  return components.map((c) => ({
+  const gradingCatalog = components.map((c) => ({
     code: c.course_code,
     name: c.course_name,
     short_name: courses.find(
@@ -72,6 +72,21 @@ export function creditCatalog(
     )?.short_name,
     credits: Number(c.credits),
   }));
+  const codeKey = (code: string) => code.toLowerCase().replace(/[^a-z0-9]/g, "");
+  const gradingCodes = new Set(components.map((c) => codeKey(c.course_code)));
+  // Courses without published assessments still have a credit-based attendance allowance.
+  // Keep grading records authoritative where they exist, including conflicting values.
+  return [
+    ...gradingCatalog,
+    ...courses
+      .filter((c) => !gradingCodes.has(codeKey(c.code)) && Number(c.attendance_credits) > 0)
+      .map((c) => ({
+        code: c.code,
+        name: c.name,
+        short_name: c.short_name,
+        credits: Number(c.attendance_credits),
+      })),
+  ];
 }
 
 export function courseCredits(subject: string, courses?: CreditCourse[]): number {

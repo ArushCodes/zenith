@@ -21,9 +21,65 @@ for (const changed of [
 ])
   assert.equal(matchesEnrolment(enrolmentRecord, { ...enrolmentInput, ...changed }), false);
 import { courseAttendance, defaultClassDay } from "../src/lib/course-attendance";
-import { sessionSubject } from "../src/lib/attendance";
+import {
+  sessionSubject,
+  creditCatalog,
+  courseCredits,
+  sessionCredits,
+} from "../src/lib/attendance";
 import { dayTeachingSessions, selfAttendanceTargets } from "../src/lib/day-attendance";
-import type { ClassSession } from "../src/lib/batches";
+import type { ClassSession, Course } from "../src/lib/batches";
+const termTwoCourses = [
+  ["HRM 1204", "Understanding Self in Social Context", 3],
+  ["MGT 1202", "Scientific Thinking", 3],
+  ["OPS 1203", "Basic Mathematics- II", 3],
+  ["MGT 1203", "Principles of Management", 3],
+  ["HRM 1205", "English Language and Literature - II", 3],
+  ["MGT 1204", "Environmental Sustainability and Disaster Management", 2],
+  ["MGT 1205", "Corporate etiquette", 1],
+  ["ITS 1202", "Generative AI: Prompt Engineering Basics", 2],
+].map(([code, name, credits]) => ({
+  code,
+  name,
+  short_name: name,
+  credits,
+  attendance_credits: credits,
+})) as Course[];
+const termTwoCatalog = creditCatalog(termTwoCourses, []);
+assert.equal(
+  termTwoCatalog.reduce((sum, c) => sum + c.credits, 0),
+  20,
+);
+for (const course of termTwoCourses) {
+  assert.equal(courseCredits(course.code, termTwoCatalog), course.credits);
+  assert.equal(courseCredits(course.name, termTwoCatalog), course.credits);
+  assert.equal(
+    sessionCredits({ course_code: course.code } as ClassSession, termTwoCatalog),
+    course.credits,
+  );
+}
+assert.equal(courseCredits("Unpublished course", termTwoCatalog), 0);
+assert.equal(
+  courseCredits(
+    "MGT 1204",
+    creditCatalog([{ ...termTwoCourses[5], attendance_credits: undefined }], []),
+  ),
+  0,
+);
+for (const course of termTwoCourses)
+  assert.equal(
+    getBunkStatus(Number(course.attendance_credits), 0).allowed,
+    course.attendance_credits,
+  );
+const gradingOverride = creditCatalog(termTwoCourses, [
+  { course_code: "MGT 1204", course_name: termTwoCourses[5].name, credits: 1 },
+]);
+assert.equal(courseCredits("MGT 1204", gradingOverride), 1);
+const conflictingGrading = creditCatalog(termTwoCourses, [
+  { course_code: "MGT 1204", course_name: termTwoCourses[5].name, credits: 1 },
+  { course_code: "MGT 1204", course_name: termTwoCourses[5].name, credits: 2 },
+]);
+assert.equal(courseCredits("MGT 1204", conflictingGrading), 0);
 import {
   safeMisses,
   gradePenalty,

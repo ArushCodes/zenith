@@ -601,6 +601,42 @@ export type Database = {
           },
         ];
       };
+      term_courses: {
+        Row: {
+          id: string;
+          batch_id: string;
+          term_id: string;
+          code: string;
+          name: string;
+          credits: number;
+          faculty_name: string | null;
+          classroom: string | null;
+          source: string;
+        };
+        Insert: {
+          id?: string;
+          batch_id: string;
+          term_id: string;
+          code: string;
+          name: string;
+          credits: number;
+          faculty_name?: string | null;
+          classroom?: string | null;
+          source: string;
+        };
+        Update: {
+          id?: string;
+          batch_id?: string;
+          term_id?: string;
+          code?: string;
+          name?: string;
+          credits?: number;
+          faculty_name?: string | null;
+          classroom?: string | null;
+          source?: string;
+        };
+        Relationships: [];
+      };
       courses: {
         Row: {
           batch_id: string;
