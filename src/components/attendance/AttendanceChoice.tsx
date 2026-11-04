@@ -19,7 +19,7 @@ export function AttendanceChoice({
     <div
       role="group"
       aria-label={`Attendance for ${label}`}
-      className="inline-flex shrink-0 gap-1 rounded-xl border border-border bg-surface2/60 p-1"
+      className="inline-flex shrink-0 items-center gap-0.5 rounded-lg bg-surface2/50 p-0.5"
     >
       {authoritative && (
         <span
@@ -42,7 +42,7 @@ export function AttendanceChoice({
             onClick={() => {
               if (!selected) onChange(value);
             }}
-            className={`inline-flex items-center gap-1 rounded-lg px-2 py-1.5 text-xs font-semibold transition-colors ${muted ? (selected ? (value ? "bg-rose/5 text-rose/70 ring-1 ring-rose/15" : "bg-emerald-400/5 text-emerald-400/70 ring-1 ring-emerald-400/15") : "text-dim hover:bg-surface hover:text-ink") : selected ? (value ? "bg-rose/20 text-rose ring-1 ring-rose/40" : "bg-emerald-400/15 text-emerald-400 ring-1 ring-emerald-400/35") : value ? "text-rose/80 hover:bg-rose/10 hover:text-rose" : "text-emerald-400/80 hover:bg-emerald-400/10 hover:text-emerald-400"}`}
+            className={`inline-flex min-h-9 items-center gap-1 rounded-md px-2.5 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan disabled:cursor-default ${selected ? (value ? "bg-rose/10 text-rose" : "bg-surface text-ink") : "text-dim hover:bg-surface hover:text-ink"} ${muted ? "opacity-70" : ""}`}
           >
             <Icon className="size-3.5" aria-hidden="true" />
             {value ? "Absent" : "Present"}

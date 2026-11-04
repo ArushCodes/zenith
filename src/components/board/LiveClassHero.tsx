@@ -415,15 +415,21 @@ export function LiveClassHero({
             )}
           </div>
         )}
-        <DayAbsentButton
-          day={targetDayKey}
-          disabled={attendanceLoading || attendanceError || sessionsLoading}
-        />
+        {!minimal && (
+          <DayAbsentButton
+            day={targetDayKey}
+            disabled={attendanceLoading || attendanceError || sessionsLoading}
+          />
+        )}
         {minimal && !sessionsLoading && (
-          <div className="flex min-w-0 flex-wrap items-center gap-2">
-            <span className="text-sm font-semibold text-dim">
+          <div className="flex min-w-0 flex-wrap items-center gap-2 sm:ml-auto">
+            <span className="text-xs text-dim">
               {dayProgress.done} done · {dayProgress.remaining} to go
             </span>
+            <DayAbsentButton
+              day={targetDayKey}
+              disabled={attendanceLoading || attendanceError || sessionsLoading}
+            />
             {(isMember || canManage) && user && batchId === IPM1_BATCH_ID && (
               <FeedAttendance
                 catalog={catalog}
