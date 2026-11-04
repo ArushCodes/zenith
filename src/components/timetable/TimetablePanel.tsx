@@ -1,6 +1,6 @@
 import { resolveMarks } from "@/lib/attendance";
 import { Fragment, useEffect, useMemo, useRef, useState } from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useIsMutating, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { AnimatePresence, motion } from "framer-motion";
 import {
@@ -56,6 +56,7 @@ import { saveIcsUrl, syncTimetableNow } from "@/lib/timetable.functions";
 import { SessionMeta } from "@/components/common/SessionMeta";
 import { IPM_CLASS_SLOTS, classSlotIndex } from "@/lib/class-slots";
 import { IPM1_BATCH_ID } from "@/lib/roster.data";
+import { DayAbsentButton } from "@/components/attendance/DayAbsentButton";
 import { AttendanceChoice } from "@/components/attendance/AttendanceChoice";
 
 const HOLIDAY_COLOR = "#10B981";
@@ -88,7 +89,8 @@ type ViewFilter = "all" | "classes" | "events" | "holidays";
 export function TimetablePanel({ now = Date.now() }: { now?: number }) {
   const todayKey = dayKey(new Date(now));
   const todayRef = useRef<HTMLDivElement>(null);
-  const scrolled = useRef(false);
+  // Latest dates stay at the top until the student explicitly chooses Today.
+  const scrolled = useRef(true);
   const { batchId, batch, canManage, isMember } = useBatch();
   const { user } = useAuth();
   const queryClient = useQueryClient();
@@ -118,7 +120,9 @@ export function TimetablePanel({ now = Date.now() }: { now?: number }) {
 
   const resolvedMarks = useMemo(() => resolveMarks(marks, user?.id), [marks, user?.id]);
 
+  const attendanceBusy = useIsMutating({ mutationKey: ["self-attendance", batchId, user?.id] }) > 0;
   const markAbsent = useMutation({
+    mutationKey: ["self-attendance", batchId, user?.id],
     mutationFn: async ({ session, clear }: { session: ClassSession; clear: boolean }) => {
       if (resolvedMarks.get(session.id)?.mark_source === "rep")
         throw new Error("Attendance recorded by your representative");
@@ -257,7 +261,7 @@ export function TimetablePanel({ now = Date.now() }: { now?: number }) {
 
     return [...map.entries()]
       .filter(([day, v]) => day === todayKey || v.sessions.length > 0 || v.events.length > 0)
-      .sort(([a], [b]) => new Date(a).getTime() - new Date(b).getTime());
+      .sort(([a], [b]) => new Date(b).getTime() - new Date(a).getTime());
   }, [sessions, deadlines, monthStart, monthEnd, selectedSubject, viewFilter, todayKey, now]);
 
   useEffect(() => {
@@ -567,7 +571,7 @@ export function TimetablePanel({ now = Date.now() }: { now?: number }) {
                           label={sessionFullName(s)}
                           absent={resolvedMarks.get(s.id)?.status === "absent"}
                           authoritative={resolvedMarks.get(s.id)?.mark_source === "rep"}
-                          disabled={markAbsent.isPending || marksLoading}
+                          disabled={attendanceBusy || marksLoading}
                           onChange={(absent) =>
                             markAbsent.mutate({
                               session: s,
@@ -593,7 +597,7 @@ export function TimetablePanel({ now = Date.now() }: { now?: number }) {
                         : "rounded-2xl bg-surface/40 p-3.5 ring-1 ring-border/50"
                   }
                 >
-                  <div className="mb-2.5 flex items-center justify-between gap-3">
+                  <div className="mb-2.5 flex flex-wrap items-center justify-between gap-3">
                     <button
                       onClick={() => setDayFocus((d) => (d === day ? null : day))}
                       className={`flex items-center gap-2 font-mono text-xs uppercase tracking-[0.18em] transition-colors hover:text-ink ${
@@ -617,6 +621,7 @@ export function TimetablePanel({ now = Date.now() }: { now?: number }) {
                           : `· ${total} entr${total === 1 ? "y" : "ies"}`}
                       </span>
                     </button>
+                    <DayAbsentButton day={day} disabled={marksLoading || marksError} />
                   </div>
                   <div className="flex flex-col gap-2">
                     {useSlots && (

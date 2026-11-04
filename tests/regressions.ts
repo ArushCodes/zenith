@@ -22,6 +22,7 @@ for (const changed of [
   assert.equal(matchesEnrolment(enrolmentRecord, { ...enrolmentInput, ...changed }), false);
 import { courseAttendance, defaultClassDay } from "../src/lib/course-attendance";
 import { sessionSubject } from "../src/lib/attendance";
+import { dayTeachingSessions, selfAttendanceTargets } from "../src/lib/day-attendance";
 import type { ClassSession } from "../src/lib/batches";
 import {
   safeMisses,
@@ -67,6 +68,61 @@ const nextScheduledClass = {
   start_at: "2026-10-08T03:30:00Z",
   end_at: "2026-10-08T04:30:00Z",
 };
+const dayClasses = [
+  { ...completedClass, id: "morning", batch_id: "batch", start_at: "2026-11-03T18:30:00Z" },
+  { ...completedClass, id: "afternoon", batch_id: "batch", start_at: "2026-11-04T08:00:00Z" },
+  {
+    ...completedClass,
+    id: "cancelled",
+    batch_id: "batch",
+    start_at: "2026-11-04T08:00:00Z",
+    is_cancelled: true,
+  },
+  {
+    ...completedClass,
+    id: "holiday",
+    batch_id: "batch",
+    start_at: "2026-11-04T08:00:00Z",
+    is_holiday: true,
+  },
+  {
+    ...completedClass,
+    id: "exam",
+    title: "Mathematics Endterm",
+    batch_id: "batch",
+    start_at: "2026-11-04T08:00:00Z",
+  },
+  { ...completedClass, id: "other-batch", batch_id: "other", start_at: "2026-11-04T08:00:00Z" },
+  { ...completedClass, id: "previous-day", batch_id: "batch", start_at: "2026-11-03T18:29:59Z" },
+] as ClassSession[];
+assert.deepEqual(
+  dayTeachingSessions(dayClasses, "batch", "2026-11-04").map((s) => s.id),
+  ["morning", "afternoon"],
+);
+const dayMarks = [
+  { ...self, session_id: "morning", status: "absent" },
+  { ...self, session_id: "afternoon", mark_source: "rep", status: "present" },
+];
+assert.equal(
+  selfAttendanceTargets(
+    dayTeachingSessions(dayClasses, "batch", "2026-11-04"),
+    dayMarks as never,
+    "student",
+    true,
+  ).length,
+  0,
+);
+assert.deepEqual(
+  selfAttendanceTargets(dayClasses.slice(0, 2), dayMarks as never, "student", false).map(
+    (s) => s.id,
+  ),
+  ["morning"],
+);
+assert.equal(
+  selfAttendanceTargets(dayClasses.slice(0, 2), dayMarks as never, "another-student", true).length,
+  2,
+);
+assert.equal(selfAttendanceTargets(dayClasses.slice(0, 2), [], "student", true).length, 2);
 assert.equal(
   defaultClassDay([completedClass, nextScheduledClass], Date.parse("2026-10-05T04:30:00Z")),
   3,

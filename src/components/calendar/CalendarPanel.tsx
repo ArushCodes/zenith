@@ -1,3 +1,4 @@
+import { DayAbsentButton, CalendarAttendanceButton } from "@/components/attendance/DayAbsentButton";
 import { IPM_CLASS_SLOTS, classSlotIndex } from "@/lib/class-slots";
 import { useMemo, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
@@ -532,27 +533,32 @@ function ClassDots({
       </>
     );
     const label = `${slot} · ${timeFmt.format(new Date(s.start_at))} · ${sessionLabel(s)}`;
-    return canManage && onEditSession ? (
-      <button
-        key={s.id}
-        type="button"
-        aria-label={`Edit ${label}`}
-        title={label}
-        onClick={(e) => {
-          e.stopPropagation();
-          onEditSession(s);
-        }}
-        className="flex w-full min-w-0 items-center gap-1 rounded text-left font-mono text-[10px] hover:bg-surface2 focus-visible:ring-2 focus-visible:ring-cyan"
-      >
-        {content}
-      </button>
-    ) : (
-      <div
-        key={s.id}
-        title={label}
-        className="flex min-w-0 items-center gap-1 font-mono text-[10px]"
-      >
-        {content}
+    return (
+      <div key={s.id} className="flex min-w-0 flex-wrap items-center gap-1">
+        {canManage && onEditSession ? (
+          <button
+            key={s.id}
+            type="button"
+            aria-label={`Edit ${label}`}
+            title={label}
+            onClick={(e) => {
+              e.stopPropagation();
+              onEditSession(s);
+            }}
+            className="flex w-full min-w-0 items-center gap-1 rounded text-left font-mono text-[10px] hover:bg-surface2 focus-visible:ring-2 focus-visible:ring-cyan"
+          >
+            {content}
+          </button>
+        ) : (
+          <div
+            key={s.id}
+            title={label}
+            className="flex min-w-0 items-center gap-1 font-mono text-[10px]"
+          >
+            {content}
+          </div>
+        )}
+        <CalendarAttendanceButton session={s} />
       </div>
     );
   };
@@ -753,6 +759,7 @@ function MonthGrid({
                 onEditSession={onEditSession}
               />
 
+              <DayAbsentButton day={k} compact />
               {acad.length > 0 && (
                 <div className="mt-1 flex flex-col gap-0.5">
                   {acad.slice(0, 2).map((e) => (
@@ -839,18 +846,20 @@ function WeekTimeline({
           {days.map((d) => {
             const mark = marks.get(dayKey(d)) ?? null;
             return (
-              <button
-                key={d.toISOString()}
-                type="button"
-                onClick={() => onPickDay(dayKey(d))}
-                title={mark?.label ?? "Open this day"}
-                style={mark ? { color: mark.color } : undefined}
-                className={`rounded-md px-1 py-1.5 text-center font-mono text-xs uppercase tracking-[0.14em] ring-1 ring-transparent transition-colors hover:bg-surface2 hover:text-ink hover:ring-cyan/40 ${
-                  dayKey(d) === todayKey ? "text-cyan" : isDayOff(d) ? "text-amber" : "text-faint"
-                }`}
-              >
-                {WEEKDAYS[(d.getDay() + 6) % 7]} {d.getDate()}
-              </button>
+              <div key={d.toISOString()}>
+                <button
+                  type="button"
+                  onClick={() => onPickDay(dayKey(d))}
+                  title={mark?.label ?? "Open this day"}
+                  style={mark ? { color: mark.color } : undefined}
+                  className={`rounded-md px-1 py-1.5 text-center font-mono text-xs uppercase tracking-[0.14em] ring-1 ring-transparent transition-colors hover:bg-surface2 hover:text-ink hover:ring-cyan/40 ${
+                    dayKey(d) === todayKey ? "text-cyan" : isDayOff(d) ? "text-amber" : "text-faint"
+                  }`}
+                >
+                  {WEEKDAYS[(d.getDay() + 6) % 7]} {d.getDate()}
+                </button>
+                <DayAbsentButton day={dayKey(d)} compact />
+              </div>
             );
           })}
         </div>
@@ -927,41 +936,43 @@ function WeekTimeline({
                         const editable = Boolean(canManage && onEditSession);
                         const Label = editable ? "button" : "span";
                         return (
-                          <Label
-                            key={s.id}
-                            type={editable ? "button" : undefined}
-                            aria-label={
-                              editable ? `Edit ${s.course_name ?? sessionLabel(s)}` : undefined
-                            }
-                            onClick={
-                              canManage && onEditSession
-                                ? (ev) => {
-                                    ev.stopPropagation();
-                                    onEditSession(s);
-                                  }
-                                : undefined
-                            }
-                            title={[
-                              s.course_name ?? sessionLabel(s),
-                              s.faculty_name,
-                              s.classroom,
-                              canManage ? "(Click to edit)" : "",
-                            ]
-                              .filter(Boolean)
-                              .join(" · ")}
-                            className={`flex items-center gap-1 truncate rounded-md px-1.5 py-1 text-left font-mono text-[10px] ${
-                              canManage && onEditSession
-                                ? "cursor-pointer hover:brightness-125 transition-all"
-                                : ""
-                            }`}
-                            style={{ color, backgroundColor: `${color}1a` }}
-                          >
-                            <span
-                              className="size-1.5 shrink-0 rounded-full"
-                              style={{ backgroundColor: color }}
-                            />
-                            <span className="truncate">{sessionShortLabel(s)}</span>
-                          </Label>
+                          <div key={s.id} className="min-w-0 space-y-1">
+                            <Label
+                              type={editable ? "button" : undefined}
+                              aria-label={
+                                editable ? `Edit ${s.course_name ?? sessionLabel(s)}` : undefined
+                              }
+                              onClick={
+                                canManage && onEditSession
+                                  ? (ev) => {
+                                      ev.stopPropagation();
+                                      onEditSession(s);
+                                    }
+                                  : undefined
+                              }
+                              title={[
+                                s.course_name ?? sessionLabel(s),
+                                s.faculty_name,
+                                s.classroom,
+                                canManage ? "(Click to edit)" : "",
+                              ]
+                                .filter(Boolean)
+                                .join(" · ")}
+                              className={`flex items-center gap-1 truncate rounded-md px-1.5 py-1 text-left font-mono text-[10px] ${
+                                canManage && onEditSession
+                                  ? "cursor-pointer hover:brightness-125 transition-all"
+                                  : ""
+                              }`}
+                              style={{ color, backgroundColor: `${color}1a` }}
+                            >
+                              <span
+                                className="size-1.5 shrink-0 rounded-full"
+                                style={{ backgroundColor: color }}
+                              />
+                              <span className="truncate">{sessionShortLabel(s)}</span>
+                            </Label>
+                            <CalendarAttendanceButton session={s} />
+                          </div>
                         );
                       })}
                       {events.map((e) => (
@@ -1099,6 +1110,7 @@ function Agenda({
                   {mark.label ?? (mark.is_off ? "Day off" : "Marked")}
                 </span>
               )}
+              <DayAbsentButton day={key} />
               {canManage && (
                 <DayModBar
                   dayKey={key}
@@ -1198,7 +1210,7 @@ function Agenda({
                 return (
                   <div
                     key={s.id}
-                    className="flex items-start gap-3 rounded-xl bg-surface/70 px-3 py-2.5 ring-1 ring-border"
+                    className="flex flex-wrap items-start gap-3 rounded-xl bg-surface/70 px-3 py-2.5 ring-1 ring-border"
                   >
                     <span
                       className="mt-1.5 size-2 shrink-0 rounded-full"
@@ -1211,6 +1223,7 @@ function Agenda({
                       <span className="block truncate font-display text-sm">{sessionLabel(s)}</span>
                       <SessionMeta session={s} />
                     </span>
+                    <CalendarAttendanceButton session={s} />
                     {canManage && !isDerivedStudyDay(s) && (
                       <EditSessionButton onClick={() => onEditSession(s)} />
                     )}

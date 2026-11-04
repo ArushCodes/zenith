@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useIsMutating, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   AnimatePresence,
   motion,
@@ -50,6 +50,7 @@ import { MissAllowance } from "@/components/attendance/MissAllowance";
 import { IPM_CLASS_SLOTS, classSlotIndex } from "@/lib/class-slots";
 import { classProgress } from "@/lib/class-progress";
 import { nextDayBrief } from "@/lib/next-day-brief";
+import { DayAbsentButton } from "@/components/attendance/DayAbsentButton";
 import { AttendanceChoice } from "@/components/attendance/AttendanceChoice";
 import { FeedAttendance } from "@/components/attendance/FeedAttendance";
 
@@ -124,7 +125,9 @@ export function LiveClassHero({
   );
 
   // Attendance toggle mutation
+  const attendanceBusy = useIsMutating({ mutationKey: ["self-attendance", batchId, user?.id] }) > 0;
   const toggleAbsent = useMutation({
+    mutationKey: ["self-attendance", batchId, user?.id],
     mutationFn: async (session: ClassSession) => {
       if (!user) throw new Error("Not logged in");
       if (resolvedMine.get(session.id)?.mark_source === "rep")
@@ -412,6 +415,10 @@ export function LiveClassHero({
             )}
           </div>
         )}
+        <DayAbsentButton
+          day={targetDayKey}
+          disabled={attendanceLoading || attendanceError || sessionsLoading}
+        />
         {minimal && !sessionsLoading && (
           <div className="flex min-w-0 flex-wrap items-center gap-2">
             <span className="text-sm font-semibold text-dim">
@@ -586,11 +593,7 @@ export function LiveClassHero({
                     authoritative={resolvedMine.get(liveClass.id)?.mark_source === "rep"}
                     label={sessionPeriodLabel(liveClass)}
                     disabled={
-                      toggleAbsent.isPending ||
-                      attendanceLoading ||
-                      attendanceError ||
-                      !user ||
-                      !isMember
+                      attendanceBusy || attendanceLoading || attendanceError || !user || !isMember
                     }
                     onChange={() => toggleAbsent.mutate(liveClass)}
                   />
@@ -873,7 +876,7 @@ export function LiveClassHero({
                         muted={isPast}
                         absent={mark === "absent"}
                         label={periodSubject}
-                        disabled={toggleAbsent.isPending || attendanceLoading || attendanceError}
+                        disabled={attendanceBusy || attendanceLoading || attendanceError}
                         onChange={() => toggleAbsent.mutate(s)}
                       />
                     )}
