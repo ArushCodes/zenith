@@ -13,6 +13,21 @@ import {
 import { resolveMarks } from "@/lib/attendance";
 import { dayTeachingSessions, selfAttendanceTargets } from "@/lib/day-attendance";
 import { sessionFullName } from "@/lib/courses";
+import { Check, ChevronDown, ClipboardCheck, Lock } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+} from "@/components/ui/dropdown-menu";
+
+const classTime = new Intl.DateTimeFormat("en-IN", {
+  timeZone: "Asia/Kolkata",
+  hour: "numeric",
+  minute: "2-digit",
+});
 
 function useSelfAttendance() {
   const { user } = useAuth();
@@ -106,59 +121,85 @@ export function DayAbsentButton({
   const editable = sessions.filter((s) => attendance.resolved.get(s.id)?.mark_source !== "rep");
   const remaining = editable.filter((s) => attendance.resolved.get(s.id)?.status !== "absent");
   const locked = sessions.length - editable.length;
-  const done = editable.length > 0 && remaining.length === 0;
+  const dayLabel = new Intl.DateTimeFormat("en-IN", {
+    timeZone: "Asia/Kolkata",
+    day: "numeric",
+    month: "short",
+  }).format(new Date(`${day}T12:00:00+05:30`));
   return (
-    <button
-      type="button"
-      disabled={disabled || attendance.disabled || !remaining.length}
-      aria-label={`Mark entire day absent: ${day}`}
-      title={`${remaining.length} classes to mark absent${locked ? `; ${locked} representative records kept` : ""}. Includes all subjects on this date.`}
-      onKeyDown={(e) => e.stopPropagation()}
-      onClick={(e) => {
-        e.stopPropagation();
-        attendance.save({ sessions, absent: true });
-      }}
-      className={`${compact ? "mt-1 w-full px-1 py-1 text-[9px]" : "min-h-9 px-3 py-1.5 text-xs"} rounded-lg border border-rose/30 bg-rose/10 font-medium text-rose transition-colors hover:bg-rose/20 disabled:cursor-default disabled:opacity-50`}
-    >
-      {done
-        ? locked
-          ? "Personal marks saved"
-          : "Day marked absent"
-        : compact
-          ? "Day absent"
-          : "Mark entire day absent"}
-    </button>
-  );
-}
-
-export function CalendarAttendanceButton({ session }: { session: ClassSession }) {
-  const attendance = useSelfAttendance();
-  if (!attendance.user || !attendance.allowed) return null;
-  const mark = attendance.resolved.get(session.id),
-    absent = mark?.status === "absent",
-    locked = mark?.mark_source === "rep";
-  return (
-    <button
-      type="button"
-      aria-pressed={absent}
-      aria-label={`${absent ? "Mark present" : "Mark absent"}: ${sessionFullName(session)}`}
-      title={
-        locked
-          ? "Representative record takes priority"
-          : absent
-            ? "Marked absent. Click to mark present."
-            : "Mark this class absent"
-      }
-      disabled={attendance.disabled || locked}
-      onKeyDown={(e) => e.stopPropagation()}
-      onClick={(e) => {
-        e.stopPropagation();
-        attendance.save({ sessions: [session], absent: !absent });
-      }}
-      className={`min-h-7 shrink-0 rounded-md px-1.5 py-1 text-[10px] font-medium ring-1 transition-colors disabled:opacity-50 ${absent ? "bg-rose/20 text-rose ring-rose/40" : "text-dim ring-border hover:bg-rose/10 hover:text-rose"}`}
-    >
-      {locked ? "Rep · " : ""}
-      {absent ? "Absent ✓" : "Absent"}
-    </button>
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <button
+          type="button"
+          aria-label={`Attendance for ${dayLabel}`}
+          title={`Attendance for ${dayLabel}`}
+          onKeyDown={(e) => e.stopPropagation()}
+          onClick={(e) => e.stopPropagation()}
+          className={`inline-flex shrink-0 items-center justify-center gap-1 rounded-lg font-medium text-dim transition-colors hover:bg-surface2 hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan ${compact ? "mt-1 min-h-9 max-w-full px-1 text-[11px]" : "min-h-10 px-2.5 text-xs"}`}
+        >
+          {compact && <ClipboardCheck className="size-4 sm:hidden" aria-hidden="true" />}
+          <span className={compact ? "hidden sm:inline" : undefined}>Attendance</span>
+          <ChevronDown
+            className={compact ? "hidden size-3 shrink-0 sm:block" : "size-3 shrink-0"}
+            aria-hidden="true"
+          />
+        </button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent
+        align="end"
+        sideOffset={6}
+        className="max-h-[min(28rem,70dvh)] w-80 max-w-[calc(100vw-2rem)] overflow-y-auto rounded-xl border-border bg-surface p-1.5 text-ink"
+        onClick={(e) => e.stopPropagation()}
+        onKeyDown={(e) => e.stopPropagation()}
+      >
+        <DropdownMenuLabel className="px-2 py-2 text-xs font-medium text-dim">
+          {dayLabel} · {sessions.length} {sessions.length === 1 ? "class" : "classes"}
+        </DropdownMenuLabel>
+        {sessions.map((session) => {
+          const mark = attendance.resolved.get(session.id);
+          const absent = mark?.status === "absent";
+          const representative = mark?.mark_source === "rep";
+          return (
+            <DropdownMenuItem
+              key={session.id}
+              disabled={disabled || attendance.disabled || representative}
+              aria-label={`${absent ? "Mark present" : "Mark absent"}: ${sessionFullName(session)}, ${classTime.format(new Date(session.start_at))}`}
+              onSelect={() => attendance.save({ sessions: [session], absent: !absent })}
+              className="min-h-12 cursor-pointer justify-between gap-3 rounded-lg px-2 py-2 focus:bg-surface2 focus:text-ink"
+            >
+              <span className="min-w-0">
+                <span className="block text-xs leading-relaxed">{sessionFullName(session)}</span>
+                <span className="block text-[11px] text-dim">
+                  {classTime.format(new Date(session.start_at))}
+                </span>
+              </span>
+              <span
+                className={`flex shrink-0 items-center gap-1 text-xs ${absent ? "text-rose" : "text-dim"}`}
+              >
+                {representative && <Lock className="size-3" aria-label="Representative record" />}
+                {absent ? "Absent" : "Present"}
+              </span>
+            </DropdownMenuItem>
+          );
+        })}
+        <DropdownMenuSeparator className="my-1 bg-border" />
+        <DropdownMenuItem
+          disabled={disabled || attendance.disabled || !remaining.length}
+          aria-label={`Mark entire day absent: ${day}`}
+          onSelect={() => attendance.save({ sessions, absent: true })}
+          className="min-h-11 cursor-pointer rounded-lg px-2 text-xs focus:bg-surface2 focus:text-ink"
+        >
+          {!remaining.length && <Check className="size-3.5" aria-hidden="true" />}
+          {remaining.length
+            ? "Mark entire day absent"
+            : locked
+              ? "Personal absences saved"
+              : "Entire day marked absent"}
+        </DropdownMenuItem>
+        {locked > 0 && (
+          <p className="px-2 py-1.5 text-[11px] text-dim">Representative records are locked.</p>
+        )}
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 }

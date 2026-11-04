@@ -1,4 +1,4 @@
-import { DayAbsentButton, CalendarAttendanceButton } from "@/components/attendance/DayAbsentButton";
+import { DayAbsentButton } from "@/components/attendance/DayAbsentButton";
 import { IPM_CLASS_SLOTS, classSlotIndex } from "@/lib/class-slots";
 import { useMemo, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
@@ -204,18 +204,33 @@ export function CalendarPanel({
 
   return (
     <section className="mt-4">
-      <SubjectLegend
-        subjects={subjectChips}
-        active={activeSubjects}
-        onToggle={(key) =>
-          setActiveSubjects((prev) =>
-            prev.includes(key) ? prev.filter((k) => k !== key) : [...prev, key],
-          )
-        }
-        onClear={() => setActiveSubjects([])}
-        showClasses={showClasses}
-        onToggleClasses={() => setShowClasses((v) => !v)}
-      />
+      <details className="mb-4 rounded-xl border border-border/60">
+        <summary className="flex min-h-11 cursor-pointer items-center justify-between gap-3 rounded-xl px-3 text-xs text-dim focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan">
+          <span>Subjects</span>
+          <span>
+            {!showClasses
+              ? "Classes hidden"
+              : activeSubjects.length
+                ? `${activeSubjects.length} selected`
+                : "All subjects"}{" "}
+            · Filter
+          </span>
+        </summary>
+        <div className="px-2 pb-2">
+          <SubjectLegend
+            subjects={subjectChips}
+            active={activeSubjects}
+            onToggle={(key) =>
+              setActiveSubjects((prev) =>
+                prev.includes(key) ? prev.filter((k) => k !== key) : [...prev, key],
+              )
+            }
+            onClear={() => setActiveSubjects([])}
+            showClasses={showClasses}
+            onToggleClasses={() => setShowClasses((v) => !v)}
+          />
+        </div>
+      </details>
 
       <div className="mb-4 flex flex-wrap items-center gap-3">
         <div className="flex items-center gap-1">
@@ -558,7 +573,6 @@ function ClassDots({
             {content}
           </div>
         )}
-        <CalendarAttendanceButton session={s} />
       </div>
     );
   };
@@ -971,7 +985,6 @@ function WeekTimeline({
                               />
                               <span className="truncate">{sessionShortLabel(s)}</span>
                             </Label>
-                            <CalendarAttendanceButton session={s} />
                           </div>
                         );
                       })}
@@ -1223,7 +1236,6 @@ function Agenda({
                       <span className="block truncate font-display text-sm">{sessionLabel(s)}</span>
                       <SessionMeta session={s} />
                     </span>
-                    <CalendarAttendanceButton session={s} />
                     {canManage && !isDerivedStudyDay(s) && (
                       <EditSessionButton onClick={() => onEditSession(s)} />
                     )}
